@@ -1,283 +1,214 @@
-const WORKER_NAME = "Master-trigger-control";
-const TIME_ZONE = "Europe/London";
-const USER_AGENT = "Jonathan-Harris-Cron-Worker/1.0 (+https://jonathan-harris.online)";
-const JOBS = [
-  {
-    "name": "rss-rewrite",
-    "localDay": "monday",
-    "localTime": "09:00",
-    "method": "POST",
-    "hookdeckUrl": "https://hooks.jonathan-harris.online/x20n0wzcy7t5s0",
-    "targetUrl": "https://app.jonathan-harris.online/rss/rewrite",
-    "description": "Run the RSS rewrite pipeline.",
-    "body": {
-      "batchSize": 5
-    }
-  },
-  {
-    "name": "rss-rewrite",
-    "localDay": "tuesday",
-    "localTime": "09:00",
-    "method": "POST",
-    "hookdeckUrl": "https://hooks.jonathan-harris.online/x20n0wzcy7t5s0",
-    "targetUrl": "https://app.jonathan-harris.online/rss/rewrite",
-    "description": "Run the RSS rewrite pipeline.",
-    "body": {
-      "batchSize": 5
-    }
-  },
-  {
-    "name": "rss-rewrite",
-    "localDay": "wednesday",
-    "localTime": "09:00",
-    "method": "POST",
-    "hookdeckUrl": "https://hooks.jonathan-harris.online/x20n0wzcy7t5s0",
-    "targetUrl": "https://app.jonathan-harris.online/rss/rewrite",
-    "description": "Run the RSS rewrite pipeline.",
-    "body": {
-      "batchSize": 5
-    }
-  },
-  {
-    "name": "rss-rewrite",
-    "localDay": "thursday",
-    "localTime": "09:00",
-    "method": "POST",
-    "hookdeckUrl": "https://hooks.jonathan-harris.online/x20n0wzcy7t5s0",
-    "targetUrl": "https://app.jonathan-harris.online/rss/rewrite",
-    "description": "Run the RSS rewrite pipeline.",
-    "body": {
-      "batchSize": 5
-    }
-  },
-  {
-    "name": "rss-rewrite",
-    "localDay": "friday",
-    "localTime": "09:00",
-    "method": "POST",
-    "hookdeckUrl": "https://hooks.jonathan-harris.online/x20n0wzcy7t5s0",
-    "targetUrl": "https://app.jonathan-harris.online/rss/rewrite",
-    "description": "Run the RSS rewrite pipeline.",
-    "body": {
-      "batchSize": 5
-    }
-  },
-  {
-    "name": "rss-rewrite",
-    "localDay": "saturday",
-    "localTime": "09:00",
-    "method": "POST",
-    "hookdeckUrl": "https://hooks.jonathan-harris.online/x20n0wzcy7t5s0",
-    "targetUrl": "https://app.jonathan-harris.online/rss/rewrite",
-    "description": "Run the RSS rewrite pipeline.",
-    "body": {
-      "batchSize": 5
-    }
-  },
-  {
-    "name": "rss-rewrite",
-    "localDay": "sunday",
-    "localTime": "09:00",
-    "method": "POST",
-    "hookdeckUrl": "https://hooks.jonathan-harris.online/x20n0wzcy7t5s0",
-    "targetUrl": "https://app.jonathan-harris.online/rss/rewrite",
-    "description": "Run the RSS rewrite pipeline.",
-    "body": {
-      "batchSize": 5
-    }
-  },
-  {
-    "name": "outreach-batch-next",
-    "localDay": "monday",
-    "localTime": "09:30",
-    "method": "POST",
-    "hookdeckUrl": "https://hooks.jonathan-harris.online/ni7jxprq9hdc4r",
-    "targetUrl": "https://app.jonathan-harris.online/outreach/batch/next",
-    "description": "Process the next outreach batch."
-  },
-  {
-    "name": "outreach-batch-next",
-    "localDay": "tuesday",
-    "localTime": "09:30",
-    "method": "POST",
-    "hookdeckUrl": "https://hooks.jonathan-harris.online/ni7jxprq9hdc4r",
-    "targetUrl": "https://app.jonathan-harris.online/outreach/batch/next",
-    "description": "Process the next outreach batch."
-  },
-  {
-    "name": "outreach-batch-next",
-    "localDay": "wednesday",
-    "localTime": "09:30",
-    "method": "POST",
-    "hookdeckUrl": "https://hooks.jonathan-harris.online/ni7jxprq9hdc4r",
-    "targetUrl": "https://app.jonathan-harris.online/outreach/batch/next",
-    "description": "Process the next outreach batch."
-  },
-  {
-    "name": "outreach-batch-next",
-    "localDay": "thursday",
-    "localTime": "09:30",
-    "method": "POST",
-    "hookdeckUrl": "https://hooks.jonathan-harris.online/ni7jxprq9hdc4r",
-    "targetUrl": "https://app.jonathan-harris.online/outreach/batch/next",
-    "description": "Process the next outreach batch."
-  },
-  {
-    "name": "outreach-batch-next",
-    "localDay": "friday",
-    "localTime": "09:30",
-    "method": "POST",
-    "hookdeckUrl": "https://hooks.jonathan-harris.online/ni7jxprq9hdc4r",
-    "targetUrl": "https://app.jonathan-harris.online/outreach/batch/next",
-    "description": "Process the next outreach batch."
-  },
-  {
-    "name": "podcast-run",
-    "localDay": "friday",
-    "localTime": "10:00",
-    "method": "POST",
-    "hookdeckUrl": "https://hooks.jonathan-harris.online/x7td31z6y149hn",
-    "targetUrl": "https://app.jonathan-harris.online/podcast/run",
-    "description": "Trigger the podcast pipeline."
-  },
-  {
-    "name": "blog-weekly-build",
-    "localDay": "monday",
-    "localTime": "16:00",
-    "method": "POST",
-    "hookdeckUrl": "https://hooks.jonathan-harris.online/1ir1t71n70n5dc",
-    "targetUrl": "https://app.jonathan-harris.online/blog/weekly/build",
-    "description": "Build the weekly blog package."
-  }
-];
+import http from "node:http";
+import { jobs, SERVICE_NAME } from "./jobs.js";
+import {
+  booleanEnv,
+  findJob,
+  getStatus,
+  loadState,
+  numberEnv,
+  publicJob,
+  runDueJobs,
+  runJob,
+} from "./scheduler.js";
 
-function buildJsonResponse(payload, status = 200) {
-  return new Response(JSON.stringify(payload, null, 2), {
-    status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-    },
-  });
-}
+const PORT = Number(process.env.PORT || 8000);
+const SCHEDULER_ENABLED = booleanEnv("SCHEDULER_ENABLED", true);
+const TICK_SECONDS = numberEnv("SCHEDULER_TICK_SECONDS", 20);
+const ADMIN_TOKEN = process.env.CRON_ADMIN_TOKEN || "";
+const ALLOW_PUBLIC_MANUAL_RUNS = booleanEnv("ALLOW_PUBLIC_MANUAL_RUNS", false);
 
-function localParts(at) {
-  const formatter = new Intl.DateTimeFormat("en-GB", {
-    timeZone: TIME_ZONE,
-    weekday: "long",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
+let tickInProgress = false;
+let lastTickResult = null;
+let tickTimer = null;
 
-  const parts = Object.fromEntries(
-    formatter
-      .formatToParts(at)
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value])
-  );
-
-  return {
-    weekday: String(parts.weekday || "").toLowerCase(),
-    date: `${parts.year}-${parts.month}-${parts.day}`,
-    time: `${parts.hour}:${parts.minute}`,
-  };
-}
-
-async function executeJob(job, context) {
-  const headers = new Headers({
-    "user-agent": USER_AGENT,
-    "x-trigger-worker": WORKER_NAME,
-    "x-trigger-job": job.name,
+function jsonResponse(res, statusCode, payload) {
+  const body = JSON.stringify(payload, null, 2);
+  res.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    "content-length": Buffer.byteLength(body),
   });
-
-  const body = job.method === "POST"
-    ? JSON.stringify(job.body && Object.keys(job.body).length ? job.body : {})
-    : undefined;
-
-  const response = await fetch(job.hookdeckUrl, {
-    method: job.method,
-    headers,
-    body,
-    redirect: "follow",
-  });
-
-  const responseText = await response.text();
-
-  const result = {
-    job: job.name,
-    description: job.description,
-    method: job.method,
-    hookdeckUrl: job.hookdeckUrl,
-    targetUrl: job.targetUrl,
-    localDay: job.localDay,
-    localTime: job.localTime,
-    localDate: context.local.date,
-    scheduledUtc: context.utc.toISOString(),
-    ok: response.ok,
-    status: response.status,
-    statusText: response.statusText,
-    responsePreview: responseText.slice(0, 500),
-  };
-
-  console.log(JSON.stringify(result));
-
-  if (!response.ok) {
-    throw new Error(`${job.name} failed with ${response.status} ${response.statusText}`);
-  }
-
-  return result;
+  res.end(body);
 }
 
-export default {
-  async scheduled(controller) {
-    const utcNow = new Date(controller.scheduledTime);
-    const local = localParts(utcNow);
-    const dueJobs = JOBS.filter((job) => job.localDay === local.weekday && job.localTime === local.time);
+function textResponse(res, statusCode, text) {
+  res.writeHead(statusCode, {
+    "content-type": "text/plain; charset=utf-8",
+    "cache-control": "no-store",
+  });
+  res.end(text);
+}
 
-    if (!dueJobs.length) {
-      console.log(JSON.stringify({
-        worker: WORKER_NAME,
-        noop: true,
-        scheduledUtc: utcNow.toISOString(),
-        localDay: local.weekday,
-        localDate: local.date,
-        localTime: local.time,
-      }));
-      return;
-    }
-
-    const results = [];
-    for (const job of dueJobs) {
-      const result = await executeJob(job, { utc: utcNow, local });
-      results.push(result);
-    }
-
-    console.log(JSON.stringify({
-      worker: WORKER_NAME,
-      ok: true,
-      ran: results.length,
-      scheduledUtc: utcNow.toISOString(),
-      localDay: local.weekday,
-      localDate: local.date,
-      localTime: local.time,
-      jobs: results.map((item) => ({ job: item.job, status: item.status })),
-    }));
-  },
-
-  async fetch(request) {
-    const url = new URL(request.url);
-    return buildJsonResponse({
-      ok: true,
-      worker: WORKER_NAME,
-      timezone: TIME_ZONE,
-      nowUtc: new Date().toISOString(),
-      requestPath: url.pathname,
-      jobs: JOBS,
+function parseBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    req.on("data", (chunk) => {
+      raw += chunk;
+      if (raw.length > 1024 * 1024) {
+        reject(new Error("Request body too large"));
+        req.destroy();
+      }
     });
-  },
-};
+    req.on("end", () => {
+      if (!raw.trim()) return resolve({});
+      try {
+        resolve(JSON.parse(raw));
+      } catch (error) {
+        reject(new Error(`Invalid JSON body: ${error.message}`));
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+function isAuthorised(req) {
+  if (ALLOW_PUBLIC_MANUAL_RUNS) return true;
+  if (!ADMIN_TOKEN) return false;
+
+  const auth = req.headers.authorization || "";
+  if (auth === `Bearer ${ADMIN_TOKEN}`) return true;
+
+  const token = req.headers["x-cron-admin-token"];
+  return token === ADMIN_TOKEN;
+}
+
+function protectedRoute(req, res) {
+  if (isAuthorised(req)) return true;
+  jsonResponse(res, 401, {
+    ok: false,
+    error: "manual-run-requires-cron-admin-token",
+    hint: "Set CRON_ADMIN_TOKEN in Koyeb and send Authorization: Bearer <token>.",
+  });
+  return false;
+}
+
+async function schedulerTick(trigger = "scheduled-tick") {
+  if (tickInProgress) {
+    console.log(JSON.stringify({ service: SERVICE_NAME, event: "tick-skipped", reason: "previous-tick-still-running" }));
+    return { ok: true, skipped: true, reason: "previous-tick-still-running" };
+  }
+
+  tickInProgress = true;
+  try {
+    lastTickResult = await runDueJobs({ trigger });
+    return lastTickResult;
+  } finally {
+    tickInProgress = false;
+  }
+}
+
+function startScheduler() {
+  if (!SCHEDULER_ENABLED) {
+    console.log(JSON.stringify({ service: SERVICE_NAME, event: "scheduler-disabled" }));
+    return;
+  }
+
+  const intervalMs = Math.max(10, TICK_SECONDS) * 1000;
+
+  console.log(JSON.stringify({
+    service: SERVICE_NAME,
+    event: "scheduler-started",
+    tickSeconds: TICK_SECONDS,
+    jobCount: jobs.length,
+  }));
+
+  setTimeout(() => schedulerTick("startup-tick"), 3_000).unref?.();
+  tickTimer = setInterval(() => schedulerTick("scheduled-tick"), intervalMs);
+}
+
+async function route(req, res) {
+  const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+
+  if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/health")) {
+    return jsonResponse(res, 200, {
+      ok: true,
+      service: SERVICE_NAME,
+      schedulerEnabled: SCHEDULER_ENABLED,
+      tickSeconds: TICK_SECONDS,
+      jobCount: jobs.length,
+      lastTickResult,
+    });
+  }
+
+  if (req.method === "GET" && url.pathname === "/jobs") {
+    const now = new Date();
+    return jsonResponse(res, 200, {
+      ok: true,
+      service: SERVICE_NAME,
+      jobCount: jobs.length,
+      jobs: jobs.map((job) => publicJob(job, now)),
+    });
+  }
+
+  if (req.method === "GET" && url.pathname === "/status") {
+    return jsonResponse(res, 200, await getStatus());
+  }
+
+  if (req.method === "POST" && url.pathname === "/tick") {
+    if (!protectedRoute(req, res)) return;
+    const result = await schedulerTick("manual-tick");
+    return jsonResponse(res, result.ok ? 200 : 500, result);
+  }
+
+  if (req.method === "POST" && url.pathname.startsWith("/run/")) {
+    if (!protectedRoute(req, res)) return;
+
+    const id = decodeURIComponent(url.pathname.replace("/run/", ""));
+    const job = findJob(id);
+    if (!job) {
+      return jsonResponse(res, 404, {
+        ok: false,
+        error: "job-not-found",
+        requestedJob: id,
+        availableJobs: jobs.map((item) => item.id),
+      });
+    }
+
+    let body = {};
+    try {
+      body = await parseBody(req);
+    } catch (error) {
+      return jsonResponse(res, 400, { ok: false, error: error.message });
+    }
+
+    const force = body.force !== false;
+    const result = await runJob(job, { trigger: "manual-run", force });
+    return jsonResponse(res, result.ok ? 200 : 500, result);
+  }
+
+  return textResponse(res, 404, "Not found");
+}
+
+await loadState();
+
+const server = http.createServer((req, res) => {
+  route(req, res).catch((error) => {
+    console.error(JSON.stringify({
+      service: SERVICE_NAME,
+      event: "request-error",
+      errorName: error?.name || "Error",
+      errorMessage: error?.message || String(error),
+    }));
+    jsonResponse(res, 500, { ok: false, error: error?.message || String(error) });
+  });
+});
+
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(JSON.stringify({
+    service: SERVICE_NAME,
+    event: "server-listening",
+    port: PORT,
+    schedulerEnabled: SCHEDULER_ENABLED,
+  }));
+  startScheduler();
+});
+
+function shutdown(signal) {
+  console.log(JSON.stringify({ service: SERVICE_NAME, event: "shutdown", signal }));
+  if (tickTimer) clearInterval(tickTimer);
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(1), 10_000).unref();
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
