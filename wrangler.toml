@@ -1,0 +1,17 @@
+name = "master-trigger-control"
+main = "src/index.js"
+compatibility_date = "2025-12-16"
+
+[triggers]
+crons = [
+  "0 8,20 * * *",   # RSS (08:00 + 20:00, every 12h)
+  "0 16 * * FRI",   # podcast (Fri 16:00 Europe/London)
+  "0 10 * * MON",   # outreach (Mon 10:00 Europe/London)
+  "0 16 * * MON"    # blog weekly (Mon 16:00 Europe/London)
+]
+
+[vars]
+RSS_ENDPOINT      = "https://hooks.jonathan-harris.online/x20n0wzcy7t5s0"
+PODCAST_ENDPOINT  = "https://hooks.jonathan-harris.online/x7td31z6y149hn"
+OUTREACH_ENDPOINT = "https://hooks.jonathan-harris.online/ni7jxprq9hdc4r"
+BLOG_ENDPOINT     = "https://hooks.jonathan-harris.online/1ir1t71n70n5dc"
