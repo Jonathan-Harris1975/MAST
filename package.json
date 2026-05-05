@@ -1,0 +1,17 @@
+{
+  "name": "koyeb-cron-control",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Consolidated Koyeb scheduler for Jonathan Harris automation triggers.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "check": "node --check src/*.js test/*.test.js",
+    "test": "node test/scheduler.test.js"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
