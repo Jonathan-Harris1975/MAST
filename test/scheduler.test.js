@@ -17,7 +17,7 @@ function stateWithHealthAlreadyRun(iso) {
   };
 }
 
-assert.equal(jobs.length, 17, "all current Cloudflare cron jobs should be represented");
+assert.equal(jobs.length, 18, "all current Cloudflare cron jobs plus the daily social blog job should be represented");
 
 assert.deepEqual(
   ids(dueJobsAt(at("2026-05-04T08:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T08:00:00.000Z"))),
@@ -27,8 +27,14 @@ assert.deepEqual(
 
 assert.deepEqual(
   ids(dueJobsAt(at("2026-05-04T08:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T08:30:00.000Z"))),
-  ["outreach-batch-next"],
-  "outreach should run at 09:30 Europe/London on weekdays"
+  ["blog-daily-social-build", "outreach-batch-next"],
+  "09:30 Europe/London on weekdays should run outreach and the daily social blog build"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-10T08:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-10T08:30:00.000Z"))),
+  ["blog-daily-social-build"],
+  "daily social blog build should run at 09:30 Europe/London on weekends too"
 );
 
 assert.deepEqual(
