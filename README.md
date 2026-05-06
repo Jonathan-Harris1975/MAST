@@ -37,6 +37,7 @@ All times are based on `Europe/London` unless explicitly stated.
 | Outreach batch | Monday to Friday at 09:30 |
 | Podcast pipeline | Friday at 10:00 |
 | Weekly blog build | Monday at 16:00 |
+| Daily social blog build | Daily at 09:30 |
 | OneUp daily posts | Previous evening at 23:15 |
 | Weekly quiz | Sunday at 23:20 |
 | Monthly audits | 1st of each month at 02:00 UTC |
@@ -139,6 +140,7 @@ rss-rewrite
 outreach-batch-next
 podcast-run
 blog-weekly-build
+blog-daily-social-build
 oneup-monday
 oneup-tuesday
 oneup-wednesday
