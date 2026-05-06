@@ -85,6 +85,17 @@ const blogWeeklyBuild = postJob({
   targetPath: "/blog/weekly/build",
 });
 
+const blogDailySocialBuild = postJob({
+  id: "blog-daily-social-build",
+  group: "blog",
+  description: "Build and publish the daily social media blog RSS package.",
+  schedule: { type: "weekly", days: WEEKDAYS, time: "09:30", timezone: LOCAL_TIME_ZONE },
+  hookEnv: "HOOK_BLOG_DAILY_SOCIAL_BUILD",
+  fallbackUrl: "https://hooks.jonathan-harris.online/2nsz3yuc5xh7kb",
+  targetUrl: "Configured in Hookdeck: POST /blog/social/daily/build",
+  targetPath: "/blog/social/daily/build",
+});
+
 const oneUpDailyJobs = [
   postJob({
     id: "oneup-monday",
@@ -251,6 +262,7 @@ export const jobs = [
   outreachBatchNext,
   podcastRun,
   blogWeeklyBuild,
+  blogDailySocialBuild,
   ...oneUpDailyJobs,
   oneUpWeeklyQuiz,
   ...monthlyAuditJobs,
