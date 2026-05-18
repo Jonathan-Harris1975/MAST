@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { jobs } from "../src/jobs.js";
-import { buildPayload, dueJobsAt, isTimedJobDue, localParts } from "../src/scheduler.js";
+import { buildPayload, buildRequestHeaders, dueJobsAt, isTimedJobDue, localParts } from "../src/scheduler.js";
 
 function ids(items) {
   return items.map((item) => item.id).sort();
@@ -17,7 +17,49 @@ function stateWithHealthAlreadyRun(iso) {
   };
 }
 
-assert.equal(jobs.length, 18, "all current Cloudflare cron jobs plus the daily social blog job should be represented");
+assert.equal(jobs.length, 26, "AIMS scheduled jobs plus RAMS protected scheduled/operator jobs should be represented");
+
+const publicHealthJobs = new Set(["suite-health-ping", "rams-health"]);
+for (const healthId of publicHealthJobs) {
+  const healthJob = jobs.find((job) => job.id === healthId);
+  assert.equal(healthJob.authEnv, null, `${healthId} must remain unauthenticated for liveness checks`);
+}
+
+for (const job of jobs.filter((item) => !publicHealthJobs.has(item.id))) {
+  const expectedAuthEnv = job.group.startsWith("rams") ? "RMS_API_KEY" : "AIMS_API_KEY";
+  assert.equal(job.authEnv, expectedAuthEnv, `${job.id} should send ${expectedAuthEnv} from MAST`);
+}
+
+process.env.AIMS_API_KEY = "unit-test-aims-key";
+const authHeaders = buildRequestHeaders(jobs.find((job) => job.id === "rss-rewrite"), "unit-run-key");
+assert.equal(authHeaders.authorization, "Bearer unit-test-aims-key", "AIMS jobs should receive an Authorization bearer header");
+delete process.env.AIMS_API_KEY;
+assert.throws(
+  () => buildRequestHeaders(jobs.find((job) => job.id === "rss-rewrite"), "unit-run-key"),
+  /Missing AIMS_API_KEY/,
+  "protected AIMS jobs should fail closed when the configured secret is missing"
+);
+process.env.AIMS_API_KEY = "{{secret.AIMS_API_KEY}}";
+assert.throws(
+  () => buildRequestHeaders(jobs.find((job) => job.id === "rss-rewrite"), "unit-run-key"),
+  /Missing AIMS_API_KEY/,
+  "unresolved secret placeholders should not be sent as bearer credentials"
+);
+delete process.env.AIMS_API_KEY;
+
+process.env.RMS_API_KEY = "unit-test-rms-key";
+const ramsHeaders = buildRequestHeaders(jobs.find((job) => job.id === "rams-readiness"), "unit-rams-run-key");
+assert.equal(ramsHeaders.authorization, "Bearer unit-test-rms-key", "RAMS jobs should receive the RMS bearer header");
+delete process.env.RMS_API_KEY;
+
+for (const healthId of publicHealthJobs) {
+  assert.equal(
+    buildRequestHeaders(jobs.find((job) => job.id === healthId), "health-run-key").authorization,
+    undefined,
+    `${healthId} should not send bearer credentials`
+  );
+}
+
 
 assert.deepEqual(
   ids(dueJobsAt(at("2026-05-04T08:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T08:00:00.000Z"))),
@@ -64,7 +106,43 @@ assert.deepEqual(
 assert.deepEqual(
   ids(dueJobsAt(at("2026-06-01T02:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T02:00:00.000Z"))),
   ["mobile-audit", "on-brand-audit", "seo-aeo-geo-audit"],
-  "monthly audits should remain pinned to 02:00 UTC on the 1st"
+  "monthly AIMS audits should remain pinned to 02:00 UTC on the 1st"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-06-02T01:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-02T01:00:00.000Z"))),
+  ["rams-rebuild-on-brand"],
+  "RAMS on-brand rebuild should run on the 2nd at 02:00 Europe/London during BST"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-06-02T03:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-02T03:00:00.000Z"))),
+  ["rams-report-on-brand-latest"],
+  "RAMS on-brand report fetch should run on the 2nd at 04:00 Europe/London during BST"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-06-03T01:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-03T01:00:00.000Z"))),
+  ["rams-rebuild-mobile-ux"],
+  "RAMS mobile UX rebuild should run on the 3rd at 02:00 Europe/London during BST"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-06-03T04:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-03T04:00:00.000Z"))),
+  ["rams-report-mobile-ux-latest"],
+  "RAMS mobile UX report fetch should run on the 3rd at 05:00 Europe/London during BST"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-06-04T01:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-04T01:00:00.000Z"))),
+  ["rams-rebuild-seo-aeo-geo"],
+  "RAMS SEO/AEO/GEO rebuild should run on the 4th at 02:00 Europe/London during BST"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-06-04T04:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-04T04:00:00.000Z"))),
+  ["rams-report-seo-aeo-geo-latest"],
+  "RAMS SEO/AEO/GEO report fetch should run on the 4th at 05:00 Europe/London during BST"
 );
 
 const ebookJob = jobs.find((job) => job.id === "oneup-ebooks-weekly");
