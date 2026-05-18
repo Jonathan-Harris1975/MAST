@@ -23,7 +23,7 @@ The new setup is deliberately boring: one Node process, one schedule list, one h
 
 Recommended Koyeb instance: `eco-nano`.
 
-The scheduler does not need CPU-heavy capacity because it mostly sends short HTTP requests to Hookdeck. The heavy work remains in the existing AI Management Suite.
+The scheduler does not need CPU-heavy capacity because it mostly sends short HTTP requests to Hookdeck or direct service endpoints. The heavy work remains in AIMS and RAMS.
 
 Avoid using a free Koyeb Web Service for this scheduler if you need reliable cron behaviour. Free Web Services can scale down after idle time, and free instances cannot be used as Worker Services.
 
@@ -43,6 +43,7 @@ All times are based on `Europe/London` unless explicitly stated.
 | Monthly audits | 1st of each month at 02:00 UTC |
 | Weekly ebook posts | Monday at 08:00 London time |
 | Health ping | Every 45 minutes |
+| RAMS operator endpoints | Manual only via `/run/:jobId` |
 
 Note on the ebook job: the old Cloudflare cron used `0 7 * * 1`, which means 08:00 during British Summer Time but 07:00 during GMT. This service makes the intent stable: Monday 08:00 Europe/London all year.
 
@@ -79,8 +80,10 @@ This repo includes a Dockerfile. Koyeb can build it directly from GitHub.
 | `BETWEEN_JOBS_MS` | `1500` | Small delay between multiple due jobs. |
 | `STATE_FILE` | `/tmp/koyeb-cron-control-state.json` | Prevents duplicate runs inside the same schedule window. |
 | `CRON_ADMIN_TOKEN` | empty | Required for manual `/run/:jobId` and `/tick` endpoints. |
+| `AIMS_API_KEY` | empty | Sent by MAST as `Authorization: Bearer ...` for AIMS jobs. Health pings remain unauthenticated. |
+| `RMS_API_KEY` | empty | Sent by MAST as `Authorization: Bearer ...` for RAMS readiness, rebuild, and report jobs. RAMS health remains unauthenticated. |
 
-The Hookdeck URLs are preserved as source fallbacks so this is ready to deploy. You can override any of them with the `HOOK_*` variables in `.env.example`.
+The Hookdeck URLs are preserved as source fallbacks so this is ready to deploy. You can override any of them with the `HOOK_*` variables in `.env.example`. Bearer auth is added by MAST at request time, not configured inside Hookdeck.
 
 ## Public endpoints
 
@@ -154,4 +157,12 @@ on-brand-audit
 mobile-audit
 oneup-ebooks-weekly
 suite-health-ping
+rams-health
+rams-readiness
+rams-rebuild-seo-aeo-geo
+rams-rebuild-mobile-ux
+rams-rebuild-on-brand
+rams-report-mobile-ux-latest
+rams-report-seo-aeo-geo-latest
+rams-report-on-brand-latest
 ```
