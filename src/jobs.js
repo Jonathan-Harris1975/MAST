@@ -10,7 +10,7 @@ function endpoint(envName, fallbackUrl) {
   return configured && configured.trim() ? configured.trim() : fallbackUrl;
 }
 
-function postJob({ id, group, description, schedule, hookEnv, fallbackUrl, targetUrl, targetPath, body, addLocalDateAsWeekStartDate = false }) {
+function postJob({ id, group, description, schedule, hookEnv, fallbackUrl, targetUrl, targetPath, body, addLocalDateAsWeekStartDate = false, authEnv = null }) {
   return {
     id,
     group,
@@ -23,10 +23,11 @@ function postJob({ id, group, description, schedule, hookEnv, fallbackUrl, targe
     targetPath,
     body: body || {},
     addLocalDateAsWeekStartDate,
+    authEnv,
   };
 }
 
-function getJob({ id, group, description, schedule, hookEnv, fallbackUrl, targetUrl, targetPath }) {
+function getJob({ id, group, description, schedule, hookEnv, fallbackUrl, targetUrl, targetPath, authEnv = null }) {
   return {
     id,
     group,
@@ -37,6 +38,7 @@ function getJob({ id, group, description, schedule, hookEnv, fallbackUrl, target
     url: endpoint(hookEnv, fallbackUrl),
     targetUrl,
     targetPath,
+    authEnv,
   };
 }
 
@@ -49,6 +51,7 @@ const rssRewrite = postJob({
   fallbackUrl: "https://hooks.jonathan-harris.online/x20n0wzcy7t5s0",
   targetUrl: "https://app.jonathan-harris.online/rss/rewrite",
   targetPath: "/rss/rewrite",
+  authEnv: "AIMS_API_KEY",
   body: { batchSize: 5 },
 });
 
@@ -61,6 +64,7 @@ const outreachBatchNext = postJob({
   fallbackUrl: "https://hooks.jonathan-harris.online/ni7jxprq9hdc4r",
   targetUrl: "https://app.jonathan-harris.online/outreach/batch/next",
   targetPath: "/outreach/batch/next",
+  authEnv: "AIMS_API_KEY",
 });
 
 const podcastRun = postJob({
@@ -72,6 +76,7 @@ const podcastRun = postJob({
   fallbackUrl: "https://hooks.jonathan-harris.online/x7td31z6y149hn",
   targetUrl: "https://app.jonathan-harris.online/podcast/run",
   targetPath: "/podcast/run",
+  authEnv: "AIMS_API_KEY",
 });
 
 const blogWeeklyBuild = postJob({
@@ -83,6 +88,7 @@ const blogWeeklyBuild = postJob({
   fallbackUrl: "https://hooks.jonathan-harris.online/1ir1t71n70n5dc",
   targetUrl: "https://app.jonathan-harris.online/blog/weekly/build",
   targetPath: "/blog/weekly/build",
+  authEnv: "AIMS_API_KEY",
 });
 
 const blogDailySocialBuild = postJob({
@@ -94,6 +100,7 @@ const blogDailySocialBuild = postJob({
   fallbackUrl: "https://hooks.jonathan-harris.online/2nsz3yuc5xh7kb",
   targetUrl: "Configured in Hookdeck: POST /blog/social/daily/build",
   targetPath: "/blog/social/daily/build",
+  authEnv: "AIMS_API_KEY",
 });
 
 const oneUpDailyJobs = [
@@ -106,6 +113,7 @@ const oneUpDailyJobs = [
     fallbackUrl: "https://hooks.jonathan-harris.online/iq3gwfe8jyscu4",
     targetUrl: "https://app.jonathan-harris.online/oneup/daily/monday",
     targetPath: "/oneup/daily/monday",
+    authEnv: "AIMS_API_KEY",
   }),
   postJob({
     id: "oneup-tuesday",
@@ -116,6 +124,7 @@ const oneUpDailyJobs = [
     fallbackUrl: "https://hooks.jonathan-harris.online/99pn7sfg27d0rj",
     targetUrl: "https://app.jonathan-harris.online/oneup/daily/tuesday",
     targetPath: "/oneup/daily/tuesday",
+    authEnv: "AIMS_API_KEY",
   }),
   postJob({
     id: "oneup-wednesday",
@@ -126,6 +135,7 @@ const oneUpDailyJobs = [
     fallbackUrl: "https://hooks.jonathan-harris.online/rp2hw3rjj1ol8n",
     targetUrl: "https://app.jonathan-harris.online/oneup/daily/wednesday",
     targetPath: "/oneup/daily/wednesday",
+    authEnv: "AIMS_API_KEY",
   }),
   postJob({
     id: "oneup-thursday",
@@ -136,6 +146,7 @@ const oneUpDailyJobs = [
     fallbackUrl: "https://hooks.jonathan-harris.online/2gl53wz1k09mdk",
     targetUrl: "https://app.jonathan-harris.online/oneup/daily/thursday",
     targetPath: "/oneup/daily/thursday",
+    authEnv: "AIMS_API_KEY",
   }),
   postJob({
     id: "oneup-friday",
@@ -146,6 +157,7 @@ const oneUpDailyJobs = [
     fallbackUrl: "https://hooks.jonathan-harris.online/v8sxcm5w25n8pr",
     targetUrl: "https://app.jonathan-harris.online/oneup/daily/friday",
     targetPath: "/oneup/daily/friday",
+    authEnv: "AIMS_API_KEY",
   }),
   postJob({
     id: "oneup-saturday",
@@ -156,6 +168,7 @@ const oneUpDailyJobs = [
     fallbackUrl: "https://hooks.jonathan-harris.online/snhyppsii91c7l",
     targetUrl: "https://app.jonathan-harris.online/oneup/daily/saturday",
     targetPath: "/oneup/daily/saturday",
+    authEnv: "AIMS_API_KEY",
   }),
   postJob({
     id: "oneup-sunday",
@@ -166,6 +179,7 @@ const oneUpDailyJobs = [
     fallbackUrl: "https://hooks.jonathan-harris.online/krt5ukg8oz6jfy",
     targetUrl: "https://app.jonathan-harris.online/oneup/daily/sunday",
     targetPath: "/oneup/daily/sunday",
+    authEnv: "AIMS_API_KEY",
   }),
 ];
 
@@ -178,6 +192,7 @@ const oneUpWeeklyQuiz = postJob({
   fallbackUrl: "https://hooks.jonathan-harris.online/rq5203mvuwvcsf",
   targetUrl: "https://app.jonathan-harris.online/oneup/quiz/weekly",
   targetPath: "/oneup/quiz/weekly",
+  authEnv: "AIMS_API_KEY",
 });
 
 const monthlyAuditJobs = [
@@ -190,6 +205,7 @@ const monthlyAuditJobs = [
     fallbackUrl: "https://hooks.jonathan-harris.online/q36ha3y3919gzf",
     targetUrl: "Configured in Hookdeck: POST /audits/seo-aeo-geo/run",
     targetPath: "/audits/seo-aeo-geo/run",
+    authEnv: "AIMS_API_KEY",
     body: {
       requestedBy: SERVICE_NAME,
       notes: "Scheduled monthly SEO/AEO/GEO audit from Koyeb cron control.",
@@ -204,6 +220,7 @@ const monthlyAuditJobs = [
     fallbackUrl: "https://hooks.jonathan-harris.online/nnryoo0m8ab3d9",
     targetUrl: "Configured in Hookdeck: POST /audits/on-brand/run",
     targetPath: "/audits/on-brand/run",
+    authEnv: "AIMS_API_KEY",
     body: {
       lookbackDays: 7,
       includeOneUp: true,
@@ -221,6 +238,7 @@ const monthlyAuditJobs = [
     fallbackUrl: "https://hooks.jonathan-harris.online/0xtlks9y88br6o",
     targetUrl: "Configured in Hookdeck: POST /audits/mobile-ux/run",
     targetPath: "/audits/mobile-ux/run",
+    authEnv: "AIMS_API_KEY",
     body: {
       requestedBy: SERVICE_NAME,
       notes: "Scheduled monthly mobile UX audit from Koyeb cron control.",
@@ -237,6 +255,7 @@ const oneUpEbooksWeekly = postJob({
   fallbackUrl: "https://hooks.jonathan-harris.online/l3i92ciqk8tsy5",
   targetUrl: "Configured in Hookdeck: POST /oneup/ebooks/weekly",
   targetPath: "/oneup/ebooks/weekly",
+  authEnv: "AIMS_API_KEY",
   addLocalDateAsWeekStartDate: true,
   body: {
     dryRun: false,
@@ -257,6 +276,96 @@ const healthPing = getJob({
   targetPath: "/health",
 });
 
+const ramsJobs = [
+  getJob({
+    id: "rams-health",
+    group: "rams",
+    description: "Check RAMS liveness manually without bearer auth.",
+    schedule: { type: "manual" },
+    hookEnv: "HOOK_RAMS_HEALTH",
+    fallbackUrl: "https://mod.jonathan-harris.online/health",
+    targetUrl: "https://mod.jonathan-harris.online/health",
+    targetPath: "/health",
+  }),
+  getJob({
+    id: "rams-readiness",
+    group: "rams",
+    description: "Check authenticated RAMS dependency readiness before triggering remediation.",
+    schedule: { type: "manual" },
+    hookEnv: "HOOK_RAMS_READINESS",
+    fallbackUrl: "https://mod.jonathan-harris.online/readiness",
+    targetUrl: "https://mod.jonathan-harris.online/readiness",
+    targetPath: "/readiness",
+    authEnv: "RMS_API_KEY",
+  }),
+  postJob({
+    id: "rams-rebuild-seo-aeo-geo",
+    group: "rams",
+    description: "Trigger the RAMS SEO/AEO/GEO remediation pipeline on the 4th of each month at 02:00 London time.",
+    schedule: { type: "monthly", dayOfMonth: 4, time: "02:00", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_RAMS_REBUILD_SEO_AEO_GEO",
+    fallbackUrl: "https://hooks.jonathan-harris.online/mwa6lp7lh1dht3",
+    targetUrl: "https://mod.jonathan-harris.online/rebuild/seo-aeo-geo/run",
+    targetPath: "/rebuild/seo-aeo-geo/run",
+    authEnv: "RMS_API_KEY",
+  }),
+  postJob({
+    id: "rams-rebuild-mobile-ux",
+    group: "rams",
+    description: "Trigger the RAMS Mobile UX remediation pipeline on the 3rd of each month at 02:00 London time.",
+    schedule: { type: "monthly", dayOfMonth: 3, time: "02:00", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_RAMS_REBUILD_MOBILE_UX",
+    fallbackUrl: "https://hooks.jonathan-harris.online/wn7h7x388dwiyt",
+    targetUrl: "https://mod.jonathan-harris.online/rebuild/mobile-ux/run",
+    targetPath: "/rebuild/mobile-ux/run",
+    authEnv: "RMS_API_KEY",
+  }),
+  postJob({
+    id: "rams-rebuild-on-brand",
+    group: "rams",
+    description: "Trigger the RAMS On-Brand remediation pipeline on the 2nd of each month at 02:00 London time.",
+    schedule: { type: "monthly", dayOfMonth: 2, time: "02:00", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_RAMS_REBUILD_ON_BRAND",
+    fallbackUrl: "https://hooks.jonathan-harris.online/5po78dqk5h9gd9",
+    targetUrl: "https://mod.jonathan-harris.online/rebuild/on-brand/run",
+    targetPath: "/rebuild/on-brand/run",
+    authEnv: "RMS_API_KEY",
+  }),
+  getJob({
+    id: "rams-report-mobile-ux-latest",
+    group: "rams-reports",
+    description: "Fetch the latest RAMS Mobile UX live report on the 3rd of each month at 05:00 London time.",
+    schedule: { type: "monthly", dayOfMonth: 3, time: "05:00", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_RAMS_REPORT_MOBILE_UX_LATEST",
+    fallbackUrl: "https://hooks.jonathan-harris.online/9zmq78a3r28mdh",
+    targetUrl: "https://mod.jonathan-harris.online/reports/mobile-ux/latest",
+    targetPath: "/reports/mobile-ux/latest",
+    authEnv: "RMS_API_KEY",
+  }),
+  getJob({
+    id: "rams-report-seo-aeo-geo-latest",
+    group: "rams-reports",
+    description: "Fetch the latest RAMS SEO/AEO/GEO live report on the 4th of each month at 05:00 London time.",
+    schedule: { type: "monthly", dayOfMonth: 4, time: "05:00", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_RAMS_REPORT_SEO_AEO_GEO_LATEST",
+    fallbackUrl: "https://hooks.jonathan-harris.online/wdcmlqfo9ry9cw",
+    targetUrl: "https://mod.jonathan-harris.online/reports/seo-aeo-geo/latest",
+    targetPath: "/reports/seo-aeo-geo/latest",
+    authEnv: "RMS_API_KEY",
+  }),
+  getJob({
+    id: "rams-report-on-brand-latest",
+    group: "rams-reports",
+    description: "Fetch the latest RAMS On-Brand live report on the 2nd of each month at 04:00 London time.",
+    schedule: { type: "monthly", dayOfMonth: 2, time: "04:00", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_RAMS_REPORT_ON_BRAND_LATEST",
+    fallbackUrl: "https://hooks.jonathan-harris.online/hg845445lzbvjl",
+    targetUrl: "https://mod.jonathan-harris.online/reports/on-brand/latest",
+    targetPath: "/reports/on-brand/latest",
+    authEnv: "RMS_API_KEY",
+  }),
+];
+
 export const jobs = [
   rssRewrite,
   outreachBatchNext,
@@ -268,4 +377,5 @@ export const jobs = [
   ...monthlyAuditJobs,
   oneUpEbooksWeekly,
   healthPing,
+  ...ramsJobs,
 ];

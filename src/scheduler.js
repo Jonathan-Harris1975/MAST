@@ -165,6 +165,8 @@ export function publicJob(job, at = new Date()) {
     hookEnv: job.hookEnv,
     configuredUrl: Boolean(job.url),
     urlPreview: redactUrl(job.url),
+    authRequired: Boolean(job.authEnv),
+    authEnv: job.authEnv || null,
     bodyTemplate: job.method === "POST" ? buildPayload(job, at) : undefined,
     nextRunAt: nextRunForJob(job, at),
   };
@@ -219,6 +221,39 @@ function resultSummary(result) {
 
 function rememberResult(result) {
   state.recentResults = [resultSummary(result), ...(state.recentResults || [])].slice(0, CONFIG.recentResultLimit);
+}
+
+
+function looksLikeSecretPlaceholder(value) {
+  return /^\{\{\s*secret\.[^}]+\}\}$/i.test(String(value || "").trim());
+}
+
+function envSecret(name) {
+  if (!name) return null;
+  const value = process.env[name];
+  if (!value || !value.trim() || looksLikeSecretPlaceholder(value)) return null;
+  return value.trim();
+}
+
+export function buildRequestHeaders(job, runKey) {
+  const headers = {
+    "user-agent": USER_AGENT,
+    "x-trigger-worker": SERVICE_NAME,
+    "x-trigger-job": job.id,
+    "x-trigger-group": job.group,
+    "x-trigger-run-key": runKey,
+    "x-idempotency-key": runKey,
+  };
+
+  if (job.authEnv) {
+    const token = envSecret(job.authEnv);
+    if (!token) {
+      throw new Error(`Missing ${job.authEnv}; cannot authorise job ${job.id}`);
+    }
+    headers.authorization = `Bearer ${token}`;
+  }
+
+  return headers;
 }
 
 async function fetchWithTimeout(url, options, timeoutMs) {
@@ -292,14 +327,7 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
   runningJobs.add(job.id);
 
   const payload = buildPayload(job, at);
-  const headers = {
-    "user-agent": USER_AGENT,
-    "x-trigger-worker": SERVICE_NAME,
-    "x-trigger-job": job.id,
-    "x-trigger-group": job.group,
-    "x-trigger-run-key": runKey,
-    "x-idempotency-key": runKey,
-  };
+  const headers = buildRequestHeaders(job, runKey);
 
   const body = payload === undefined ? undefined : JSON.stringify(payload);
   if (body !== undefined) {
