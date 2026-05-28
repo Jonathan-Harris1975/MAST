@@ -17,7 +17,7 @@ function stateWithHealthAlreadyRun(iso) {
   };
 }
 
-assert.equal(jobs.length, 26, "AIMS scheduled jobs plus RAMS protected scheduled/operator jobs should be represented");
+assert.equal(jobs.length, 31, "AIMS scheduled jobs plus RAMS protected scheduled/operator jobs should be represented");
 
 const publicHealthJobs = new Set(["suite-health-ping", "rams-health"]);
 for (const healthId of publicHealthJobs) {
@@ -89,6 +89,36 @@ assert.deepEqual(
   ids(dueJobsAt(at("2026-05-04T15:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T15:00:00.000Z"))),
   ["blog-weekly-build"],
   "weekly blog should run at Monday 16:00 Europe/London during BST"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-04T18:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T18:45:00.000Z"))),
+  ["blotato-news-insight-publish"],
+  "Monday 19:45 Europe/London should trigger Blotato news insight video"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-05T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-05T17:45:00.000Z"))),
+  ["blotato-model-verdict-publish"],
+  "Tuesday 18:45 Europe/London should trigger Blotato model verdict video"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-06T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-06T17:45:00.000Z"))),
+  ["blotato-ai-at-work-publish"],
+  "Wednesday 18:45 Europe/London should trigger Blotato AI at Work video"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-07T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-07T17:45:00.000Z"))),
+  ["blotato-reality-check-publish"],
+  "Thursday 18:45 Europe/London should trigger Blotato reality-check video"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-08T14:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-08T14:45:00.000Z"))),
+  ["blotato-ai-playbook-publish"],
+  "Friday 15:45 Europe/London should trigger Blotato AI playbook video"
 );
 
 assert.deepEqual(
