@@ -42,6 +42,7 @@ All times are based on `Europe/London` unless explicitly stated.
 | Weekly quiz | Sunday at 23:20 |
 | Monthly audits | 1st of each month at 02:00 UTC |
 | Weekly ebook posts | Monday at 08:00 London time |
+| Blotato social videos | Monday 19:45, Tuesday to Thursday 18:45, Friday 15:45 |
 | Health ping | Every 45 minutes |
 | RAMS operator endpoints | Manual only via `/run/:jobId` |
 
@@ -84,6 +85,8 @@ This repo includes a Dockerfile. Koyeb can build it directly from GitHub.
 | `RMS_API_KEY` | empty | Sent by MAST as `Authorization: Bearer ...` for RAMS readiness, rebuild, and report jobs. RAMS health remains unauthenticated. |
 
 The Hookdeck URLs are preserved as source fallbacks so this is ready to deploy. You can override any of them with the `HOOK_*` variables in `.env.example`. Bearer auth is added by MAST at request time, not configured inside Hookdeck.
+
+For the Blotato weekday video lanes, set `HOOK_BLOTATO_*_PUBLISH` to the five Hookdeck endpoint URLs. The source fallback remains the direct AIMS publish-now endpoint so the job shape stays testable if Hookdeck routing is not configured yet.
 
 ## Public endpoints
 
@@ -165,4 +168,9 @@ rams-rebuild-on-brand
 rams-report-mobile-ux-latest
 rams-report-seo-aeo-geo-latest
 rams-report-on-brand-latest
+blotato-news-insight-publish
+blotato-model-verdict-publish
+blotato-ai-at-work-publish
+blotato-reality-check-publish
+blotato-ai-playbook-publish
 ```
