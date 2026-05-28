@@ -265,6 +265,65 @@ const oneUpEbooksWeekly = postJob({
   },
 });
 
+
+const blotatoVideoJobs = [
+  postJob({
+    id: "blotato-news-insight-publish",
+    group: "blotato-videos",
+    description: "Trigger the Monday Blotato AI News Insight social video across Instagram, YouTube, TikTok, and Facebook.",
+    schedule: { type: "weekly", days: ["monday"], time: "19:45", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_BLOTATO_NEWS_INSIGHT_URL",
+    fallbackUrl: "https://hooks.jonathan-harris.online/g7ncsqagt2wqyq",
+    targetUrl: "https://app.jonathan-harris.online/blotato/shorts/news-insight/publish-now",
+    targetPath: "/blotato/shorts/news-insight/publish-now",
+    authEnv: "AIMS_API_KEY",
+  }),
+  postJob({
+    id: "blotato-model-verdict-publish",
+    group: "blotato-videos",
+    description: "Trigger the Tuesday Blotato AI model/tool verdict social video across Instagram, YouTube, TikTok, and Facebook.",
+    schedule: { type: "weekly", days: ["tuesday"], time: "18:45", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_BLOTATO_MODEL_VERDICT_URL",
+    fallbackUrl: "https://hooks.jonathan-harris.online/rsy7vh21t8un6c",
+    targetUrl: "https://app.jonathan-harris.online/blotato/shorts/model-verdict/publish-now",
+    targetPath: "/blotato/shorts/model-verdict/publish-now",
+    authEnv: "AIMS_API_KEY",
+  }),
+  postJob({
+    id: "blotato-ai-at-work-publish",
+    group: "blotato-videos",
+    description: "Trigger the Wednesday Blotato AI at Work social video across Instagram, YouTube, TikTok, and Facebook.",
+    schedule: { type: "weekly", days: ["wednesday"], time: "18:45", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_BLOTATO_AI_AT_WORK_URL",
+    fallbackUrl: "https://hooks.jonathan-harris.online/5cfbla6oubngjw",
+    targetUrl: "https://app.jonathan-harris.online/blotato/shorts/ai-at-work/publish-now",
+    targetPath: "/blotato/shorts/ai-at-work/publish-now",
+    authEnv: "AIMS_API_KEY",
+  }),
+  postJob({
+    id: "blotato-reality-check-publish",
+    group: "blotato-videos",
+    description: "Trigger the Thursday Blotato AI risk and reality-check social video across Instagram, YouTube, TikTok, and Facebook.",
+    schedule: { type: "weekly", days: ["thursday"], time: "18:45", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_BLOTATO_REALITY_CHECK_URL",
+    fallbackUrl: "https://hooks.jonathan-harris.online/fl60oupriujf53",
+    targetUrl: "https://app.jonathan-harris.online/blotato/shorts/reality-check/publish-now",
+    targetPath: "/blotato/shorts/reality-check/publish-now",
+    authEnv: "AIMS_API_KEY",
+  }),
+  postJob({
+    id: "blotato-ai-playbook-publish",
+    group: "blotato-videos",
+    description: "Trigger the Friday Blotato AI playbook/how-to social video across Instagram, YouTube, TikTok, and Facebook.",
+    schedule: { type: "weekly", days: ["friday"], time: "15:45", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_BLOTATO_AI_PLAYBOOK_URL",
+    fallbackUrl: "https://hooks.jonathan-harris.online/lbed1dhtigdmjf",
+    targetUrl: "https://app.jonathan-harris.online/blotato/shorts/ai-playbook/publish-now",
+    targetPath: "/blotato/shorts/ai-playbook/publish-now",
+    authEnv: "AIMS_API_KEY",
+  }),
+];
+
 const healthPing = getJob({
   id: "suite-health-ping",
   group: "health",
@@ -376,6 +435,7 @@ export const jobs = [
   oneUpWeeklyQuiz,
   ...monthlyAuditJobs,
   oneUpEbooksWeekly,
+  ...blotatoVideoJobs,
   healthPing,
   ...ramsJobs,
 ];
