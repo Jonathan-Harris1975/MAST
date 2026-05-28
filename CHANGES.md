@@ -1,33 +1,27 @@
-# MAST Blotato Hookdeck Schedule Update
+# MAST Blotato Hookdeck endpoint update
 
 ## Changed files
 
 - `.env.example`
-  - Adds the five `HOOK_BLOTATO_*_PUBLISH` environment variables for the new Blotato Hookdeck endpoints.
+  - Added the five `HOOK_BLOTATO_*_URL` environment variables for the weekly Blotato social-video Hookdeck endpoints.
 
 - `src/jobs.js`
-  - Adds five protected Blotato weekday video jobs.
-  - Schedules:
-    - Monday 19:45 Europe/London: `news-insight`
-    - Tuesday 18:45 Europe/London: `model-verdict`
-    - Wednesday 18:45 Europe/London: `ai-at-work`
-    - Thursday 18:45 Europe/London: `reality-check`
-    - Friday 15:45 Europe/London: `ai-playbook`
-  - Each job uses `AIMS_API_KEY` bearer auth like the other protected AIMS jobs.
-  - Each job can be routed through Hookdeck by setting its `HOOK_BLOTATO_*_PUBLISH` env var.
-  - Direct AIMS publish-now URLs remain as source fallbacks if an env override is not set.
+  - Added five scheduled Blotato social-video jobs.
+  - Wired each job to the supplied Hookdeck source URL as the fallback target.
+  - Kept the matching AIMS `/blotato/shorts/<lane>/publish-now` endpoint documented as `targetUrl`/`targetPath`.
+  - Kept bearer auth on all five jobs through `AIMS_API_KEY`.
 
 - `test/scheduler.test.js`
-  - Updates the expected job count.
-  - Adds due-time assertions for all five Blotato video jobs.
-  - Existing auth loop now also proves the Blotato jobs are protected by `AIMS_API_KEY`.
+  - Updated the expected job count from 26 to 31.
+  - Added assertions for the five Hookdeck URLs, env names, AIMS target paths, and bearer-auth configuration.
+  - Added schedule assertions for the five weekly publish windows.
 
 - `README.md`
-  - Documents the Blotato weekly video schedule.
-  - Adds the five new job IDs.
-  - Notes that Hookdeck URLs should be supplied via the `HOOK_BLOTATO_*_PUBLISH` variables.
+  - Documented the five Blotato weekly social-video jobs, Hookdeck fallbacks, env names, schedules, and AIMS destinations.
 
 ## Validation
 
 - `npm run check`
 - `npm test`
+
+Both passed.

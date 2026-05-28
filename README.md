@@ -42,7 +42,6 @@ All times are based on `Europe/London` unless explicitly stated.
 | Weekly quiz | Sunday at 23:20 |
 | Monthly audits | 1st of each month at 02:00 UTC |
 | Weekly ebook posts | Monday at 08:00 London time |
-| Blotato social videos | Monday 19:45, Tuesday to Thursday 18:45, Friday 15:45 |
 | Health ping | Every 45 minutes |
 | RAMS operator endpoints | Manual only via `/run/:jobId` |
 
@@ -86,7 +85,18 @@ This repo includes a Dockerfile. Koyeb can build it directly from GitHub.
 
 The Hookdeck URLs are preserved as source fallbacks so this is ready to deploy. You can override any of them with the `HOOK_*` variables in `.env.example`. Bearer auth is added by MAST at request time, not configured inside Hookdeck.
 
-For the Blotato weekday video lanes, set `HOOK_BLOTATO_*_PUBLISH` to the five Hookdeck endpoint URLs. The source fallback remains the direct AIMS publish-now endpoint so the job shape stays testable if Hookdeck routing is not configured yet.
+
+## Blotato weekly social-video jobs
+
+MAST triggers five Blotato publish-now lanes through Hookdeck. Each job sends the AIMS bearer token at request time.
+
+| Job ID | Lane | Schedule | Hook env | Hookdeck URL fallback | AIMS destination |
+|---|---|---|---|---|---|
+| `blotato-news-insight-publish` | `news-insight` | Monday 19:45 Europe/London | `HOOK_BLOTATO_NEWS_INSIGHT_URL` | `https://hooks.jonathan-harris.online/g7ncsqagt2wqyq` | `/blotato/shorts/news-insight/publish-now` |
+| `blotato-model-verdict-publish` | `model-verdict` | Tuesday 18:45 Europe/London | `HOOK_BLOTATO_MODEL_VERDICT_URL` | `https://hooks.jonathan-harris.online/rsy7vh21t8un6c` | `/blotato/shorts/model-verdict/publish-now` |
+| `blotato-ai-at-work-publish` | `ai-at-work` | Wednesday 18:45 Europe/London | `HOOK_BLOTATO_AI_AT_WORK_URL` | `https://hooks.jonathan-harris.online/5cfbla6oubngjw` | `/blotato/shorts/ai-at-work/publish-now` |
+| `blotato-reality-check-publish` | `reality-check` | Thursday 18:45 Europe/London | `HOOK_BLOTATO_REALITY_CHECK_URL` | `https://hooks.jonathan-harris.online/fl60oupriujf53` | `/blotato/shorts/reality-check/publish-now` |
+| `blotato-ai-playbook-publish` | `ai-playbook` | Friday 15:45 Europe/London | `HOOK_BLOTATO_AI_PLAYBOOK_URL` | `https://hooks.jonathan-harris.online/lbed1dhtigdmjf` | `/blotato/shorts/ai-playbook/publish-now` |
 
 ## Public endpoints
 
