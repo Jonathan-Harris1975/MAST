@@ -17,7 +17,45 @@ function stateWithHealthAlreadyRun(iso) {
   };
 }
 
-assert.equal(jobs.length, 31, "AIMS scheduled jobs plus RAMS protected scheduled/operator jobs should be represented");
+assert.equal(jobs.length, 31, "AIMS scheduled jobs, Blotato video jobs, and RAMS protected scheduled/operator jobs should be represented");
+
+
+const blotatoHookdeckTargets = {
+  "blotato-news-insight-publish": {
+    hookEnv: "HOOK_BLOTATO_NEWS_INSIGHT_URL",
+    url: "https://hooks.jonathan-harris.online/g7ncsqagt2wqyq",
+    targetPath: "/blotato/shorts/news-insight/publish-now",
+  },
+  "blotato-model-verdict-publish": {
+    hookEnv: "HOOK_BLOTATO_MODEL_VERDICT_URL",
+    url: "https://hooks.jonathan-harris.online/rsy7vh21t8un6c",
+    targetPath: "/blotato/shorts/model-verdict/publish-now",
+  },
+  "blotato-ai-at-work-publish": {
+    hookEnv: "HOOK_BLOTATO_AI_AT_WORK_URL",
+    url: "https://hooks.jonathan-harris.online/5cfbla6oubngjw",
+    targetPath: "/blotato/shorts/ai-at-work/publish-now",
+  },
+  "blotato-reality-check-publish": {
+    hookEnv: "HOOK_BLOTATO_REALITY_CHECK_URL",
+    url: "https://hooks.jonathan-harris.online/fl60oupriujf53",
+    targetPath: "/blotato/shorts/reality-check/publish-now",
+  },
+  "blotato-ai-playbook-publish": {
+    hookEnv: "HOOK_BLOTATO_AI_PLAYBOOK_URL",
+    url: "https://hooks.jonathan-harris.online/lbed1dhtigdmjf",
+    targetPath: "/blotato/shorts/ai-playbook/publish-now",
+  },
+};
+
+for (const [id, expected] of Object.entries(blotatoHookdeckTargets)) {
+  const job = jobs.find((item) => item.id === id);
+  assert.ok(job, `${id} should exist`);
+  assert.equal(job.hookEnv, expected.hookEnv, `${id} should use the agreed Hookdeck env variable`);
+  assert.equal(job.url, expected.url, `${id} should fall back to the agreed Hookdeck source URL`);
+  assert.equal(job.targetPath, expected.targetPath, `${id} should document the AIMS publish-now destination`);
+  assert.equal(job.authEnv, "AIMS_API_KEY", `${id} should send AIMS bearer auth`);
+}
 
 const publicHealthJobs = new Set(["suite-health-ping", "rams-health"]);
 for (const healthId of publicHealthJobs) {
@@ -92,36 +130,6 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-04T18:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T18:45:00.000Z"))),
-  ["blotato-news-insight-publish"],
-  "Monday 19:45 Europe/London should trigger Blotato news insight video"
-);
-
-assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-05T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-05T17:45:00.000Z"))),
-  ["blotato-model-verdict-publish"],
-  "Tuesday 18:45 Europe/London should trigger Blotato model verdict video"
-);
-
-assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-06T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-06T17:45:00.000Z"))),
-  ["blotato-ai-at-work-publish"],
-  "Wednesday 18:45 Europe/London should trigger Blotato AI at Work video"
-);
-
-assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-07T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-07T17:45:00.000Z"))),
-  ["blotato-reality-check-publish"],
-  "Thursday 18:45 Europe/London should trigger Blotato reality-check video"
-);
-
-assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-08T14:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-08T14:45:00.000Z"))),
-  ["blotato-ai-playbook-publish"],
-  "Friday 15:45 Europe/London should trigger Blotato AI playbook video"
-);
-
-assert.deepEqual(
   ids(dueJobsAt(at("2026-05-03T22:15:00.000Z"), stateWithHealthAlreadyRun("2026-05-03T22:15:00.000Z"))),
   ["oneup-monday"],
   "Monday OneUp post should be prepared Sunday 23:15 Europe/London"
@@ -131,6 +139,37 @@ assert.deepEqual(
   ids(dueJobsAt(at("2026-05-03T22:20:00.000Z"), stateWithHealthAlreadyRun("2026-05-03T22:20:00.000Z"))),
   ["oneup-weekly-quiz"],
   "weekly quiz should be prepared Sunday 23:20 Europe/London"
+);
+
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-04T18:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T18:45:00.000Z"))),
+  ["blotato-news-insight-publish"],
+  "Monday 19:45 Europe/London should publish the Blotato news insight video"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-05T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-05T17:45:00.000Z"))),
+  ["blotato-model-verdict-publish"],
+  "Tuesday 18:45 Europe/London should publish the Blotato model verdict video"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-06T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-06T17:45:00.000Z"))),
+  ["blotato-ai-at-work-publish"],
+  "Wednesday 18:45 Europe/London should publish the Blotato AI at Work video"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-07T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-07T17:45:00.000Z"))),
+  ["blotato-reality-check-publish"],
+  "Thursday 18:45 Europe/London should publish the Blotato reality-check video"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-08T14:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-08T14:45:00.000Z"))),
+  ["blotato-ai-playbook-publish"],
+  "Friday 15:45 Europe/London should publish the Blotato AI playbook video"
 );
 
 assert.deepEqual(
