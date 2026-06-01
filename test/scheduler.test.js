@@ -17,7 +17,7 @@ function stateWithHealthAlreadyRun(iso) {
   };
 }
 
-assert.equal(jobs.length, 31, "AIMS scheduled jobs, Blotato video jobs, and RAMS protected scheduled/operator jobs should be represented");
+assert.equal(jobs.length, 32, "AIMS scheduled jobs, social-performance audit, Blotato video jobs, and RAMS protected scheduled/operator jobs should be represented");
 
 
 const blotatoHookdeckTargets = {
@@ -56,6 +56,14 @@ for (const [id, expected] of Object.entries(blotatoHookdeckTargets)) {
   assert.equal(job.targetPath, expected.targetPath, `${id} should document the AIMS publish-now destination`);
   assert.equal(job.authEnv, "AIMS_API_KEY", `${id} should send AIMS bearer auth`);
 }
+
+const socialPerformanceJob = jobs.find((job) => job.id === "social-performance-audit");
+assert.ok(socialPerformanceJob, "social-performance-audit should exist");
+assert.equal(socialPerformanceJob.group, "audits", "social-performance-audit should be grouped with AIMS audits");
+assert.equal(socialPerformanceJob.hookEnv, "HOOK_AUDIT_SOCIAL_PERFORMANCE", "social-performance-audit should support a Hookdeck env override");
+assert.equal(socialPerformanceJob.url, "https://app.jonathan-harris.online/audits/social-performance/run", "social-performance-audit should fall back to the direct authenticated AIMS endpoint");
+assert.equal(socialPerformanceJob.targetPath, "/audits/social-performance/run", "social-performance-audit should document the AIMS destination");
+assert.equal(socialPerformanceJob.authEnv, "AIMS_API_KEY", "social-performance-audit should send AIMS bearer auth");
 
 const publicHealthJobs = new Set(["suite-health-ping", "rams-health"]);
 for (const healthId of publicHealthJobs) {
@@ -100,9 +108,9 @@ for (const healthId of publicHealthJobs) {
 
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-04T08:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T08:00:00.000Z"))),
-  ["rss-rewrite"],
-  "daily RSS should run at 09:00 Europe/London during BST"
+  ids(dueJobsAt(at("2026-05-04T07:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T07:00:00.000Z"))),
+  ["oneup-ebooks-weekly", "rss-rewrite"],
+  "Monday 08:00 Europe/London should run RSS rewrite and weekly ebook scheduling during BST"
 );
 
 assert.deepEqual(
@@ -118,15 +126,15 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-08T09:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-08T09:00:00.000Z"))),
+  ids(dueJobsAt(at("2026-05-08T14:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-08T14:00:00.000Z"))),
   ["podcast-run"],
-  "Friday 10:00 Europe/London should run podcast"
+  "Friday 15:00 Europe/London should run podcast"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-04T15:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T15:00:00.000Z"))),
+  ids(dueJobsAt(at("2026-05-04T11:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T11:00:00.000Z"))),
   ["blog-weekly-build"],
-  "weekly blog should run at Monday 16:00 Europe/London during BST"
+  "weekly blog should run at Monday 12:00 Europe/London during BST"
 );
 
 assert.deepEqual(
@@ -174,8 +182,26 @@ assert.deepEqual(
 
 assert.deepEqual(
   ids(dueJobsAt(at("2026-06-01T02:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T02:00:00.000Z"))),
-  ["mobile-audit", "on-brand-audit", "seo-aeo-geo-audit"],
-  "monthly AIMS audits should remain pinned to 02:00 UTC on the 1st"
+  ["seo-aeo-geo-audit"],
+  "monthly SEO/AEO/GEO audit should run at 02:00 UTC on the 1st"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-06-01T03:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T03:00:00.000Z"))),
+  ["on-brand-audit"],
+  "monthly on-brand audit should run at 03:00 UTC on the 1st"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-06-01T04:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T04:00:00.000Z"))),
+  ["mobile-audit"],
+  "monthly mobile UX audit should run at 04:00 UTC on the 1st"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-06-01T05:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T05:00:00.000Z"))),
+  ["social-performance-audit"],
+  "monthly social-performance audit should run at 05:00 UTC on the 1st"
 );
 
 assert.deepEqual(
