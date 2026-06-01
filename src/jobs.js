@@ -215,7 +215,7 @@ const monthlyAuditJobs = [
     id: "on-brand-audit",
     group: "audits",
     description: "Run the on-brand audit once a month across OneUp, podcast transcripts, and RSS.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "17:00", timezone: "UTC" },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "17:20", timezone: "UTC" },
     hookEnv: "HOOK_AUDIT_ON_BRAND",
     fallbackUrl: "https://hooks.jonathan-harris.online/nnryoo0m8ab3d9",
     targetUrl: "Configured in Hookdeck: POST /audits/on-brand/run",
