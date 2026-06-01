@@ -244,6 +244,21 @@ const monthlyAuditJobs = [
       notes: "Scheduled monthly mobile UX audit from Koyeb cron control.",
     },
   }),
+  postJob({
+    id: "social-performance-audit",
+    group: "audits",
+    description: "Run the monthly Zernio social-performance analysis report.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "05:00", timezone: "UTC" },
+    hookEnv: "HOOK_AUDIT_SOCIAL_PERFORMANCE",
+    fallbackUrl: "https://app.jonathan-harris.online/audits/social-performance/run",
+    targetUrl: "https://app.jonathan-harris.online/audits/social-performance/run",
+    targetPath: "/audits/social-performance/run",
+    authEnv: "AIMS_API_KEY",
+    body: {
+      requestedBy: SERVICE_NAME,
+      notes: "Scheduled monthly Zernio social-performance report from Koyeb cron control.",
+    },
+  }),
 ];
 
 const oneUpEbooksWeekly = postJob({
