@@ -1,0 +1,27 @@
+MAST Zernio social-performance scheduler update
+
+Purpose:
+- Adds the monthly AIMS social-performance/Zernio analysis report to MAST.
+- Keeps it analysis-only and protected by AIMS_API_KEY.
+- Schedules it after the existing monthly audit reports.
+
+Changed files:
+- .env.example
+- src/jobs.js
+- test/scheduler.test.js
+- README.md
+- CHANGES.md
+
+New job:
+- id: social-performance-audit
+- group: audits
+- method: POST
+- schedule: 1st of each month at 05:00 UTC
+- hook env override: HOOK_AUDIT_SOCIAL_PERFORMANCE
+- fallback URL: https://app.jonathan-harris.online/audits/social-performance/run
+- target path: /audits/social-performance/run
+- auth: Authorization: Bearer <AIMS_API_KEY>
+
+Validation run:
+- npm run check
+- npm test

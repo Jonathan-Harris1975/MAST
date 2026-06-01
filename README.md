@@ -33,14 +33,17 @@ All times are based on `Europe/London` unless explicitly stated.
 
 | Job | Schedule |
 |---|---|
-| RSS rewrite | Daily at 09:00 |
+| RSS rewrite | Daily at 08:00 |
 | Outreach batch | Monday to Friday at 09:30 |
-| Podcast pipeline | Friday at 10:00 |
-| Weekly blog build | Monday at 16:00 |
+| Podcast pipeline | Friday at 15:00 |
+| Weekly blog build | Monday at 12:00 |
 | Daily social blog build | Daily at 09:30 |
 | OneUp daily posts | Previous evening at 23:15 |
 | Weekly quiz | Sunday at 23:20 |
-| Monthly audits | 1st of each month at 02:00 UTC |
+| Monthly SEO/AEO/GEO audit | 1st of each month at 02:00 UTC |
+| Monthly on-brand audit | 1st of each month at 03:00 UTC |
+| Monthly mobile UX audit | 1st of each month at 04:00 UTC |
+| Monthly Zernio social-performance report | 1st of each month at 05:00 UTC |
 | Weekly ebook posts | Monday at 08:00 London time |
 | Health ping | Every 45 minutes |
 | RAMS operator endpoints | Manual only via `/run/:jobId` |
@@ -84,6 +87,17 @@ This repo includes a Dockerfile. Koyeb can build it directly from GitHub.
 | `RMS_API_KEY` | empty | Sent by MAST as `Authorization: Bearer ...` for RAMS readiness, rebuild, and report jobs. RAMS health remains unauthenticated. |
 
 The Hookdeck URLs are preserved as source fallbacks so this is ready to deploy. You can override any of them with the `HOOK_*` variables in `.env.example`. Bearer auth is added by MAST at request time, not configured inside Hookdeck.
+
+## Monthly audit jobs
+
+MAST runs the source audits on the 1st of each month. The Zernio social-performance job is analysis-only and saves the report to the AIMS audits R2 bucket through the AIMS endpoint. It does not trigger RAMS.
+
+| Job ID | Schedule | Hook env | Fallback | AIMS destination |
+|---|---|---|---|---|
+| `seo-aeo-geo-audit` | 1st, 02:00 UTC | `HOOK_AUDIT_SEO_AEO_GEO` | Hookdeck fallback | `/audits/seo-aeo-geo/run` |
+| `on-brand-audit` | 1st, 03:00 UTC | `HOOK_AUDIT_ON_BRAND` | Hookdeck fallback | `/audits/on-brand/run` |
+| `mobile-audit` | 1st, 04:00 UTC | `HOOK_AUDIT_MOBILE_UX` | Hookdeck fallback | `/audits/mobile-ux/run` |
+| `social-performance-audit` | 1st, 05:00 UTC | `HOOK_AUDIT_SOCIAL_PERFORMANCE` | Direct AIMS endpoint | `/audits/social-performance/run` |
 
 
 ## Blotato weekly social-video jobs
@@ -168,6 +182,7 @@ oneup-weekly-quiz
 seo-aeo-geo-audit
 on-brand-audit
 mobile-audit
+social-performance-audit
 oneup-ebooks-weekly
 suite-health-ping
 rams-health

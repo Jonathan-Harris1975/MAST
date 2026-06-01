@@ -25,3 +25,32 @@
 - `npm test`
 
 Both passed.
+
+
+# MAST Zernio social-performance monthly report update
+
+## Changed files
+
+- `.env.example`
+  - Added `HOOK_AUDIT_SOCIAL_PERFORMANCE` for the optional Hookdeck override.
+
+- `src/jobs.js`
+  - Added the `social-performance-audit` job.
+  - Scheduled it for the 1st of each month at 05:00 UTC, after SEO/AEO/GEO, on-brand, and mobile UX audits.
+  - Pointed the fallback directly at `https://app.jonathan-harris.online/audits/social-performance/run`.
+  - Kept bearer auth through `AIMS_API_KEY`.
+
+- `test/scheduler.test.js`
+  - Updated the expected job count from 31 to 32.
+  - Added route, auth, schedule, and fallback assertions for the social-performance job.
+  - Brought outdated schedule assertions back into line with the current job definitions.
+
+- `README.md`
+  - Documented the monthly Zernio social-performance job and the updated monthly audit order.
+
+## Validation
+
+- `npm run check`
+- `npm test`
+
+Both passed.
