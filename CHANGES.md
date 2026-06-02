@@ -1,3 +1,11 @@
+
+## Event-aware AIMS pretrigger checks
+
+- Replaced the blind repeating AIMS health ping with generated pretrigger checks.
+- MAST now creates T-3h `/ops/health`, T-2h `/ops/preflight`, and T-30m `/ops/warmup` checks for each timed AIMS job.
+- The derived checks follow the source job schedule automatically, so changing a trigger time moves the checks without extra config.
+- Kept `suite-health-ping` as a manual fallback job.
+
 # MAST Blotato Hookdeck endpoint update
 
 ## Changed files

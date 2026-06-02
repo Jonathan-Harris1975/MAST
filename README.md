@@ -45,7 +45,7 @@ All times are based on `Europe/London` unless explicitly stated.
 | Monthly mobile UX audit | 1st of each month at 04:00 UTC |
 | Monthly Zernio social-performance report | 1st of each month at 05:00 UTC |
 | Weekly ebook posts | Monday at 08:00 London time |
-| Health ping | Every 45 minutes |
+| AIMS pretrigger checks | Automatically at T-3h, T-2h, and T-30m before each timed AIMS job |
 | RAMS operator endpoints | Manual only via `/run/:jobId` |
 
 Note on the ebook job: the old Cloudflare cron used `0 7 * * 1`, which means 08:00 during British Summer Time but 07:00 during GMT. This service makes the intent stable: Monday 08:00 Europe/London all year.
@@ -82,11 +82,32 @@ This repo includes a Dockerfile. Koyeb can build it directly from GitHub.
 | `REQUEST_RETRIES` | `2` | Retries non-OK/failed requests. |
 | `BETWEEN_JOBS_MS` | `1500` | Small delay between multiple due jobs. |
 | `STATE_FILE` | `/tmp/koyeb-cron-control-state.json` | Prevents duplicate runs inside the same schedule window. |
+| `AIMS_BASE_URL` | `https://app.jonathan-harris.online` | Direct AIMS base URL for generated pretrigger checks. |
+| `AIMS_PRETRIGGER_CHECKS_ENABLED` | `true` | Creates T-3h/T-2h/T-30m checks for timed AIMS jobs. |
 | `CRON_ADMIN_TOKEN` | empty | Required for manual `/run/:jobId` and `/tick` endpoints. |
-| `AIMS_API_KEY` | empty | Sent by MAST as `Authorization: Bearer ...` for AIMS jobs. Health pings remain unauthenticated. |
+| `AIMS_API_KEY` | empty | Sent by MAST as `Authorization: Bearer ...` for AIMS jobs. The old blind health ping remains manual-only; generated T-3h health checks remain unauthenticated, while preflight and warmup checks use the AIMS bearer token. |
 | `RMS_API_KEY` | empty | Sent by MAST as `Authorization: Bearer ...` for RAMS readiness, rebuild, and report jobs. RAMS health remains unauthenticated. |
 
 The Hookdeck URLs are preserved as source fallbacks so this is ready to deploy. You can override any of them with the `HOOK_*` variables in `.env.example`. Bearer auth is added by MAST at request time, not configured inside Hookdeck.
+
+## Event-aware AIMS pretrigger checks
+
+MAST now creates three lightweight checks before every timed AIMS job:
+
+| Offset | Endpoint | Purpose |
+|---|---|---|
+| T-3h | `GET /ops/health` | Confirm AIMS is awake and the target service is known. |
+| T-2h | `GET /ops/preflight` | Check the target service context and obvious configuration warnings. |
+| T-30m | `GET /ops/warmup` | Warm the service path with a bounded readiness check before the real trigger. |
+
+These checks are generated from the actual job schedule. If `blog-daily-social-build` moves from 10:00 to 09:00, its T-3h, T-2h, and T-30m checks move automatically. The old blind 45-minute AIMS keepalive is now a manual fallback job, not a repeating interval.
+
+Useful controls:
+
+| Variable | Default | Notes |
+|---|---:|---|
+| `AIMS_BASE_URL` | `https://app.jonathan-harris.online` | Direct AIMS base used by pretrigger checks. |
+| `AIMS_PRETRIGGER_CHECKS_ENABLED` | `true` | Set to `false` to disable generated checks without deleting schedules. |
 
 ## Monthly audit jobs
 
@@ -184,7 +205,7 @@ on-brand-audit
 mobile-audit
 social-performance-audit
 oneup-ebooks-weekly
-suite-health-ping
+suite-health-ping (manual fallback only)
 rams-health
 rams-readiness
 rams-rebuild-seo-aeo-geo
