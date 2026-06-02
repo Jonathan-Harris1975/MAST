@@ -286,7 +286,7 @@ const blotatoVideoJobs = [
     id: "blotato-news-insight-publish",
     group: "blotato-videos",
     description: "Trigger the Monday Blotato AI News Insight social video across Instagram, YouTube, TikTok, and Facebook.",
-    schedule: { type: "weekly", days: ["monday"], time: "19:45", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["monday"], time: "18:45", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_BLOTATO_NEWS_INSIGHT_URL",
     fallbackUrl: "https://hooks.jonathan-harris.online/g7ncsqagt2wqyq",
     targetUrl: "https://app.jonathan-harris.online/blotato/shorts/news-insight/publish-now",
