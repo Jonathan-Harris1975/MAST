@@ -81,11 +81,32 @@ export function redactUrl(url) {
   }
 }
 
+function sourceJobForPretrigger(job) {
+  const sourceId = job?.schedule?.sourceJobId || job?.sourceJobId;
+  if (!sourceId) return null;
+  return jobs.find((item) => item.id === sourceId && item.id !== job.id) || null;
+}
+
+function pretriggerSourceTime(job, at) {
+  const offsetMinutes = Number(job?.schedule?.offsetMinutes || job?.pretriggerOffsetMinutes);
+  if (!Number.isFinite(offsetMinutes) || offsetMinutes <= 0) return null;
+  return new Date(at.getTime() + offsetMinutes * 60_000);
+}
+
 export function buildRunKey(job, at) {
   const schedule = job.schedule || {};
   if (schedule.type === "interval") {
     const everyMs = Number(schedule.everyMinutes) * 60_000;
     return `${job.id}:${Math.floor(at.getTime() / everyMs)}`;
+  }
+
+  if (schedule.type === "pretrigger") {
+    const sourceJob = sourceJobForPretrigger(job);
+    const sourceAt = pretriggerSourceTime(job, at);
+    const sourceKey = sourceJob && sourceAt
+      ? buildRunKey(sourceJob, sourceAt)
+      : `${schedule.sourceJobId || job.sourceJobId || "unknown"}:${at.toISOString()}`;
+    return `${job.id}:offset-${schedule.offsetMinutes}:${sourceKey}`;
   }
 
   const parts = localParts(at, schedule.timezone || LOCAL_TIME_ZONE);
@@ -94,7 +115,13 @@ export function buildRunKey(job, at) {
 
 export function isTimedJobDue(job, at = new Date()) {
   const schedule = job.schedule || {};
-  if (!schedule || schedule.type === "interval") return false;
+  if (!schedule || schedule.type === "interval" || schedule.type === "manual") return false;
+
+  if (schedule.type === "pretrigger") {
+    const sourceJob = sourceJobForPretrigger(job);
+    const sourceAt = pretriggerSourceTime(job, at);
+    return Boolean(sourceJob && sourceAt && isTimedJobDue(sourceJob, sourceAt));
+  }
 
   const parts = localParts(at, schedule.timezone || LOCAL_TIME_ZONE);
 
@@ -169,6 +196,11 @@ export function publicJob(job, at = new Date()) {
     authEnv: job.authEnv || null,
     bodyTemplate: job.method === "POST" ? buildPayload(job, at) : undefined,
     nextRunAt: nextRunForJob(job, at),
+    managedPretrigger: Boolean(job.managedPretrigger),
+    pretriggerStage: job.pretriggerStage || null,
+    pretriggerOffsetMinutes: job.pretriggerOffsetMinutes || null,
+    sourceJobId: job.sourceJobId || null,
+    sourceTargetPath: job.sourceTargetPath || null,
   };
 }
 
@@ -216,6 +248,9 @@ function resultSummary(result) {
     durationMs: result.durationMs,
     targetPath: result.targetPath,
     errorMessage: result.errorMessage || null,
+    managedPretrigger: Boolean(result.managedPretrigger),
+    pretriggerStage: result.pretriggerStage || null,
+    sourceJobId: result.sourceJobId || null,
   };
 }
 
@@ -244,6 +279,13 @@ export function buildRequestHeaders(job, runKey) {
     "x-trigger-run-key": runKey,
     "x-idempotency-key": runKey,
   };
+
+  if (job.managedPretrigger) {
+    headers["x-trigger-pretrigger-stage"] = job.pretriggerStage || "";
+    headers["x-trigger-source-job"] = job.sourceJobId || "";
+    headers["x-trigger-source-path"] = job.sourceTargetPath || "";
+    headers["x-trigger-offset-minutes"] = String(job.pretriggerOffsetMinutes || "");
+  }
 
   if (job.authEnv) {
     const token = envSecret(job.authEnv);
@@ -345,6 +387,11 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
     runKey,
     scheduledFor: at.toISOString(),
     urlPreview: redactUrl(job.url),
+    managedPretrigger: Boolean(job.managedPretrigger),
+    pretriggerStage: job.pretriggerStage || null,
+    pretriggerOffsetMinutes: job.pretriggerOffsetMinutes || null,
+    sourceJobId: job.sourceJobId || null,
+    sourceTargetPath: job.sourceTargetPath || null,
   };
 
   console.log(JSON.stringify({ ...logBase, event: "job-started", payload: payload || null }));
@@ -488,8 +535,10 @@ export async function getStatus() {
       requestRetries: CONFIG.requestRetries,
       betweenJobsMs: CONFIG.betweenJobsMs,
       stateFile: CONFIG.stateFile,
+      pretriggerChecksEnabled: booleanEnv("AIMS_PRETRIGGER_CHECKS_ENABLED", true),
     },
     jobCount: jobs.length,
+    pretriggerJobCount: jobs.filter((job) => job.managedPretrigger).length,
     runningJobs: [...runningJobs],
     state: {
       startedAt: state.startedAt,

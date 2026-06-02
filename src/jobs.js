@@ -10,6 +10,23 @@ function endpoint(envName, fallbackUrl) {
   return configured && configured.trim() ? configured.trim() : fallbackUrl;
 }
 
+function directAimsUrl(path, query = {}) {
+  const base = (process.env.AIMS_BASE_URL || "https://app.jonathan-harris.online").trim().replace(/\/+$/, "");
+  const url = new URL(path, `${base}/`);
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null && String(value).trim()) {
+      url.searchParams.set(key, String(value));
+    }
+  }
+  return url.toString();
+}
+
+function boolEnv(name, fallback = false) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === null || raw === "") return fallback;
+  return ["1", "true", "yes", "y", "on"].includes(String(raw).trim().toLowerCase());
+}
+
 function postJob({ id, group, description, schedule, hookEnv, fallbackUrl, targetUrl, targetPath, body, addLocalDateAsWeekStartDate = false, authEnv = null }) {
   return {
     id,
@@ -342,11 +359,11 @@ const blotatoVideoJobs = [
 const healthPing = getJob({
   id: "suite-health-ping",
   group: "health",
-  description: "Ping the AI Management Suite health endpoint via Hookdeck every 45 minutes.",
-  schedule: { type: "interval", everyMinutes: 55 },
+  description: "Manual fallback AI Management Suite health ping. Scheduled health is now generated automatically before timed AIMS jobs.",
+  schedule: { type: "manual" },
   hookEnv: "HOOK_HEALTH_PING",
-  fallbackUrl: "https://hooks.jonathan-harris.online/dw5subfnlocutv",
-  targetUrl: "Configured in Hookdeck: GET health endpoint",
+  fallbackUrl: "https://app.jonathan-harris.online/health",
+  targetUrl: "https://app.jonathan-harris.online/health",
   targetPath: "/health",
 });
 
@@ -440,7 +457,7 @@ const ramsJobs = [
   }),
 ];
 
-export const jobs = [
+const coreJobs = [
   rssRewrite,
   outreachBatchNext,
   podcastRun,
@@ -454,3 +471,74 @@ export const jobs = [
   healthPing,
   ...ramsJobs,
 ];
+
+const PRETRIGGER_STAGES = [
+  { stage: "health", offsetMinutes: 180, path: "/ops/health", deep: false },
+  { stage: "preflight", offsetMinutes: 120, path: "/ops/preflight", deep: false },
+  { stage: "warmup", offsetMinutes: 30, path: "/ops/warmup", deep: true },
+];
+
+function isAimsTimedJob(job) {
+  return job?.authEnv === "AIMS_API_KEY"
+    && ["weekly", "monthly"].includes(job.schedule?.type)
+    && !job.id.startsWith("pretrigger-")
+    && job.group !== "health";
+}
+
+function serviceKeyForJob(job) {
+  const first = String(job.targetPath || "")
+    .split("?")[0]
+    .split("/")
+    .filter(Boolean)[0];
+  return first || "suite";
+}
+
+function createPretriggerJobs(sourceJobs) {
+  if (!boolEnv("AIMS_PRETRIGGER_CHECKS_ENABLED", true)) return [];
+
+  return sourceJobs
+    .filter(isAimsTimedJob)
+    .flatMap((sourceJob) => {
+      const service = serviceKeyForJob(sourceJob);
+      return PRETRIGGER_STAGES.map((stageConfig) => {
+        const query = {
+          service,
+          stage: stageConfig.stage,
+          sourceJob: sourceJob.id,
+          sourceGroup: sourceJob.group,
+          targetPath: sourceJob.targetPath,
+          offsetMinutes: stageConfig.offsetMinutes,
+          deep: stageConfig.deep ? "true" : undefined,
+        };
+
+        return {
+          id: `pretrigger-${sourceJob.id}-${stageConfig.stage}`,
+          group: `pretrigger-${sourceJob.group}`,
+          description: `${stageConfig.stage} check ${stageConfig.offsetMinutes} minutes before ${sourceJob.id}.`,
+          method: "GET",
+          schedule: {
+            type: "pretrigger",
+            sourceJobId: sourceJob.id,
+            offsetMinutes: stageConfig.offsetMinutes,
+            stage: stageConfig.stage,
+          },
+          hookEnv: null,
+          url: directAimsUrl(stageConfig.path, query),
+          targetUrl: directAimsUrl(stageConfig.path),
+          targetPath: stageConfig.path,
+          authEnv: stageConfig.stage === "health" ? null : "AIMS_API_KEY",
+          managedPretrigger: true,
+          pretriggerStage: stageConfig.stage,
+          pretriggerOffsetMinutes: stageConfig.offsetMinutes,
+          sourceJobId: sourceJob.id,
+          sourceJobGroup: sourceJob.group,
+          sourceTargetPath: sourceJob.targetPath,
+          sourceSchedule: { ...sourceJob.schedule },
+        };
+      });
+    });
+}
+
+export const baseJobs = coreJobs;
+export const pretriggerJobs = createPretriggerJobs(coreJobs);
+export const jobs = [...coreJobs, ...pretriggerJobs];
