@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
-import { jobs } from "../src/jobs.js";
+import { baseJobs, jobs, pretriggerJobs } from "../src/jobs.js";
 import { buildPayload, buildRequestHeaders, dueJobsAt, isTimedJobDue, localParts } from "../src/scheduler.js";
 
 function ids(items) {
   return items.map((item) => item.id).sort();
+}
+
+function actualIds(items) {
+  return ids(items.filter((item) => !item.managedPretrigger));
 }
 
 function at(iso) {
@@ -17,7 +21,9 @@ function stateWithHealthAlreadyRun(iso) {
   };
 }
 
-assert.equal(jobs.length, 32, "AIMS scheduled jobs, social-performance audit, Blotato video jobs, and RAMS protected scheduled/operator jobs should be represented");
+assert.equal(baseJobs.length, 32, "AIMS scheduled jobs, social-performance audit, Blotato video jobs, and RAMS protected scheduled/operator jobs should be represented");
+assert.equal(pretriggerJobs.length, 69, "MAST should generate three AIMS pretrigger checks for each timed AIMS job");
+assert.equal(jobs.length, 101, "jobs should include base jobs plus automatic pretrigger checks");
 
 
 const blotatoHookdeckTargets = {
@@ -65,7 +71,7 @@ assert.equal(socialPerformanceJob.url, "https://app.jonathan-harris.online/audit
 assert.equal(socialPerformanceJob.targetPath, "/audits/social-performance/run", "social-performance-audit should document the AIMS destination");
 assert.equal(socialPerformanceJob.authEnv, "AIMS_API_KEY", "social-performance-audit should send AIMS bearer auth");
 
-const publicHealthJobs = new Set(["suite-health-ping", "rams-health"]);
+const publicHealthJobs = new Set(["suite-health-ping", "rams-health", ...pretriggerJobs.filter((job) => job.pretriggerStage === "health").map((job) => job.id)]);
 for (const healthId of publicHealthJobs) {
   const healthJob = jobs.find((job) => job.id === healthId);
   assert.equal(healthJob.authEnv, null, `${healthId} must remain unauthenticated for liveness checks`);
@@ -108,134 +114,134 @@ for (const healthId of publicHealthJobs) {
 
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-04T07:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T07:00:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-04T07:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T07:00:00.000Z"))),
   ["oneup-ebooks-weekly", "rss-rewrite"],
   "Monday 08:00 Europe/London should run RSS rewrite and weekly ebook scheduling during BST"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-04T08:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T08:30:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-04T08:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T08:30:00.000Z"))),
   ["blog-daily-social-build", "outreach-batch-next"],
   "09:30 Europe/London on weekdays should run outreach and the daily social blog build"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-10T08:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-10T08:30:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-10T08:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-10T08:30:00.000Z"))),
   ["blog-daily-social-build"],
   "daily social blog build should run at 09:30 Europe/London on weekends too"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-08T14:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-08T14:00:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-08T14:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-08T14:00:00.000Z"))),
   ["podcast-run"],
   "Friday 15:00 Europe/London should run podcast"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-04T11:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T11:00:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-04T11:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T11:00:00.000Z"))),
   ["blog-weekly-build"],
   "weekly blog should run at Monday 12:00 Europe/London during BST"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-03T22:15:00.000Z"), stateWithHealthAlreadyRun("2026-05-03T22:15:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-03T22:15:00.000Z"), stateWithHealthAlreadyRun("2026-05-03T22:15:00.000Z"))),
   ["oneup-monday"],
   "Monday OneUp post should be prepared Sunday 23:15 Europe/London"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-03T22:20:00.000Z"), stateWithHealthAlreadyRun("2026-05-03T22:20:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-03T22:20:00.000Z"), stateWithHealthAlreadyRun("2026-05-03T22:20:00.000Z"))),
   ["oneup-weekly-quiz"],
   "weekly quiz should be prepared Sunday 23:20 Europe/London"
 );
 
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-04T18:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T18:45:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-04T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T18:45:00.000Z"))),
   ["blotato-news-insight-publish"],
-  "Monday 19:45 Europe/London should publish the Blotato news insight video"
+  "Monday 18:45 Europe/London should publish the Blotato news insight video"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-05T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-05T17:45:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-05T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-05T17:45:00.000Z"))),
   ["blotato-model-verdict-publish"],
   "Tuesday 18:45 Europe/London should publish the Blotato model verdict video"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-06T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-06T17:45:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-06T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-06T17:45:00.000Z"))),
   ["blotato-ai-at-work-publish"],
   "Wednesday 18:45 Europe/London should publish the Blotato AI at Work video"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-07T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-07T17:45:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-07T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-07T17:45:00.000Z"))),
   ["blotato-reality-check-publish"],
   "Thursday 18:45 Europe/London should publish the Blotato reality-check video"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-08T14:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-08T14:45:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-08T14:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-08T14:45:00.000Z"))),
   ["blotato-ai-playbook-publish"],
   "Friday 15:45 Europe/London should publish the Blotato AI playbook video"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-06-01T02:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T02:00:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-06-01T21:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T21:00:00.000Z"))),
   ["seo-aeo-geo-audit"],
-  "monthly SEO/AEO/GEO audit should run at 02:00 UTC on the 1st"
+  "monthly SEO/AEO/GEO audit should run at 21:00 UTC on the 1st"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-06-01T03:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T03:00:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-06-01T17:20:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T17:20:00.000Z"))),
   ["on-brand-audit"],
-  "monthly on-brand audit should run at 03:00 UTC on the 1st"
+  "monthly on-brand audit should run at 17:20 UTC on the 1st"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-06-01T04:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T04:00:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-06-01T20:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T20:00:00.000Z"))),
   ["mobile-audit"],
-  "monthly mobile UX audit should run at 04:00 UTC on the 1st"
+  "monthly mobile UX audit should run at 20:00 UTC on the 1st"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-06-01T05:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T05:00:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-06-01T17:40:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T17:40:00.000Z"))),
   ["social-performance-audit"],
-  "monthly social-performance audit should run at 05:00 UTC on the 1st"
+  "monthly social-performance audit should run at 17:40 UTC on the 1st"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-06-02T01:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-02T01:00:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-06-02T01:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-02T01:00:00.000Z"))),
   ["rams-rebuild-on-brand"],
   "RAMS on-brand rebuild should run on the 2nd at 02:00 Europe/London during BST"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-06-02T03:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-02T03:00:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-06-02T03:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-02T03:00:00.000Z"))),
   ["rams-report-on-brand-latest"],
   "RAMS on-brand report fetch should run on the 2nd at 04:00 Europe/London during BST"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-06-03T01:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-03T01:00:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-06-03T01:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-03T01:00:00.000Z"))),
   ["rams-rebuild-mobile-ux"],
   "RAMS mobile UX rebuild should run on the 3rd at 02:00 Europe/London during BST"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-06-03T04:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-03T04:00:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-06-03T04:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-03T04:00:00.000Z"))),
   ["rams-report-mobile-ux-latest"],
   "RAMS mobile UX report fetch should run on the 3rd at 05:00 Europe/London during BST"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-06-04T01:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-04T01:00:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-06-04T01:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-04T01:00:00.000Z"))),
   ["rams-rebuild-seo-aeo-geo"],
   "RAMS SEO/AEO/GEO rebuild should run on the 4th at 02:00 Europe/London during BST"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-06-04T04:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-04T04:00:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-06-04T04:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-04T04:00:00.000Z"))),
   ["rams-report-seo-aeo-geo-latest"],
   "RAMS SEO/AEO/GEO report fetch should run on the 4th at 05:00 Europe/London during BST"
 );
@@ -247,7 +253,38 @@ assert.equal(buildPayload(ebookJob, at("2026-05-04T07:00:00.000Z")).weekStartDat
 const winterParts = localParts(at("2026-12-07T09:00:00.000Z"), "Europe/London");
 assert.equal(winterParts.time, "09:00", "London winter local conversion should stay correct");
 
-const healthDue = dueJobsAt(at("2026-05-04T00:00:00.000Z"), { lastRunKeys: {}, intervalLastRunAt: {} });
-assert.ok(healthDue.some((job) => job.id === "suite-health-ping"), "health ping should run when it has no previous timestamp");
+const oldIntervalHealthDue = dueJobsAt(at("2026-05-11T00:00:00.000Z"), { lastRunKeys: {}, intervalLastRunAt: {} });
+assert.ok(!oldIntervalHealthDue.some((job) => job.id === "suite-health-ping"), "suite health ping should no longer run on a blind interval");
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-11T04:00:00.000Z"), { lastRunKeys: {}, intervalLastRunAt: {} })),
+  ["pretrigger-oneup-ebooks-weekly-health", "pretrigger-rss-rewrite-health"],
+  "Monday 05:00 Europe/London should run the T-3h checks for 08:00 London AIMS jobs"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-11T05:00:00.000Z"), { lastRunKeys: {}, intervalLastRunAt: {} })),
+  ["pretrigger-oneup-ebooks-weekly-preflight", "pretrigger-rss-rewrite-preflight"],
+  "Monday 06:00 Europe/London should run the T-2h preflight checks for 08:00 London AIMS jobs"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-11T06:30:00.000Z"), { lastRunKeys: {}, intervalLastRunAt: {} })),
+  ["pretrigger-blog-daily-social-build-preflight", "pretrigger-oneup-ebooks-weekly-warmup", "pretrigger-outreach-batch-next-preflight", "pretrigger-rss-rewrite-warmup"],
+  "Monday 07:30 Europe/London should run the T-30m warmup checks for 08:00 London AIMS jobs"
+);
+
+assert.deepEqual(
+  ids(dueJobsAt(at("2026-05-11T05:30:00.000Z"), { lastRunKeys: {}, intervalLastRunAt: {} })),
+  ["pretrigger-blog-daily-social-build-health", "pretrigger-outreach-batch-next-health"],
+  "Changing actual service schedules automatically changes the derived T-3h check time"
+);
+
+process.env.AIMS_API_KEY = "unit-test-aims-key";
+const preflightHeaders = buildRequestHeaders(jobs.find((job) => job.id === "pretrigger-blog-daily-social-build-preflight"), "unit-preflight-key");
+assert.equal(preflightHeaders.authorization, "Bearer unit-test-aims-key", "preflight checks should send the AIMS bearer token");
+assert.equal(preflightHeaders["x-trigger-pretrigger-stage"], "preflight", "preflight checks should identify their stage");
+assert.equal(preflightHeaders["x-trigger-source-job"], "blog-daily-social-build", "preflight checks should identify the source job");
+delete process.env.AIMS_API_KEY;
 
 console.log("scheduler tests passed");
