@@ -265,7 +265,7 @@ const monthlyAuditJobs = [
     id: "social-performance-audit",
     group: "audits",
     description: "Run the monthly Zernio social-performance analysis report.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "17:40", timezone: "UTC" },
+    schedule: { type: "monthly", dayOfMonth: 7, time: "14:40", timezone: "UTC" },
     hookEnv: "HOOK_AUDIT_SOCIAL_PERFORMANCE",
     fallbackUrl: "https://app.jonathan-harris.online/audits/social-performance/run",
     targetUrl: "https://app.jonathan-harris.online/audits/social-performance/run",
