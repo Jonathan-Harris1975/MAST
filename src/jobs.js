@@ -199,8 +199,8 @@ const monthlyAuditJobs = [
   postJob({
     id: "seo-aeo-geo-audit",
     group: "audits",
-    description: "Run the SEO/AEO/GEO audit once a month.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "02:00", timezone: "UTC" },
+    description: "Run the SEO/AEO/GEO source audit first so website evidence starts collecting on the 1st.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "01:00", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_AUDIT_SEO_AEO_GEO",
     fallbackUrl: "https://hooks.jonathan-harris.online/q36ha3y3919gzf",
     targetUrl: "Configured in Hookdeck: POST /audits/seo-aeo-geo/run",
@@ -208,32 +208,15 @@ const monthlyAuditJobs = [
     authEnv: "AIMS_API_KEY",
     body: {
       requestedBy: SERVICE_NAME,
-      notes: "Scheduled monthly SEO/AEO/GEO audit from Koyeb cron control.",
-    },
-  }),
-  postJob({
-    id: "on-brand-audit",
-    group: "audits",
-    description: "Run the on-brand audit once a month across OneUp, podcast transcripts, and RSS.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "03:00", timezone: "UTC" },
-    hookEnv: "HOOK_AUDIT_ON_BRAND",
-    fallbackUrl: "https://hooks.jonathan-harris.online/nnryoo0m8ab3d9",
-    targetUrl: "Configured in Hookdeck: POST /audits/on-brand/run",
-    targetPath: "/audits/on-brand/run",
-    authEnv: "AIMS_API_KEY",
-    body: {
-      lookbackDays: 7,
-      includeOneUp: true,
-      includePodcastTranscripts: true,
-      includeRss: true,
-      dryRun: false,
+      runCouncil: true,
+      notes: "Monthly audit sequence step 1: source SEO/AEO/GEO evidence. Council is also queued from callback as a safety net.",
     },
   }),
   postJob({
     id: "mobile-audit",
     group: "audits",
-    description: "Run the mobile UX audit once a month.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "04:00", timezone: "UTC" },
+    description: "Run the mobile UX source audit after SEO/AEO/GEO so rendered evidence is available for the council layer.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "01:10", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_AUDIT_MOBILE_UX",
     fallbackUrl: "https://hooks.jonathan-harris.online/0xtlks9y88br6o",
     targetUrl: "Configured in Hookdeck: POST /audits/mobile-ux/run",
@@ -241,14 +224,54 @@ const monthlyAuditJobs = [
     authEnv: "AIMS_API_KEY",
     body: {
       requestedBy: SERVICE_NAME,
-      notes: "Scheduled monthly mobile UX audit from Koyeb cron control.",
+      runCouncil: true,
+      notes: "Monthly audit sequence step 2: mobile UX evidence. Council is also queued from callback as a safety net.",
+    },
+  }),
+  postJob({
+    id: "on-brand-audit",
+    group: "audits",
+    description: "Run the on-brand audit once a month across OneUp, podcast transcripts, and RSS.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "02:00", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_AUDIT_ON_BRAND",
+    fallbackUrl: "https://hooks.jonathan-harris.online/nnryoo0m8ab3d9",
+    targetUrl: "Configured in Hookdeck: POST /audits/on-brand/run",
+    targetPath: "/audits/on-brand/run",
+    authEnv: "AIMS_API_KEY",
+    body: {
+      lookbackDays: 31,
+      includeOneUp: true,
+      includePodcastTranscripts: true,
+      includeRss: true,
+      runPodcastWebsiteReports: true,
+      dryRun: false,
+      requestedBy: SERVICE_NAME,
+    },
+  }),
+  postJob({
+    id: "podcast-website-report",
+    group: "audits",
+    description: "Run podcast episode and transcript website reports before the brand/social council consumes them.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "02:20", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_AUDIT_PODCAST_WEBSITE",
+    fallbackUrl: "https://app.jonathan-harris.online/audits/podcast-website/run",
+    targetUrl: "https://app.jonathan-harris.online/audits/podcast-website/run",
+    targetPath: "/audits/podcast-website/run",
+    authEnv: "AIMS_API_KEY",
+    body: {
+      lookbackDays: 31,
+      includeOneUp: true,
+      includePodcastTranscripts: true,
+      includeRss: true,
+      requestedBy: SERVICE_NAME,
+      notes: "Monthly audit sequence step 4: podcast episode/transcript website evidence for brand-social council.",
     },
   }),
   postJob({
     id: "social-performance-audit",
     group: "audits",
-    description: "Run the monthly Zernio social-performance analysis report.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "10:00", timezone: "UTC" },
+    description: "Run the monthly Zernio social-performance analysis report with short thumbnail evidence enabled.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "02:40", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_AUDIT_SOCIAL_PERFORMANCE",
     fallbackUrl: "https://app.jonathan-harris.online/audits/social-performance/run",
     targetUrl: "https://app.jonathan-harris.online/audits/social-performance/run",
@@ -256,7 +279,57 @@ const monthlyAuditJobs = [
     authEnv: "AIMS_API_KEY",
     body: {
       requestedBy: SERVICE_NAME,
-      notes: "Scheduled monthly Zernio social-performance report from Koyeb cron control.",
+      runCouncil: false,
+      thumbnailAudit: true,
+      notes: "Monthly audit sequence step 5: social-performance and thumbnail evidence before the brand/social council runs.",
+    },
+  }),
+  postJob({
+    id: "brand-social-council-report",
+    group: "audit-councils",
+    description: "Run the brand/social council after on-brand, podcast website and social-performance evidence exists.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "03:10", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_AUDIT_BRAND_SOCIAL_COUNCIL",
+    fallbackUrl: "https://app.jonathan-harris.online/audits/brand-social-council/run",
+    targetUrl: "https://app.jonathan-harris.online/audits/brand-social-council/run",
+    targetPath: "/audits/brand-social-council/run",
+    authEnv: "AIMS_API_KEY",
+    body: {
+      requestedBy: SERVICE_NAME,
+      sourceTrigger: "monthly-audit-sequence",
+      notes: "Monthly audit sequence step 6: council report using on-brand, podcast, transcript, social and thumbnail latest pointers.",
+    },
+  }),
+  postJob({
+    id: "seo-aeo-geo-council-report",
+    group: "audit-councils",
+    description: "Run the SEO/AEO/GEO council after the source workflow has had time to publish its latest evidence.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "06:00", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_AUDIT_SEO_AEO_GEO_COUNCIL",
+    fallbackUrl: "https://app.jonathan-harris.online/audits/seo-aeo-geo-council/run",
+    targetUrl: "https://app.jonathan-harris.online/audits/seo-aeo-geo-council/run",
+    targetPath: "/audits/seo-aeo-geo-council/run",
+    authEnv: "AIMS_API_KEY",
+    body: {
+      requestedBy: SERVICE_NAME,
+      sourceTrigger: "monthly-audit-sequence",
+      notes: "Monthly audit sequence step 7: SEO/AEO/GEO council fallback/report generation on the 1st.",
+    },
+  }),
+  postJob({
+    id: "mobile-ux-council-report",
+    group: "audit-councils",
+    description: "Run the Mobile UX council after the source workflow has had time to publish its latest evidence.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "06:20", timezone: LOCAL_TIME_ZONE },
+    hookEnv: "HOOK_AUDIT_MOBILE_UX_COUNCIL",
+    fallbackUrl: "https://app.jonathan-harris.online/audits/mobile-ux-council/run",
+    targetUrl: "https://app.jonathan-harris.online/audits/mobile-ux-council/run",
+    targetPath: "/audits/mobile-ux-council/run",
+    authEnv: "AIMS_API_KEY",
+    body: {
+      requestedBy: SERVICE_NAME,
+      sourceTrigger: "monthly-audit-sequence",
+      notes: "Monthly audit sequence step 8: Mobile UX council fallback/report generation on the 1st.",
     },
   }),
 ];
@@ -342,8 +415,8 @@ const blotatoVideoJobs = [
 const healthPing = getJob({
   id: "suite-health-ping",
   group: "health",
-  description: "Ping the AI Management Suite health endpoint via Hookdeck every 45 minutes.",
-  schedule: { type: "interval", everyMinutes: 55 },
+  description: "Manual fallback ping for the AI Management Suite health endpoint via Hookdeck.",
+  schedule: { type: "manual" },
   hookEnv: "HOOK_HEALTH_PING",
   fallbackUrl: "https://hooks.jonathan-harris.online/dw5subfnlocutv",
   targetUrl: "Configured in Hookdeck: GET health endpoint",
@@ -375,8 +448,8 @@ const ramsJobs = [
   postJob({
     id: "rams-rebuild-seo-aeo-geo",
     group: "rams",
-    description: "Trigger the RAMS SEO/AEO/GEO remediation pipeline on the 4th of each month at 02:00 London time.",
-    schedule: { type: "monthly", dayOfMonth: 4, time: "02:00", timezone: LOCAL_TIME_ZONE },
+    description: "Trigger the RAMS SEO/AEO/GEO remediation pipeline on the 1st after the SEO/AEO/GEO council report is available.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "07:40", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_RAMS_REBUILD_SEO_AEO_GEO",
     fallbackUrl: "https://hooks.jonathan-harris.online/mwa6lp7lh1dht3",
     targetUrl: "https://mod.jonathan-harris.online/rebuild/seo-aeo-geo/run",
@@ -386,8 +459,8 @@ const ramsJobs = [
   postJob({
     id: "rams-rebuild-mobile-ux",
     group: "rams",
-    description: "Trigger the RAMS Mobile UX remediation pipeline on the 3rd of each month at 02:00 London time.",
-    schedule: { type: "monthly", dayOfMonth: 3, time: "02:00", timezone: LOCAL_TIME_ZONE },
+    description: "Trigger the RAMS Mobile UX remediation pipeline on the 1st after the Mobile UX council report is available.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "06:40", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_RAMS_REBUILD_MOBILE_UX",
     fallbackUrl: "https://hooks.jonathan-harris.online/wn7h7x388dwiyt",
     targetUrl: "https://mod.jonathan-harris.online/rebuild/mobile-ux/run",
@@ -397,8 +470,8 @@ const ramsJobs = [
   postJob({
     id: "rams-rebuild-on-brand",
     group: "rams",
-    description: "Trigger the RAMS On-Brand remediation pipeline on the 2nd of each month at 02:00 London time.",
-    schedule: { type: "monthly", dayOfMonth: 2, time: "02:00", timezone: LOCAL_TIME_ZONE },
+    description: "Trigger the RAMS On-Brand remediation pipeline on the 1st after the brand/social council report is available.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "04:30", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_RAMS_REBUILD_ON_BRAND",
     fallbackUrl: "https://hooks.jonathan-harris.online/5po78dqk5h9gd9",
     targetUrl: "https://mod.jonathan-harris.online/rebuild/on-brand/run",
@@ -408,8 +481,8 @@ const ramsJobs = [
   getJob({
     id: "rams-report-mobile-ux-latest",
     group: "rams-reports",
-    description: "Fetch the latest RAMS Mobile UX live report on the 3rd of each month at 05:00 London time.",
-    schedule: { type: "monthly", dayOfMonth: 3, time: "05:00", timezone: LOCAL_TIME_ZONE },
+    description: "Fetch the latest RAMS Mobile UX live report on the 1st after the Mobile UX rebuild finishes.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "07:10", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_RAMS_REPORT_MOBILE_UX_LATEST",
     fallbackUrl: "https://hooks.jonathan-harris.online/9zmq78a3r28mdh",
     targetUrl: "https://mod.jonathan-harris.online/reports/mobile-ux/latest",
@@ -419,8 +492,8 @@ const ramsJobs = [
   getJob({
     id: "rams-report-seo-aeo-geo-latest",
     group: "rams-reports",
-    description: "Fetch the latest RAMS SEO/AEO/GEO live report on the 4th of each month at 05:00 London time.",
-    schedule: { type: "monthly", dayOfMonth: 4, time: "05:00", timezone: LOCAL_TIME_ZONE },
+    description: "Fetch the latest RAMS SEO/AEO/GEO live report on the 1st after the SEO/AEO/GEO rebuild finishes.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "08:10", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_RAMS_REPORT_SEO_AEO_GEO_LATEST",
     fallbackUrl: "https://hooks.jonathan-harris.online/wdcmlqfo9ry9cw",
     targetUrl: "https://mod.jonathan-harris.online/reports/seo-aeo-geo/latest",
@@ -430,8 +503,8 @@ const ramsJobs = [
   getJob({
     id: "rams-report-on-brand-latest",
     group: "rams-reports",
-    description: "Fetch the latest RAMS On-Brand live report on the 2nd of each month at 04:00 London time.",
-    schedule: { type: "monthly", dayOfMonth: 2, time: "04:00", timezone: LOCAL_TIME_ZONE },
+    description: "Fetch the latest RAMS On-Brand live report on the 1st after the on-brand rebuild finishes.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "05:00", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_RAMS_REPORT_ON_BRAND_LATEST",
     fallbackUrl: "https://hooks.jonathan-harris.online/hg845445lzbvjl",
     targetUrl: "https://mod.jonathan-harris.online/reports/on-brand/latest",
@@ -440,7 +513,7 @@ const ramsJobs = [
   }),
 ];
 
-export const jobs = [
+export const baseJobs = [
   rssRewrite,
   outreachBatchNext,
   podcastRun,
@@ -454,3 +527,76 @@ export const jobs = [
   healthPing,
   ...ramsJobs,
 ];
+
+function boolEnv(name, fallback = true) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === null || raw === "") return fallback;
+  return ["1", "true", "yes", "y", "on"].includes(String(raw).trim().toLowerCase());
+}
+
+function aimsBaseUrl() {
+  return String(process.env.AIMS_BASE_URL || "https://app.jonathan-harris.online").replace(/\/+$/, "");
+}
+
+function serviceForJob(job) {
+  if (job.group?.startsWith("oneup")) return "oneup";
+  if (job.group?.startsWith("blotato")) return "blotato";
+  if (job.group?.includes("audit")) return "audits";
+  if (job.group === "podcast") return "podcast";
+  if (job.group === "rss") return "rss";
+  if (job.group === "blog") return "blog";
+  if (job.group === "outreach") return "outreach";
+  return "suite";
+}
+
+function pretriggerUrl(stage, sourceJob, offsetMinutes) {
+  const url = new URL(`${aimsBaseUrl()}/ops/${stage}`);
+  url.searchParams.set("service", serviceForJob(sourceJob));
+  url.searchParams.set("sourceJob", sourceJob.id);
+  url.searchParams.set("sourceGroup", sourceJob.group || "");
+  url.searchParams.set("targetPath", sourceJob.targetPath || "");
+  url.searchParams.set("offsetMinutes", String(offsetMinutes));
+  return url.toString();
+}
+
+function pretriggerJob(sourceJob, stage, offsetMinutes) {
+  const authEnv = stage === "health" ? null : "AIMS_API_KEY";
+  return {
+    id: `pretrigger-${sourceJob.id}-${stage}`,
+    group: "aims-pretrigger",
+    description: `Run ${stage} check ${offsetMinutes} minutes before ${sourceJob.id}.`,
+    method: "GET",
+    schedule: { type: "pretrigger", sourceJobId: sourceJob.id, offsetMinutes },
+    hookEnv: null,
+    url: pretriggerUrl(stage, sourceJob, offsetMinutes),
+    targetUrl: pretriggerUrl(stage, sourceJob, offsetMinutes),
+    targetPath: `/ops/${stage}`,
+    authEnv,
+    managedPretrigger: true,
+    pretriggerStage: stage,
+    pretriggerOffsetMinutes: offsetMinutes,
+    sourceJobId: sourceJob.id,
+    sourceTargetPath: sourceJob.targetPath || null,
+  };
+}
+
+function shouldHavePretriggers(job) {
+  return job?.authEnv === "AIMS_API_KEY"
+    && ["weekly", "monthly"].includes(job.schedule?.type)
+    && !job.managedPretrigger;
+}
+
+function buildPretriggerJobs(sourceJobs) {
+  if (!boolEnv("AIMS_PRETRIGGER_CHECKS_ENABLED", true)) return [];
+
+  return sourceJobs
+    .filter(shouldHavePretriggers)
+    .flatMap((job) => [
+      pretriggerJob(job, "health", 180),
+      pretriggerJob(job, "preflight", 120),
+      pretriggerJob(job, "warmup", 30),
+    ]);
+}
+
+export const pretriggerJobs = buildPretriggerJobs(baseJobs);
+export const jobs = [...baseJobs, ...pretriggerJobs];
