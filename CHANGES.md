@@ -62,3 +62,12 @@ Both passed.
 - `npm test`
 
 Both passed.
+
+## Monthly audit/council sequencing and Hookdeck timeout hardening
+
+- Moved every monthly audit/report/council trigger onto the 1st of the month.
+- Added explicit MAST jobs for podcast website reports, brand/social council, SEO/AEO/GEO council, and Mobile UX council.
+- Staggered RAMS rebuild/report pulls on the 1st after the relevant council reports are scheduled.
+- Increased trigger retry tolerance and documented that AIMS long-running audit routes now acknowledge quickly with `202 Accepted`.
+- Added Hookdeck override variables for the new audit/council jobs.
+- Restored generated AIMS pretrigger health/preflight/warmup checks for all timed AIMS jobs.

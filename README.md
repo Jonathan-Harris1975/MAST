@@ -40,10 +40,15 @@ All times are based on `Europe/London` unless explicitly stated.
 | Daily social blog build | Daily at 09:30 |
 | OneUp daily posts | Previous evening at 23:15 |
 | Weekly quiz | Sunday at 23:20 |
-| Monthly SEO/AEO/GEO audit | 1st of each month at 02:00 UTC |
-| Monthly on-brand audit | 1st of each month at 03:00 UTC |
-| Monthly mobile UX audit | 1st of each month at 04:00 UTC |
-| Monthly Zernio social-performance report | 1st of each month at 05:00 UTC |
+| Monthly SEO/AEO/GEO source audit | 1st at 01:00 London |
+| Monthly mobile UX source audit | 1st at 01:10 London |
+| Monthly on-brand audit | 1st at 02:00 London |
+| Monthly podcast website episode/transcript reports | 1st at 02:20 London |
+| Monthly Zernio social-performance report with thumbnail evidence | 1st at 02:40 London |
+| Monthly brand/social council report | 1st at 03:10 London |
+| Monthly SEO/AEO/GEO council report | 1st at 06:00 London |
+| Monthly mobile UX council report | 1st at 06:20 London |
+| RAMS rebuild/report fetches | 1st, staggered after council reports |
 | Weekly ebook posts | Monday at 08:00 London time |
 | AIMS pretrigger checks | Automatically at T-3h, T-2h, and T-30m before each timed AIMS job |
 | RAMS operator endpoints | Manual only via `/run/:jobId` |
@@ -78,8 +83,8 @@ This repo includes a Dockerfile. Koyeb can build it directly from GitHub.
 |---|---:|---|
 | `SCHEDULER_ENABLED` | `true` | Set to `false` for a safe dry deployment. |
 | `SCHEDULER_TICK_SECONDS` | `20` | Checks schedules every 20 seconds. |
-| `REQUEST_TIMEOUT_MS` | `60000` | Timeout for each Hookdeck request. |
-| `REQUEST_RETRIES` | `2` | Retries non-OK/failed requests. |
+| `REQUEST_TIMEOUT_MS` | `300000` | Upper bound for each trigger request. AIMS audit/report endpoints now return `202 Accepted` quickly, so Hookdeck should not wait on long report generation. |
+| `REQUEST_RETRIES` | `4` | Retries non-OK/failed requests with a short backoff. |
 | `BETWEEN_JOBS_MS` | `1500` | Small delay between multiple due jobs. |
 | `STATE_FILE` | `/tmp/koyeb-cron-control-state.json` | Prevents duplicate runs inside the same schedule window. |
 | `AIMS_BASE_URL` | `https://app.jonathan-harris.online` | Direct AIMS base URL for generated pretrigger checks. |
@@ -111,14 +116,20 @@ Useful controls:
 
 ## Monthly audit jobs
 
-MAST runs the source audits on the 1st of each month. The Zernio social-performance job is analysis-only and saves the report to the AIMS audits R2 bucket through the AIMS endpoint. It does not trigger RAMS.
+MAST runs every audit/report input on the **1st of the month**, deliberately staggered so the council reports have their source data available before they build. Long-running AIMS report routes return `202 Accepted` and continue in the AIMS job store, which prevents Hookdeck from sitting on a request until it times out.
 
-| Job ID | Schedule | Hook env | Fallback | AIMS destination |
-|---|---|---|---|---|
-| `seo-aeo-geo-audit` | 1st, 02:00 UTC | `HOOK_AUDIT_SEO_AEO_GEO` | Hookdeck fallback | `/audits/seo-aeo-geo/run` |
-| `on-brand-audit` | 1st, 03:00 UTC | `HOOK_AUDIT_ON_BRAND` | Hookdeck fallback | `/audits/on-brand/run` |
-| `mobile-audit` | 1st, 04:00 UTC | `HOOK_AUDIT_MOBILE_UX` | Hookdeck fallback | `/audits/mobile-ux/run` |
-| `social-performance-audit` | 1st, 05:00 UTC | `HOOK_AUDIT_SOCIAL_PERFORMANCE` | Direct AIMS endpoint | `/audits/social-performance/run` |
+| Order | Job ID | Schedule | Purpose | Destination |
+|---:|---|---|---|---|
+| 1 | `seo-aeo-geo-audit` | 1st, 01:00 London | Dispatch source SEO/AEO/GEO workflow | `/audits/seo-aeo-geo/run` |
+| 2 | `mobile-audit` | 1st, 01:10 London | Dispatch source Mobile UX workflow | `/audits/mobile-ux/run` |
+| 3 | `on-brand-audit` | 1st, 02:00 London | Build brand QA report | `/audits/on-brand/run` |
+| 4 | `podcast-website-report` | 1st, 02:20 London | Build podcast episode and transcript reports | `/audits/podcast-website/run` |
+| 5 | `social-performance-audit` | 1st, 02:40 London | Build Zernio social report with thumbnail evidence | `/audits/social-performance/run` |
+| 6 | `brand-social-council-report` | 1st, 03:10 London | Build master brand/social council report after brand, social, podcast and transcript inputs exist | `/audits/brand-social-council/run` |
+| 7 | `seo-aeo-geo-council-report` | 1st, 06:00 London | Build SEO/AEO/GEO council fallback/report from latest website audit evidence | `/audits/seo-aeo-geo-council/run` |
+| 8 | `mobile-ux-council-report` | 1st, 06:20 London | Build Mobile UX council fallback/report from latest rendered evidence | `/audits/mobile-ux-council/run` |
+
+The SEO/AEO/GEO and Mobile UX callbacks still queue their councils when source workflows complete. The explicit 06:00 and 06:20 council jobs are a belt-and-braces monthly report guarantee, not a second patch trigger.
 
 
 ## Blotato weekly social-video jobs
