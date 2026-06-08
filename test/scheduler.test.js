@@ -21,9 +21,9 @@ function stateWithHealthAlreadyRun(iso) {
   };
 }
 
-assert.equal(baseJobs.length, 32, "AIMS scheduled jobs, social-performance audit, Blotato video jobs, and RAMS protected scheduled/operator jobs should be represented");
-assert.equal(pretriggerJobs.length, 69, "MAST should generate three AIMS pretrigger checks for each timed AIMS job");
-assert.equal(jobs.length, 101, "jobs should include base jobs plus automatic pretrigger checks");
+assert.equal(baseJobs.length, 36, "AIMS scheduled jobs, all monthly audit/council reports, Blotato video jobs, and RAMS protected scheduled/operator jobs should be represented");
+assert.equal(pretriggerJobs.length, 81, "MAST should generate three AIMS pretrigger checks for each timed AIMS job");
+assert.equal(jobs.length, 117, "jobs should include base jobs plus automatic pretrigger checks");
 
 
 const blotatoHookdeckTargets = {
@@ -70,6 +70,29 @@ assert.equal(socialPerformanceJob.hookEnv, "HOOK_AUDIT_SOCIAL_PERFORMANCE", "soc
 assert.equal(socialPerformanceJob.url, "https://app.jonathan-harris.online/audits/social-performance/run", "social-performance-audit should fall back to the direct authenticated AIMS endpoint");
 assert.equal(socialPerformanceJob.targetPath, "/audits/social-performance/run", "social-performance-audit should document the AIMS destination");
 assert.equal(socialPerformanceJob.authEnv, "AIMS_API_KEY", "social-performance-audit should send AIMS bearer auth");
+
+const monthlyAuditSequence = [
+  ["seo-aeo-geo-audit", "audits", "HOOK_AUDIT_SEO_AEO_GEO", "/audits/seo-aeo-geo/run"],
+  ["mobile-audit", "audits", "HOOK_AUDIT_MOBILE_UX", "/audits/mobile-ux/run"],
+  ["on-brand-audit", "audits", "HOOK_AUDIT_ON_BRAND", "/audits/on-brand/run"],
+  ["podcast-website-report", "audits", "HOOK_AUDIT_PODCAST_WEBSITE", "/audits/podcast-website/run"],
+  ["social-performance-audit", "audits", "HOOK_AUDIT_SOCIAL_PERFORMANCE", "/audits/social-performance/run"],
+  ["brand-social-council-report", "audit-councils", "HOOK_AUDIT_BRAND_SOCIAL_COUNCIL", "/audits/brand-social-council/run"],
+  ["seo-aeo-geo-council-report", "audit-councils", "HOOK_AUDIT_SEO_AEO_GEO_COUNCIL", "/audits/seo-aeo-geo-council/run"],
+  ["mobile-ux-council-report", "audit-councils", "HOOK_AUDIT_MOBILE_UX_COUNCIL", "/audits/mobile-ux-council/run"],
+];
+
+for (const [id, group, hookEnv, targetPath] of monthlyAuditSequence) {
+  const job = jobs.find((item) => item.id === id);
+  assert.ok(job, `${id} should exist in the monthly audit sequence`);
+  assert.equal(job.group, group, `${id} should be grouped correctly`);
+  assert.equal(job.hookEnv, hookEnv, `${id} should expose the correct Hookdeck override env`);
+  assert.equal(job.targetPath, targetPath, `${id} should target the expected AIMS audit endpoint`);
+  assert.equal(job.authEnv, "AIMS_API_KEY", `${id} should send AIMS bearer auth`);
+}
+
+assert.equal(socialPerformanceJob.body.thumbnailAudit, true, "social-performance should request thumbnail evidence in the monthly payload");
+assert.equal(socialPerformanceJob.body.runCouncil, false, "brand-social council is scheduled explicitly after all inputs are available");
 
 const publicHealthJobs = new Set(["suite-health-ping", "rams-health", ...pretriggerJobs.filter((job) => job.pretriggerStage === "health").map((job) => job.id)]);
 for (const healthId of publicHealthJobs) {
@@ -157,9 +180,9 @@ assert.deepEqual(
 
 
 assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-05-04T17:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T18:45:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-04T18:45:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T18:45:00.000Z"))),
   ["blotato-news-insight-publish"],
-  "Monday 18:45 Europe/London should publish the Blotato news insight video"
+  "Monday 19:45 Europe/London should publish the Blotato news insight video"
 );
 
 assert.deepEqual(
@@ -186,65 +209,30 @@ assert.deepEqual(
   "Friday 15:45 Europe/London should publish the Blotato AI playbook video"
 );
 
-assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-06-01T21:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T21:00:00.000Z"))),
-  ["seo-aeo-geo-audit"],
-  "monthly SEO/AEO/GEO audit should run at 21:00 UTC on the 1st"
-);
+const monthlyDueCases = [
+  ["2026-06-01T00:00:00.000Z", ["seo-aeo-geo-audit"], "monthly SEO/AEO/GEO audit should run first at 01:00 London on the 1st"],
+  ["2026-06-01T00:10:00.000Z", ["mobile-audit"], "monthly mobile UX audit should run second at 01:10 London on the 1st"],
+  ["2026-06-01T01:00:00.000Z", ["on-brand-audit"], "monthly on-brand audit should run at 02:00 London on the 1st"],
+  ["2026-06-01T01:20:00.000Z", ["podcast-website-report"], "podcast website reports should run before social/council reports"],
+  ["2026-06-01T01:40:00.000Z", ["social-performance-audit"], "monthly social-performance audit should run before brand-social council"],
+  ["2026-06-01T02:10:00.000Z", ["brand-social-council-report"], "brand/social council should run after its evidence sources"],
+  ["2026-06-01T05:00:00.000Z", ["seo-aeo-geo-council-report"], "SEO/AEO/GEO council fallback report should run on the 1st"],
+  ["2026-06-01T05:20:00.000Z", ["mobile-ux-council-report"], "Mobile UX council fallback report should run on the 1st"],
+  ["2026-06-01T03:30:00.000Z", ["rams-rebuild-on-brand"], "RAMS on-brand rebuild should run on the 1st after the brand/social council"],
+  ["2026-06-01T04:00:00.000Z", ["rams-report-on-brand-latest"], "RAMS on-brand report fetch should run on the 1st"],
+  ["2026-06-01T05:40:00.000Z", ["rams-rebuild-mobile-ux"], "RAMS mobile UX rebuild should run on the 1st after the mobile council"],
+  ["2026-06-01T06:10:00.000Z", ["rams-report-mobile-ux-latest"], "RAMS mobile UX report fetch should run on the 1st"],
+  ["2026-06-01T06:40:00.000Z", ["rams-rebuild-seo-aeo-geo"], "RAMS SEO/AEO/GEO rebuild should run on the 1st after the SEO council"],
+  ["2026-06-01T07:10:00.000Z", ["rams-report-seo-aeo-geo-latest"], "RAMS SEO/AEO/GEO report fetch should run on the 1st"],
+];
 
-assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-06-01T17:20:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T17:20:00.000Z"))),
-  ["on-brand-audit"],
-  "monthly on-brand audit should run at 17:20 UTC on the 1st"
-);
-
-assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-06-01T20:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T20:00:00.000Z"))),
-  ["mobile-audit"],
-  "monthly mobile UX audit should run at 20:00 UTC on the 1st"
-);
-
-assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-06-01T17:40:00.000Z"), stateWithHealthAlreadyRun("2026-06-01T17:40:00.000Z"))),
-  ["social-performance-audit"],
-  "monthly social-performance audit should run at 17:40 UTC on the 1st"
-);
-
-assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-06-02T01:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-02T01:00:00.000Z"))),
-  ["rams-rebuild-on-brand"],
-  "RAMS on-brand rebuild should run on the 2nd at 02:00 Europe/London during BST"
-);
-
-assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-06-02T03:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-02T03:00:00.000Z"))),
-  ["rams-report-on-brand-latest"],
-  "RAMS on-brand report fetch should run on the 2nd at 04:00 Europe/London during BST"
-);
-
-assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-06-03T01:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-03T01:00:00.000Z"))),
-  ["rams-rebuild-mobile-ux"],
-  "RAMS mobile UX rebuild should run on the 3rd at 02:00 Europe/London during BST"
-);
-
-assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-06-03T04:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-03T04:00:00.000Z"))),
-  ["rams-report-mobile-ux-latest"],
-  "RAMS mobile UX report fetch should run on the 3rd at 05:00 Europe/London during BST"
-);
-
-assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-06-04T01:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-04T01:00:00.000Z"))),
-  ["rams-rebuild-seo-aeo-geo"],
-  "RAMS SEO/AEO/GEO rebuild should run on the 4th at 02:00 Europe/London during BST"
-);
-
-assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-06-04T04:00:00.000Z"), stateWithHealthAlreadyRun("2026-06-04T04:00:00.000Z"))),
-  ["rams-report-seo-aeo-geo-latest"],
-  "RAMS SEO/AEO/GEO report fetch should run on the 4th at 05:00 Europe/London during BST"
-);
+for (const [iso, expected, message] of monthlyDueCases) {
+  assert.deepEqual(
+    actualIds(dueJobsAt(at(iso), stateWithHealthAlreadyRun(iso))),
+    expected,
+    message
+  );
+}
 
 const ebookJob = jobs.find((job) => job.id === "oneup-ebooks-weekly");
 assert.ok(isTimedJobDue(ebookJob, at("2026-05-04T07:00:00.000Z")), "ebook weekly should run Monday 08:00 Europe/London during BST");
