@@ -17,13 +17,13 @@ function at(iso) {
 function stateWithHealthAlreadyRun(iso) {
   return {
     lastRunKeys: {},
-    intervalLastRunAt: { "suite-health-ping": iso },
+    intervalLastRunAt: { "suite-health-ping": iso, "hive-keepawake": iso },
   };
 }
 
-assert.equal(baseJobs.length, 36, "AIMS scheduled jobs, all monthly audit/council reports, Blotato video jobs, and RAMS protected scheduled/operator jobs should be represented");
+assert.equal(baseJobs.length, 37, "AIMS scheduled jobs, all monthly audit/council reports, Blotato video jobs, and RAMS protected scheduled/operator jobs should be represented");
 assert.equal(pretriggerJobs.length, 81, "MAST should generate three AIMS pretrigger checks for each timed AIMS job");
-assert.equal(jobs.length, 117, "jobs should include base jobs plus automatic pretrigger checks");
+assert.equal(jobs.length, 118, "jobs should include base jobs plus automatic pretrigger checks");
 
 
 const blotatoHookdeckTargets = {
@@ -94,7 +94,7 @@ for (const [id, group, hookEnv, targetPath] of monthlyAuditSequence) {
 assert.equal(socialPerformanceJob.body.thumbnailAudit, true, "social-performance should request thumbnail evidence in the monthly payload");
 assert.equal(socialPerformanceJob.body.runCouncil, false, "brand-social council is scheduled explicitly after all inputs are available");
 
-const publicHealthJobs = new Set(["suite-health-ping", "rams-health", ...pretriggerJobs.filter((job) => job.pretriggerStage === "health").map((job) => job.id)]);
+const publicHealthJobs = new Set(["suite-health-ping", "hive-keepawake", "rams-health", ...pretriggerJobs.filter((job) => job.pretriggerStage === "health").map((job) => job.id)]);
 for (const healthId of publicHealthJobs) {
   const healthJob = jobs.find((job) => job.id === healthId);
   assert.equal(healthJob.authEnv, null, `${healthId} must remain unauthenticated for liveness checks`);
@@ -243,27 +243,28 @@ assert.equal(winterParts.time, "09:00", "London winter local conversion should s
 
 const oldIntervalHealthDue = dueJobsAt(at("2026-05-11T00:00:00.000Z"), { lastRunKeys: {}, intervalLastRunAt: {} });
 assert.ok(!oldIntervalHealthDue.some((job) => job.id === "suite-health-ping"), "suite health ping should no longer run on a blind interval");
+assert.ok(oldIntervalHealthDue.some((job) => job.id === "hive-keepawake"), "HIVE keepawake should run as a gentle interval job when enabled");
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-11T04:00:00.000Z"), { lastRunKeys: {}, intervalLastRunAt: {} })),
+  ids(dueJobsAt(at("2026-05-11T04:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-11T04:00:00.000Z"))),
   ["pretrigger-oneup-ebooks-weekly-health", "pretrigger-rss-rewrite-health"],
   "Monday 05:00 Europe/London should run the T-3h checks for 08:00 London AIMS jobs"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-11T05:00:00.000Z"), { lastRunKeys: {}, intervalLastRunAt: {} })),
+  ids(dueJobsAt(at("2026-05-11T05:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-11T05:00:00.000Z"))),
   ["pretrigger-oneup-ebooks-weekly-preflight", "pretrigger-rss-rewrite-preflight"],
   "Monday 06:00 Europe/London should run the T-2h preflight checks for 08:00 London AIMS jobs"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-11T06:30:00.000Z"), { lastRunKeys: {}, intervalLastRunAt: {} })),
+  ids(dueJobsAt(at("2026-05-11T06:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-11T06:30:00.000Z"))),
   ["pretrigger-blog-daily-social-build-preflight", "pretrigger-oneup-ebooks-weekly-warmup", "pretrigger-outreach-batch-next-preflight", "pretrigger-rss-rewrite-warmup"],
   "Monday 07:30 Europe/London should run the T-30m warmup checks for 08:00 London AIMS jobs"
 );
 
 assert.deepEqual(
-  ids(dueJobsAt(at("2026-05-11T05:30:00.000Z"), { lastRunKeys: {}, intervalLastRunAt: {} })),
+  ids(dueJobsAt(at("2026-05-11T05:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-11T05:30:00.000Z"))),
   ["pretrigger-blog-daily-social-build-health", "pretrigger-outreach-batch-next-health"],
   "Changing actual service schedules automatically changes the derived T-3h check time"
 );
