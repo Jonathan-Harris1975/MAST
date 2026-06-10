@@ -423,6 +423,17 @@ const healthPing = getJob({
   targetPath: "/health",
 });
 
+const hiveKeepAwake = getJob({
+  id: "hive-keepawake",
+  group: "hive",
+  description: "Ping HIVE /healthz gently so the Koyeb free web service is less likely to sleep before ops work.",
+  schedule: { type: "interval", everyMinutes: Number(process.env.HIVE_KEEPAWAKE_EVERY_MINUTES || 10) },
+  hookEnv: "HIVE_KEEPAWAKE_URL",
+  fallbackUrl: "https://liable-loreen-jonathanharris-57884580.koyeb.app/healthz",
+  targetUrl: "https://liable-loreen-jonathanharris-57884580.koyeb.app/healthz",
+  targetPath: "/healthz",
+});
+
 const ramsJobs = [
   getJob({
     id: "rams-health",
@@ -525,6 +536,7 @@ export const baseJobs = [
   oneUpEbooksWeekly,
   ...blotatoVideoJobs,
   healthPing,
+  hiveKeepAwake,
   ...ramsJobs,
 ];
 
