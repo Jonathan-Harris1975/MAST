@@ -231,3 +231,16 @@ blotato-ai-at-work-publish
 blotato-reality-check-publish
 blotato-ai-playbook-publish
 ```
+
+## HIVE keep-awake job
+
+This build adds a lightweight `hive-keepawake` interval job for the current HIVE deployment on Koyeb's free web service. It pings HIVE's unauthenticated `/healthz` endpoint on a gentle interval so HIVE is less likely to be asleep when ops work starts.
+
+Recommended env:
+
+```env
+HIVE_KEEPAWAKE_URL=https://liable-loreen-jonathanharris-57884580.koyeb.app/healthz
+HIVE_KEEPAWAKE_EVERY_MINUTES=10
+```
+
+The job uses no bearer token and should remain a tiny liveness ping only.

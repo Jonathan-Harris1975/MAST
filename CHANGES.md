@@ -71,3 +71,10 @@ Both passed.
 - Increased trigger retry tolerance and documented that AIMS long-running audit routes now acknowledge quickly with `202 Accepted`.
 - Added Hookdeck override variables for the new audit/council jobs.
 - Restored generated AIMS pretrigger health/preflight/warmup checks for all timed AIMS jobs.
+
+## HIVE keep-awake support
+
+- Added `hive-keepawake` interval job.
+- Default target: HIVE `/healthz`.
+- Default interval: 10 minutes, configurable with `HIVE_KEEPAWAKE_EVERY_MINUTES`.
+- Intended for Koyeb free web-service keep-awake behaviour without hitting heavier authenticated endpoints.
