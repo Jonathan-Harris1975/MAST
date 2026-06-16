@@ -1,3 +1,16 @@
+> **Document status:** Production reference  
+> **Last reviewed:** 16 June 2026  
+> **Operational authority:** Current repository README, SECURITY policy and operations guide.
+
+# Changelog
+
+## 1.1.0 — 16 June 2026
+
+- Added production health, liveness, readiness and compact status contracts.
+- Protected detailed status and job registry routes.
+- Added request IDs, secure headers, bounded bodies and graceful shutdown.
+- Added non-root container, CI, tests and production documentation.
+
 
 ## Event-aware AIMS pretrigger checks
 

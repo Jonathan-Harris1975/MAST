@@ -1,17 +1,21 @@
 {
-  "name": "koyeb-cron-control",
-  "version": "1.0.0",
+  "name": "mast-scheduler",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Consolidated Koyeb scheduler for Jonathan Harris automation triggers.",
   "engines": {
-    "node": ">=22"
+    "node": "22.x",
+    "npm": "10.x"
   },
   "scripts": {
     "start": "node src/index.js",
     "check": "node --check src/*.js test/*.test.js",
-    "test": "node test/scheduler.test.js"
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "verify": "npm run check && npm test"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1069.0"
+  },
+  "packageManager": "npm@10.9.2"
 }
