@@ -7,7 +7,8 @@ WORKDIR /app
 
 RUN addgroup -S mast && adduser -S -G mast mast
 COPY --chown=mast:mast package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+RUN npm install -g npm@10.9.2 --quiet && \
+    npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 COPY --chown=mast:mast src ./src
 COPY --chown=mast:mast README.md ./README.md
 
