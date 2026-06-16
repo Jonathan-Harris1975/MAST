@@ -1,4 +1,5 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { dirname } from "node:path";
 import { jobs, LOCAL_TIME_ZONE, SERVICE_NAME, USER_AGENT } from "./jobs.js";
 
@@ -22,14 +23,80 @@ export function booleanEnv(name, fallback) {
   return ["1", "true", "yes", "y", "on"].includes(String(raw).trim().toLowerCase());
 }
 
+function cleanEnv(name) {
+  const value = String(process.env[name] || "").trim();
+  return /^\{\{\s*secret\.[^}]+\}\}$/i.test(value) ? "" : value;
+}
+
+const requestedStateBackend = String(process.env.MAST_STATE_BACKEND || "auto").trim().toLowerCase();
+const r2StateConfig = {
+  endpoint: cleanEnv("R2_ENDPOINT_URL") || cleanEnv("R2_ENDPOINT"),
+  accessKeyId: cleanEnv("R2_ACCESS_KEY_ID"),
+  secretAccessKey: cleanEnv("R2_SECRET_ACCESS_KEY"),
+  bucket:
+    cleanEnv("R2_BUCKET_META_SYSTEM") ||
+    cleanEnv("R2_META_SYSTEM_BUCKET") ||
+    cleanEnv("R2_BUCKET_METASYSTEM"),
+  key: cleanEnv("MAST_STATE_OBJECT_KEY") || "state/mast/scheduler-state.json",
+  region: cleanEnv("R2_REGION") || "auto",
+};
+const r2StateConfigured = Boolean(
+  r2StateConfig.endpoint &&
+    r2StateConfig.accessKeyId &&
+    r2StateConfig.secretAccessKey &&
+    r2StateConfig.bucket
+);
+const resolvedStateBackend = requestedStateBackend === "r2"
+  ? "r2"
+  : requestedStateBackend === "local"
+    ? "local"
+    : r2StateConfigured
+      ? "r2"
+      : "local";
+let r2StateClient = null;
+
 export const CONFIG = {
   requestTimeoutMs: numberEnv("REQUEST_TIMEOUT_MS", 60_000),
   requestRetries: numberEnv("REQUEST_RETRIES", 2),
   requestRetryBaseMs: numberEnv("REQUEST_RETRY_BASE_MS", 2_500),
   betweenJobsMs: numberEnv("BETWEEN_JOBS_MS", 1_500),
-  stateFile: process.env.STATE_FILE || "/tmp/koyeb-cron-control-state.json",
+  stateFile: process.env.STATE_FILE || "/tmp/mast-state.json",
+  stateBackend: resolvedStateBackend,
+  stateObjectKey: r2StateConfig.key,
   recentResultLimit: numberEnv("RECENT_RESULT_LIMIT", 80),
 };
+
+function stateClient() {
+  if (r2StateClient) return r2StateClient;
+  r2StateClient = new S3Client({
+    endpoint: r2StateConfig.endpoint,
+    region: r2StateConfig.region,
+    credentials: {
+      accessKeyId: r2StateConfig.accessKeyId,
+      secretAccessKey: r2StateConfig.secretAccessKey,
+    },
+    forcePathStyle: true,
+    maxAttempts: numberEnv("R2_MAX_ATTEMPTS", 2),
+  });
+  return r2StateClient;
+}
+
+export function stateBackendStatus() {
+  const production = ["production", "prod"].includes(String(process.env.APP_ENV || process.env.NODE_ENV || "").toLowerCase());
+  const ephemeralAllowed = booleanEnv("ALLOW_EPHEMERAL_STATE", false);
+  const validBackend = ["auto", "r2", "local"].includes(requestedStateBackend);
+  const ready = validBackend
+    && !(requestedStateBackend === "r2" && !r2StateConfigured)
+    && (!production || resolvedStateBackend === "r2" || ephemeralAllowed);
+  return {
+    ready,
+    backend: resolvedStateBackend,
+    requestedBackend: requestedStateBackend,
+    durable: resolvedStateBackend === "r2",
+    r2Configured: r2StateConfigured,
+    ephemeralAllowed,
+  };
+}
 
 let state = { ...DEFAULT_STATE, startedAt: new Date().toISOString() };
 let loaded = false;
@@ -195,7 +262,8 @@ export function publicJob(job, at = new Date()) {
     authRequired: Boolean(job.authEnv),
     authEnv: job.authEnv || null,
     bodyTemplate: job.method === "POST" ? buildPayload(job, at) : undefined,
-    nextRunAt: nextRunForJob(job, at),
+    nextRunAt: null,
+    nextRunNote: "Computed by the scheduler at execution time; omitted from status responses to keep diagnostics bounded.",
     managedPretrigger: Boolean(job.managedPretrigger),
     pretriggerStage: job.pretriggerStage || null,
     pretriggerOffsetMinutes: job.pretriggerOffsetMinutes || null,
@@ -204,22 +272,44 @@ export function publicJob(job, at = new Date()) {
   };
 }
 
+function hydrateState(existing) {
+  return {
+    ...DEFAULT_STATE,
+    ...existing,
+    lastRunKeys: existing?.lastRunKeys || {},
+    intervalLastRunAt: existing?.intervalLastRunAt || {},
+    recentResults: Array.isArray(existing?.recentResults) ? existing.recentResults : [],
+    startedAt: existing?.startedAt || new Date().toISOString(),
+  };
+}
+
+async function readR2State() {
+  if (!r2StateConfigured) throw new Error("MAST R2 state backend is not fully configured");
+  try {
+    const response = await stateClient().send(new GetObjectCommand({
+      Bucket: r2StateConfig.bucket,
+      Key: r2StateConfig.key,
+    }));
+    const raw = await response.Body.transformToString();
+    return JSON.parse(raw);
+  } catch (error) {
+    if (error?.name === "NoSuchKey" || error?.$metadata?.httpStatusCode === 404) return null;
+    throw error;
+  }
+}
+
 export async function loadState() {
   if (loaded) return state;
 
   try {
-    const raw = await readFile(CONFIG.stateFile, "utf8");
-    const existing = JSON.parse(raw);
-    state = {
-      ...DEFAULT_STATE,
-      ...existing,
-      lastRunKeys: existing.lastRunKeys || {},
-      intervalLastRunAt: existing.intervalLastRunAt || {},
-      recentResults: Array.isArray(existing.recentResults) ? existing.recentResults : [],
-      startedAt: existing.startedAt || new Date().toISOString(),
-    };
-  } catch {
-    state = { ...DEFAULT_STATE, startedAt: new Date().toISOString() };
+    const existing = CONFIG.stateBackend === "r2"
+      ? await readR2State()
+      : JSON.parse(await readFile(CONFIG.stateFile, "utf8"));
+    state = hydrateState(existing || {});
+  } catch (error) {
+    if (requestedStateBackend === "r2" && !r2StateConfigured) throw error;
+    console.warn(JSON.stringify({ service: SERVICE_NAME, event: "state-load-fallback", backend: CONFIG.stateBackend, errorName: error?.name || "Error" }));
+    state = hydrateState({});
   }
 
   loaded = true;
@@ -227,8 +317,20 @@ export async function loadState() {
 }
 
 export async function saveState() {
+  const body = JSON.stringify(state, null, 2);
+  if (CONFIG.stateBackend === "r2") {
+    if (!r2StateConfigured) throw new Error("MAST R2 state backend is not fully configured");
+    await stateClient().send(new PutObjectCommand({
+      Bucket: r2StateConfig.bucket,
+      Key: r2StateConfig.key,
+      Body: body,
+      ContentType: "application/json",
+      CacheControl: "no-store",
+    }));
+    return;
+  }
   await mkdir(dirname(CONFIG.stateFile), { recursive: true });
-  await writeFile(CONFIG.stateFile, JSON.stringify(state, null, 2));
+  await writeFile(CONFIG.stateFile, body);
 }
 
 function sleep(ms) {
@@ -534,7 +636,9 @@ export async function getStatus() {
       requestTimeoutMs: CONFIG.requestTimeoutMs,
       requestRetries: CONFIG.requestRetries,
       betweenJobsMs: CONFIG.betweenJobsMs,
-      stateFile: CONFIG.stateFile,
+      stateBackend: CONFIG.stateBackend,
+      stateObjectKey: CONFIG.stateBackend === "r2" ? CONFIG.stateObjectKey : null,
+      stateFile: CONFIG.stateBackend === "local" ? CONFIG.stateFile : null,
       pretriggerChecksEnabled: booleanEnv("AIMS_PRETRIGGER_CHECKS_ENABLED", true),
     },
     jobCount: jobs.length,

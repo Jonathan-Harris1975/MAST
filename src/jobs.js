@@ -1,6 +1,6 @@
-export const SERVICE_NAME = "koyeb-cron-control";
+export const SERVICE_NAME = "MAST";
 export const LOCAL_TIME_ZONE = "Europe/London";
-export const USER_AGENT = "Jonathan-Harris-Koyeb-Cron-Control/1.0 (+https://jonathan-harris.online)";
+export const USER_AGENT = "Jonathan-Harris-MAST/1.1 (+https://jonathan-harris.online)";
 
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const WEEKDAYS_MON_TO_FRI = ["monday", "tuesday", "wednesday", "thursday", "friday"];
