@@ -1,27 +1,18 @@
 # MAST production operations
 
-**Status:** Production-controlled  
-**Last reviewed:** 16 June 2026
+**Status:** Paid Koyeb production Worker  
+**Last reviewed:** 17 June 2026
 
-## Deployment
+MAST is deployed as a Worker, not a Web Service. It has no public inbound probe. HIVE monitors `state/mast/scheduler-state.json` in the `metasystem` R2 bucket and classifies health from heartbeat age, failure streak and operator-control state.
 
-Deploy MAST as a Koyeb Web Service from the root Dockerfile. The service must remain reachable so HIVE can probe `/health` and `/status`. Copy the exact public hostname from the Koyeb Domains panel for app/service `overall-frances/mast-1`; do not infer it from the resource reference.
+## Routine checks
 
-## Required probes
-
-- `/livez`: process liveness
-- `/readyz`: scheduler and secret readiness
-- `/status`: compact operational status
-- `/status/details`: authenticated diagnostic detail
-
-## Change control
-
-Any schedule change requires a test run, review of the calculated next-run time in Europe/London and confirmation that pre-trigger warm-up jobs move with their source job. Use `/run/:id` only with the admin token and a deliberately selected job.
+1. Confirm the Koyeb Worker deployment is healthy.
+2. Confirm `lastTickAt` advances and tick lag remains bounded.
+3. Review failure streaks, duplicate-prevention count and review queue.
+4. Keep durable R2 state and run keys intact.
+5. Use the separate R2 operator-control object for maintenance or an immediate scheduling pause.
 
 ## Recovery
 
-Disable `SCHEDULER_ENABLED` during incident containment, preserve the state file and logs, then roll back the deployment. Avoid manually replaying a job until idempotency and downstream state have been checked.
-
-## Durable state
-
-Use `MAST_STATE_BACKEND=r2` with the bucket-scoped `metasystem` credentials and `MAST_STATE_OBJECT_KEY=state/mast/scheduler-state.json`. Production readiness fails when only ephemeral local state is available unless `ALLOW_EPHEMERAL_STATE=true` is deliberately set for incident recovery.
+Pause scheduling, inspect the failed downstream contract, run one selected job, then resume only after the heartbeat and result are healthy. Full alerting, operator-control and deployment-watcher instructions are in [`OPERATIONAL_ALERTING.md`](OPERATIONAL_ALERTING.md).
