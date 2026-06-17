@@ -4,20 +4,11 @@
 
 # MAST
 
-MAST is the master automation scheduler for the Jonathan Harris ecosystem. It runs as a small Node.js web service on Koyeb, evaluates governed schedules in the Europe/London time zone and triggers AIMS, RAMS and Hookdeck routes with bounded retries.
+MAST is the master automation scheduler for the Jonathan Harris ecosystem. It runs as a paid Node.js Worker on Koyeb, evaluates governed schedules in the Europe/London time zone and triggers AIMS, RAMS and Hookdeck routes with bounded retries.
 
-## Production endpoints
+## Production monitoring
 
-| Endpoint | Auth | Purpose |
-|---|---:|---|
-| `GET /health` | No | Health and scheduler summary |
-| `GET /livez` | No | Liveness probe |
-| `GET /readyz` | No | Configuration readiness |
-| `GET /status` | No | Compact operational status for HIVE |
-| `GET /status/details` | Admin | Detailed schedule and recent results |
-| `GET /jobs` | Admin | Governed job registry |
-| `POST /tick` | Admin | Manual scheduler tick |
-| `POST /run/:id` | Admin | Manual job execution |
+MAST has no public inbound HTTP endpoint. It writes a durable scheduler heartbeat, metrics, review queue and replay-protection state to Cloudflare R2. HIVE reads that state to present Worker health in HIVE-UI. Local HTTP routes remain useful for tests and optional controlled diagnostics, but are not the production liveness contract.
 
 ## Local verification
 
@@ -32,6 +23,4 @@ Production uses the `metasystem` R2 bucket for durable run keys and recent resul
 
 ## Koyeb deployment
 
-Deploy as a Web Service so HIVE can probe the health routes. The Koyeb resource reference `overall-frances/mast-1` identifies the app/service, while the exact public hostname must be copied from the Koyeb Domains panel and supplied to HIVE as `MAST_HEALTH_URL=<base>/health` and `MAST_STATUS_URL=<base>/status`.
-
-Required production secrets are `CRON_ADMIN_TOKEN`, `AIMS_API_KEY` and `RMS_API_KEY`. Public manual execution must remain disabled. See [`.env.example`](.env.example), [`SECURITY.md`](SECURITY.md) and [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+Deploy as the intended paid production Worker with one active scheduler instance. Required production secrets are `CRON_ADMIN_TOKEN`, `AIMS_API_KEY`, `RMS_API_KEY`, R2 credentials and the HIVE operational-alert token. Public manual execution remains disabled. See [`.env.example`](.env.example), [`docs/OPERATIONS.md`](docs/OPERATIONS.md) and [`docs/OPERATIONAL_ALERTING.md`](docs/OPERATIONAL_ALERTING.md).
