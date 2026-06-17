@@ -2,14 +2,19 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { dirname } from "node:path";
 import { jobs, LOCAL_TIME_ZONE, SERVICE_NAME, USER_AGENT } from "./jobs.js";
+import { sendOperationalEvent } from "./alerts.js";
 
 const DEFAULT_STATE = {
-  version: 1,
+  version: 2,
   startedAt: null,
   lastTickAt: null,
   lastRunKeys: {},
   intervalLastRunAt: {},
   recentResults: [],
+  failureStreaks: {},
+  reviewQueue: [],
+  operator: { schedulerEnabled: true, maintenanceMode: false, reason: null, updatedAt: null },
+  metrics: { ticks: 0, delayedTicks: 0, duplicatePreventions: 0, jobsSucceeded: 0, jobsFailed: 0, lastTickLagMs: 0 },
 };
 
 export function numberEnv(name, fallback) {
@@ -38,6 +43,7 @@ const r2StateConfig = {
     cleanEnv("R2_META_SYSTEM_BUCKET") ||
     cleanEnv("R2_BUCKET_METASYSTEM"),
   key: cleanEnv("MAST_STATE_OBJECT_KEY") || "state/mast/scheduler-state.json",
+  operatorKey: cleanEnv("MAST_OPERATOR_CONTROL_OBJECT_KEY") || "state/mast/operator-control.json",
   region: cleanEnv("R2_REGION") || "auto",
 };
 const r2StateConfigured = Boolean(
@@ -64,6 +70,10 @@ export const CONFIG = {
   stateBackend: resolvedStateBackend,
   stateObjectKey: r2StateConfig.key,
   recentResultLimit: numberEnv("RECENT_RESULT_LIMIT", 80),
+  operatorControlObjectKey: r2StateConfig.operatorKey,
+  failureReviewThreshold: numberEnv("MAST_FAILURE_REVIEW_THRESHOLD", 3),
+  reviewQueueLimit: numberEnv("MAST_REVIEW_QUEUE_LIMIT", 50),
+  expectedTickSeconds: numberEnv("SCHEDULER_TICK_SECONDS", 20),
 };
 
 function stateClient() {
@@ -279,16 +289,20 @@ function hydrateState(existing) {
     lastRunKeys: existing?.lastRunKeys || {},
     intervalLastRunAt: existing?.intervalLastRunAt || {},
     recentResults: Array.isArray(existing?.recentResults) ? existing.recentResults : [],
+    failureStreaks: existing?.failureStreaks || {},
+    reviewQueue: Array.isArray(existing?.reviewQueue) ? existing.reviewQueue : [],
+    operator: { ...DEFAULT_STATE.operator, ...(existing?.operator || {}) },
+    metrics: { ...DEFAULT_STATE.metrics, ...(existing?.metrics || {}) },
     startedAt: existing?.startedAt || new Date().toISOString(),
   };
 }
 
-async function readR2State() {
+async function readR2Json(key) {
   if (!r2StateConfigured) throw new Error("MAST R2 state backend is not fully configured");
   try {
     const response = await stateClient().send(new GetObjectCommand({
       Bucket: r2StateConfig.bucket,
-      Key: r2StateConfig.key,
+      Key: key,
     }));
     const raw = await response.Body.transformToString();
     return JSON.parse(raw);
@@ -296,6 +310,24 @@ async function readR2State() {
     if (error?.name === "NoSuchKey" || error?.$metadata?.httpStatusCode === 404) return null;
     throw error;
   }
+}
+
+async function readR2State() {
+  return readR2Json(r2StateConfig.key);
+}
+
+export async function loadOperatorControl() {
+  const envEnabled = booleanEnv("SCHEDULER_ENABLED", true);
+  const fallback = { schedulerEnabled: envEnabled, maintenanceMode: false, reason: null, updatedAt: null };
+  if (CONFIG.stateBackend !== "r2") return fallback;
+  const control = await readR2Json(CONFIG.operatorControlObjectKey);
+  if (!control || typeof control !== "object" || Array.isArray(control)) return fallback;
+  return {
+    schedulerEnabled: envEnabled && control.schedulerEnabled !== false,
+    maintenanceMode: control.maintenanceMode === true,
+    reason: typeof control.reason === "string" ? control.reason.slice(0, 240) : null,
+    updatedAt: typeof control.updatedAt === "string" ? control.updatedAt : null,
+  };
 }
 
 export async function loadState() {
@@ -358,6 +390,35 @@ function resultSummary(result) {
 
 function rememberResult(result) {
   state.recentResults = [resultSummary(result), ...(state.recentResults || [])].slice(0, CONFIG.recentResultLimit);
+  state.metrics = { ...DEFAULT_STATE.metrics, ...(state.metrics || {}) };
+  state.failureStreaks = state.failureStreaks || {};
+  if (result.ok) {
+    state.metrics.jobsSucceeded += 1;
+    state.failureStreaks[result.job] = 0;
+    return;
+  }
+  if (result.skipped && result.reason === "already-ran-for-this-schedule-window") {
+    state.metrics.duplicatePreventions += 1;
+    return;
+  }
+  if (result.skipped) return;
+  state.metrics.jobsFailed += 1;
+  const streak = Number(state.failureStreaks[result.job] || 0) + 1;
+  state.failureStreaks[result.job] = streak;
+  if (streak >= CONFIG.failureReviewThreshold) {
+    const review = {
+      id: `${result.job}:${result.runKey}`,
+      job: result.job,
+      group: result.group,
+      failureStreak: streak,
+      runKey: result.runKey,
+      errorMessage: result.errorMessage || `HTTP ${result.status || "failure"}`,
+      lastFailedAt: result.finishedAt,
+      status: "open",
+    };
+    state.reviewQueue = [review, ...(state.reviewQueue || []).filter((item) => item.job !== result.job)]
+      .slice(0, CONFIG.reviewQueueLimit);
+  }
 }
 
 
@@ -550,6 +611,17 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
 
     rememberResult(result);
     await saveState();
+    if (Number(state.failureStreaks?.[job.id] || 0) === CONFIG.failureReviewThreshold) {
+      await sendOperationalEvent({
+        event_id: `mast:${job.id}:${runKey}:failure-threshold`,
+        severity: "critical",
+        event_type: "repeated_job_failure",
+        title: `MAST job ${job.id} failed repeatedly`,
+        summary: `The job reached ${CONFIG.failureReviewThreshold} consecutive failures and was added to the review queue.`,
+        release_id: process.env.APP_VERSION || null,
+        details: { job: job.id, group: job.group, runKey, failureStreak: CONFIG.failureReviewThreshold },
+      });
+    }
     console.log(JSON.stringify(result));
     return result;
   } finally {
@@ -559,7 +631,29 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
 
 export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" } = {}) {
   await loadState();
-  state.lastTickAt = new Date().toISOString();
+  const previousTick = Date.parse(state.lastTickAt || "");
+  const nowMs = Date.now();
+  const expectedMs = CONFIG.expectedTickSeconds * 1000;
+  const lagMs = Number.isFinite(previousTick) ? Math.max(0, nowMs - previousTick - expectedMs) : 0;
+  state.metrics = { ...DEFAULT_STATE.metrics, ...(state.metrics || {}) };
+  state.metrics.ticks += 1;
+  state.metrics.lastTickLagMs = lagMs;
+  if (lagMs > expectedMs) state.metrics.delayedTicks += 1;
+  state.lastTickAt = new Date(nowMs).toISOString();
+  state.operator = await loadOperatorControl();
+
+  if (!state.operator.schedulerEnabled || state.operator.maintenanceMode) {
+    await saveState();
+    return {
+      ok: true,
+      skipped: true,
+      reason: state.operator.maintenanceMode ? "maintenance-mode" : "scheduler-paused",
+      trigger,
+      tickAt: at.toISOString(),
+      ran: 0,
+      results: [],
+    };
+  }
 
   const due = dueJobsAt(at, state);
   const results = [];
@@ -650,6 +744,10 @@ export async function getStatus() {
       lastRunKeys: state.lastRunKeys,
       intervalLastRunAt: state.intervalLastRunAt,
       recentResults: state.recentResults,
+      failureStreaks: state.failureStreaks,
+      reviewQueue: state.reviewQueue,
+      operator: state.operator,
+      metrics: state.metrics,
     },
     jobs: jobs.map((job) => publicJob(job, now)),
   };
