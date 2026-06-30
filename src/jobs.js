@@ -10,6 +10,20 @@ function endpoint(envName, fallbackUrl) {
   return configured && configured.trim() ? configured.trim() : fallbackUrl;
 }
 
+// Koyeb's REST API exposes POST /v1/services/{id}/pause and /v1/services/{id}/resume.
+// Service IDs are environment-specific (not secret, but not portable across accounts),
+// so they're read from env at startup rather than hardcoded like the Hookdeck fallback URLs.
+// If a service id env var isn't set yet, the job still gets built (so job counts/tests stay
+// stable) but points at a deliberately-broken URL that fails loudly in the run log instead
+// of silently doing nothing.
+function koyebServiceUrl(serviceIdEnvName, action) {
+  const serviceId = String(process.env[serviceIdEnvName] || "").trim();
+  if (!serviceId) {
+    return `https://app.koyeb.com/v1/services/UNSET-${serviceIdEnvName}/${action}`;
+  }
+  return `https://app.koyeb.com/v1/services/${serviceId}/${action}`;
+}
+
 function postJob({ id, group, description, schedule, hookEnv, fallbackUrl, targetUrl, targetPath, body, addLocalDateAsWeekStartDate = false, authEnv = null }) {
   return {
     id,
@@ -108,7 +122,7 @@ const oneUpDailyJobs = [
     id: "oneup-monday",
     group: "oneup-daily",
     description: "Trigger Monday Motivation post build and schedule for Monday.",
-    schedule: { type: "weekly", days: ["sunday"], time: "23:15", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["sunday"], time: "19:30", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_ONEUP_MONDAY",
     fallbackUrl: "https://hooks.jonathan-harris.online/iq3gwfe8jyscu4",
     targetUrl: "https://app.jonathan-harris.online/oneup/daily/monday",
@@ -119,7 +133,7 @@ const oneUpDailyJobs = [
     id: "oneup-tuesday",
     group: "oneup-daily",
     description: "Trigger Tuesday Tech Talk post build and schedule for Tuesday.",
-    schedule: { type: "weekly", days: ["monday"], time: "23:15", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["monday"], time: "19:30", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_ONEUP_TUESDAY",
     fallbackUrl: "https://hooks.jonathan-harris.online/99pn7sfg27d0rj",
     targetUrl: "https://app.jonathan-harris.online/oneup/daily/tuesday",
@@ -130,7 +144,7 @@ const oneUpDailyJobs = [
     id: "oneup-wednesday",
     group: "oneup-daily",
     description: "Trigger Wednesday Writer's Corner post build and schedule for Wednesday.",
-    schedule: { type: "weekly", days: ["tuesday"], time: "23:15", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["tuesday"], time: "19:30", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_ONEUP_WEDNESDAY",
     fallbackUrl: "https://hooks.jonathan-harris.online/rp2hw3rjj1ol8n",
     targetUrl: "https://app.jonathan-harris.online/oneup/daily/wednesday",
@@ -141,7 +155,7 @@ const oneUpDailyJobs = [
     id: "oneup-thursday",
     group: "oneup-daily",
     description: "Trigger Thursday Industry AI post build and schedule for Thursday.",
-    schedule: { type: "weekly", days: ["wednesday"], time: "23:15", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["wednesday"], time: "19:30", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_ONEUP_THURSDAY",
     fallbackUrl: "https://hooks.jonathan-harris.online/2gl53wz1k09mdk",
     targetUrl: "https://app.jonathan-harris.online/oneup/daily/thursday",
@@ -152,7 +166,7 @@ const oneUpDailyJobs = [
     id: "oneup-friday",
     group: "oneup-daily",
     description: "Trigger Friday post build and schedule for Friday.",
-    schedule: { type: "weekly", days: ["thursday"], time: "23:15", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["thursday"], time: "19:30", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_ONEUP_FRIDAY",
     fallbackUrl: "https://hooks.jonathan-harris.online/v8sxcm5w25n8pr",
     targetUrl: "https://app.jonathan-harris.online/oneup/daily/friday",
@@ -163,7 +177,7 @@ const oneUpDailyJobs = [
     id: "oneup-saturday",
     group: "oneup-daily",
     description: "Trigger Saturday post build and schedule for Saturday.",
-    schedule: { type: "weekly", days: ["friday"], time: "23:15", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["friday"], time: "19:30", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_ONEUP_SATURDAY",
     fallbackUrl: "https://hooks.jonathan-harris.online/snhyppsii91c7l",
     targetUrl: "https://app.jonathan-harris.online/oneup/daily/saturday",
@@ -174,7 +188,7 @@ const oneUpDailyJobs = [
     id: "oneup-sunday",
     group: "oneup-daily",
     description: "Trigger Sunday post build and schedule for Sunday.",
-    schedule: { type: "weekly", days: ["saturday"], time: "23:15", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["saturday"], time: "19:30", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_ONEUP_SUNDAY",
     fallbackUrl: "https://hooks.jonathan-harris.online/krt5ukg8oz6jfy",
     targetUrl: "https://app.jonathan-harris.online/oneup/daily/sunday",
@@ -187,7 +201,7 @@ const oneUpWeeklyQuiz = postJob({
   id: "oneup-weekly-quiz",
   group: "oneup-quiz",
   description: "Build and schedule the weekly AI quiz pair.",
-  schedule: { type: "weekly", days: ["sunday"], time: "23:20", timezone: LOCAL_TIME_ZONE },
+  schedule: { type: "weekly", days: ["sunday"], time: "19:35", timezone: LOCAL_TIME_ZONE },
   hookEnv: "HOOK_ONEUP_WEEKLY_QUIZ",
   fallbackUrl: "https://hooks.jonathan-harris.online/rq5203mvuwvcsf",
   targetUrl: "https://app.jonathan-harris.online/oneup/quiz/weekly",
@@ -524,6 +538,98 @@ const ramsJobs = [
   }),
 ];
 
+// --- Koyeb power management (cost optimisation) -----------------------------------
+//
+// AIMS and RAMS are billed per second on Koyeb (eco instances), so leaving them running
+// idle overnight/all month costs the same as leaving them running busy. These jobs call
+// Koyeb's own pause/resume API directly (not AIMS/RAMS routes), using KOYEB_TOKEN for auth.
+//
+// AIMS target window: ~08:00–20:00 daily, covering every AIMS job except the monthly
+// audit chain (01:00–08:10 on the 1st), which gets its own early-resume job below.
+// RAMS target window: ~04:00–16:00 on the 1st of the month only, covering its full
+// rebuild + report sequence (04:30–08:10) with margin either side.
+//
+// KOYEB_TOKEN must have services:write scope (the existing deployment-watch usage only
+// needs read access to list deployments). Set KOYEB_SERVICE_ID_AIMS and
+// KOYEB_SERVICE_ID_RAMS to the Koyeb service IDs (not names) for each app.
+// Disable the whole feature without a redeploy via KOYEB_POWER_MANAGEMENT_ENABLED=false.
+
+function koyebPowerManagementEnabled() {
+  const raw = process.env.KOYEB_POWER_MANAGEMENT_ENABLED;
+  if (raw === undefined || raw === null || raw === "") return true;
+  return ["1", "true", "yes", "y", "on"].includes(String(raw).trim().toLowerCase());
+}
+
+function koyebPowerJob({ id, group, description, schedule, serviceIdEnv, action }) {
+  return postJob({
+    id,
+    group,
+    description,
+    schedule,
+    hookEnv: null,
+    fallbackUrl: koyebServiceUrl(serviceIdEnv, action),
+    targetUrl: koyebServiceUrl(serviceIdEnv, action),
+    targetPath: `/v1/services/{${serviceIdEnv}}/${action}`,
+    authEnv: "KOYEB_TOKEN",
+    body: {},
+  });
+}
+
+const aimsPowerResumeDaily = koyebPowerJob({
+  id: "aims-power-resume-daily",
+  group: "power-aims",
+  description: "Resume the AIMS Koyeb service ahead of the daily 08:00 job window.",
+  schedule: { type: "weekly", days: WEEKDAYS, time: "07:30", timezone: LOCAL_TIME_ZONE },
+  serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
+  action: "resume",
+});
+
+const aimsPowerPauseDaily = koyebPowerJob({
+  id: "aims-power-pause-daily",
+  group: "power-aims",
+  description: "Pause the AIMS Koyeb service once the daily job window is done.",
+  schedule: { type: "weekly", days: WEEKDAYS, time: "20:00", timezone: LOCAL_TIME_ZONE },
+  serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
+  action: "pause",
+});
+
+const aimsPowerResumeMonthlyAudit = koyebPowerJob({
+  id: "aims-power-resume-monthly-audit",
+  group: "power-aims",
+  description: "Resume AIMS early on the 1st so the 01:00 monthly audit chain has a warm service. The regular 07:30 daily resume still runs afterwards as a no-op.",
+  schedule: { type: "monthly", dayOfMonth: 1, time: "00:45", timezone: LOCAL_TIME_ZONE },
+  serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
+  action: "resume",
+});
+
+const ramsPowerResumeMonthly = koyebPowerJob({
+  id: "rams-power-resume-monthly",
+  group: "power-rams",
+  description: "Resume RAMS ahead of the 1st-of-month rebuild/report sequence (04:30-08:10).",
+  schedule: { type: "monthly", dayOfMonth: 1, time: "04:00", timezone: LOCAL_TIME_ZONE },
+  serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
+  action: "resume",
+});
+
+const ramsPowerPauseMonthly = koyebPowerJob({
+  id: "rams-power-pause-monthly",
+  group: "power-rams",
+  description: "Pause RAMS for the rest of the month once the 1st-of-month sequence is done.",
+  schedule: { type: "monthly", dayOfMonth: 1, time: "16:00", timezone: LOCAL_TIME_ZONE },
+  serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
+  action: "pause",
+});
+
+const koyebPowerJobs = koyebPowerManagementEnabled()
+  ? [
+    aimsPowerResumeDaily,
+    aimsPowerPauseDaily,
+    aimsPowerResumeMonthlyAudit,
+    ramsPowerResumeMonthly,
+    ramsPowerPauseMonthly,
+  ]
+  : [];
+
 export const baseJobs = [
   rssRewrite,
   outreachBatchNext,
@@ -538,6 +644,7 @@ export const baseJobs = [
   healthPing,
   hiveKeepAwake,
   ...ramsJobs,
+  ...koyebPowerJobs,
 ];
 
 function boolEnv(name, fallback = true) {
