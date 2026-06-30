@@ -4,6 +4,15 @@
 
 # Changelog
 
+## Koyeb power management for AIMS and RAMS — 30 June 2026
+
+- Added five new jobs (`aims-power-resume-daily`, `aims-power-pause-daily`, `aims-power-resume-monthly-audit`, `rams-power-resume-monthly`, `rams-power-pause-monthly`) that call Koyeb's pause/resume API directly to stop billing AIMS and RAMS for idle time.
+- AIMS now runs ~08:00-20:00 Europe/London daily, with an extra early resume at 00:45 on the 1st to cover the monthly audit chain (01:00-08:10).
+- RAMS now runs ~04:00-16:00 Europe/London on the 1st of the month only; paused the rest of the month.
+- Moved the daily `oneup-*` jobs and `oneup-weekly-quiz` from 23:15/23:20 to 19:30/19:35 so they fall inside the new AIMS running window.
+- New env vars: `KOYEB_POWER_MANAGEMENT_ENABLED`, `KOYEB_SERVICE_ID_AIMS`, `KOYEB_SERVICE_ID_RAMS`. Requires `KOYEB_TOKEN` to carry `services:write` scope (the existing deployment-watch usage only needed read access).
+- See [`docs/POWER_MANAGEMENT.md`](docs/POWER_MANAGEMENT.md) for the full schedule and rollout notes.
+
 ## 1.1.0 — 16 June 2026
 
 - Added production health, liveness, readiness and compact status contracts.

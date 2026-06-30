@@ -24,3 +24,7 @@ Production uses the `metasystem` R2 bucket for durable run keys and recent resul
 ## Koyeb deployment
 
 Deploy as the intended paid production Worker with one active scheduler instance. Required production secrets are `CRON_ADMIN_TOKEN`, `AIMS_API_KEY`, `RMS_API_KEY`, R2 credentials and the HIVE operational-alert token. Public manual execution remains disabled. See [`.env.example`](.env.example), [`docs/OPERATIONS.md`](docs/OPERATIONS.md) and [`docs/OPERATIONAL_ALERTING.md`](docs/OPERATIONAL_ALERTING.md).
+
+## Koyeb power management
+
+MAST also pauses and resumes the AIMS and RAMS Koyeb services on a schedule, instead of leaving them running (and billed per second) around the clock. See [`docs/POWER_MANAGEMENT.md`](docs/POWER_MANAGEMENT.md) for the schedule, required `KOYEB_TOKEN` scope and `KOYEB_SERVICE_ID_*` secrets, and how to disable it.
