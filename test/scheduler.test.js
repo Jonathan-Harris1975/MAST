@@ -101,7 +101,11 @@ for (const healthId of publicHealthJobs) {
 }
 
 for (const job of jobs.filter((item) => !publicHealthJobs.has(item.id))) {
-  const expectedAuthEnv = job.group.startsWith("rams") ? "RMS_API_KEY" : "AIMS_API_KEY";
+  const expectedAuthEnv = job.group.startsWith("power")
+    ? "KOYEB_TOKEN"
+    : job.group.startsWith("rams")
+      ? "RMS_API_KEY"
+      : "AIMS_API_KEY";
   assert.equal(job.authEnv, expectedAuthEnv, `${job.id} should send ${expectedAuthEnv} from MAST`);
 }
 
@@ -167,15 +171,15 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-05-03T22:15:00.000Z"), stateWithHealthAlreadyRun("2026-05-03T22:15:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-03T18:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-03T18:30:00.000Z"))),
   ["oneup-monday"],
-  "Monday OneUp post should be prepared Sunday 23:15 Europe/London"
+  "Monday OneUp post should be prepared Sunday 19:30 Europe/London, inside the AIMS power window"
 );
 
 assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-05-03T22:20:00.000Z"), stateWithHealthAlreadyRun("2026-05-03T22:20:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-03T18:35:00.000Z"), stateWithHealthAlreadyRun("2026-05-03T18:35:00.000Z"))),
   ["oneup-weekly-quiz"],
-  "weekly quiz should be prepared Sunday 23:20 Europe/London"
+  "weekly quiz should be prepared Sunday 19:35 Europe/London, inside the AIMS power window"
 );
 
 
@@ -259,8 +263,8 @@ assert.deepEqual(
 
 assert.deepEqual(
   ids(dueJobsAt(at("2026-05-11T06:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-11T06:30:00.000Z"))),
-  ["pretrigger-blog-daily-social-build-preflight", "pretrigger-oneup-ebooks-weekly-warmup", "pretrigger-outreach-batch-next-preflight", "pretrigger-rss-rewrite-warmup"],
-  "Monday 07:30 Europe/London should run the T-30m warmup checks for 08:00 London AIMS jobs"
+  ["aims-power-resume-daily", "pretrigger-blog-daily-social-build-preflight", "pretrigger-oneup-ebooks-weekly-warmup", "pretrigger-outreach-batch-next-preflight", "pretrigger-rss-rewrite-warmup"],
+  "Monday 07:30 Europe/London should run the T-30m warmup checks for 08:00 London AIMS jobs, alongside the new AIMS power-management resume"
 );
 
 assert.deepEqual(
