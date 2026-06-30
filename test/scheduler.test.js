@@ -21,9 +21,9 @@ function stateWithHealthAlreadyRun(iso) {
   };
 }
 
-assert.equal(baseJobs.length, 37, "AIMS scheduled jobs, all monthly audit/council reports, Blotato video jobs, and RAMS protected scheduled/operator jobs should be represented");
+assert.equal(baseJobs.length, 42, "AIMS scheduled jobs, all monthly audit/council reports, Blotato video jobs, RAMS protected scheduled/operator jobs, and Koyeb power-management jobs should be represented");
 assert.equal(pretriggerJobs.length, 81, "MAST should generate three AIMS pretrigger checks for each timed AIMS job");
-assert.equal(jobs.length, 118, "jobs should include base jobs plus automatic pretrigger checks");
+assert.equal(jobs.length, 123, "jobs should include base jobs plus automatic pretrigger checks");
 
 
 const blotatoHookdeckTargets = {
@@ -275,5 +275,42 @@ assert.equal(preflightHeaders.authorization, "Bearer unit-test-aims-key", "prefl
 assert.equal(preflightHeaders["x-trigger-pretrigger-stage"], "preflight", "preflight checks should identify their stage");
 assert.equal(preflightHeaders["x-trigger-source-job"], "blog-daily-social-build", "preflight checks should identify the source job");
 delete process.env.AIMS_API_KEY;
+
+// --- Koyeb power management (cost optimisation) ---
+
+const powerJobIds = ["aims-power-resume-daily", "aims-power-pause-daily", "aims-power-resume-monthly-audit", "rams-power-resume-monthly", "rams-power-pause-monthly"];
+for (const id of powerJobIds) {
+  const job = baseJobs.find((item) => item.id === id);
+  assert.ok(job, `${id} should exist`);
+  assert.equal(job.authEnv, "KOYEB_TOKEN", `${id} should authorise against Koyeb, not AIMS/RAMS`);
+  assert.equal(job.method, "POST", `${id} should POST to the Koyeb pause/resume endpoint`);
+}
+
+assert.equal(
+  jobs.filter((job) => job.managedPretrigger && powerJobIds.includes(job.sourceJobId)).length,
+  0,
+  "Koyeb power jobs should not generate AIMS-style pretrigger checks (they authorise against KOYEB_TOKEN, not AIMS_API_KEY)"
+);
+
+function dueIncludes(iso, jobId, label) {
+  const due = ids(dueJobsAt(at(iso), { lastRunKeys: {}, intervalLastRunAt: {} }));
+  assert.ok(due.includes(jobId), `${label} (got: ${due.join(", ") || "<nothing due>"})`);
+}
+
+dueIncludes("2026-06-01T06:30:00.000Z", "aims-power-resume-daily", "AIMS should resume daily at 07:30 Europe/London");
+dueIncludes("2026-06-01T19:00:00.000Z", "aims-power-pause-daily", "AIMS should pause daily at 20:00 Europe/London");
+dueIncludes("2026-06-30T23:45:00.000Z", "aims-power-resume-monthly-audit", "AIMS should get an early resume at 00:45 Europe/London on the 1st, ahead of the 01:00 audit chain");
+dueIncludes("2026-07-01T03:00:00.000Z", "rams-power-resume-monthly", "RAMS should resume at 04:00 Europe/London on the 1st, ahead of the 04:30 rebuild sequence");
+dueIncludes("2026-07-01T15:00:00.000Z", "rams-power-pause-monthly", "RAMS should pause at 16:00 Europe/London on the 1st once the sequence is long done");
+
+// --- oneup-daily / weekly quiz moved inside the AIMS 08:00-20:00 window ---
+
+dueIncludes("2026-06-07T18:30:00.000Z", "oneup-monday", "oneup-monday should now queue at 19:30 Europe/London (Sunday evening), inside the AIMS power window");
+dueIncludes("2026-06-07T18:35:00.000Z", "oneup-weekly-quiz", "oneup-weekly-quiz should now queue at 19:35 Europe/London on Sundays, inside the AIMS power window");
+
+assert.ok(
+  !ids(dueJobsAt(at("2026-06-07T22:15:00.000Z"), { lastRunKeys: {}, intervalLastRunAt: {} })).includes("oneup-monday"),
+  "oneup-monday should no longer fire at its old 23:15 Europe/London slot"
+);
 
 console.log("scheduler tests passed");
