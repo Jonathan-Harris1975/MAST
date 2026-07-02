@@ -518,7 +518,7 @@ const ramsJobs = [
     id: "rams-report-seo-aeo-geo-latest",
     group: "rams-reports",
     description: "Fetch the latest RAMS SEO/AEO/GEO live report on the 1st after the SEO/AEO/GEO rebuild finishes.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "19:10", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "08:10", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_RAMS_REPORT_SEO_AEO_GEO_LATEST",
     fallbackUrl: "https://hooks.jonathan-harris.online/wdcmlqfo9ry9cw",
     targetUrl: "https://mod.jonathan-harris.online/reports/seo-aeo-geo/latest",
@@ -529,7 +529,7 @@ const ramsJobs = [
     id: "rams-report-on-brand-latest",
     group: "rams-reports",
     description: "Fetch the latest RAMS On-Brand live report on the 1st after the on-brand rebuild finishes.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "19:00", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "05:00", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_RAMS_REPORT_ON_BRAND_LATEST",
     fallbackUrl: "https://hooks.jonathan-harris.online/hg845445lzbvjl",
     targetUrl: "https://mod.jonathan-harris.online/reports/on-brand/latest",
@@ -544,8 +544,8 @@ const ramsJobs = [
 // idle overnight/all month costs the same as leaving them running busy. These jobs call
 // Koyeb's own pause/resume API directly (not AIMS/RAMS routes), using KOYEB_TOKEN for auth.
 //
-// AIMS target window: ~08:00–20:00 daily, covering every AIMS job except the monthly
-// audit chain (01:00–08:10 on the 1st), which gets its own early-resume job below.
+// AIMS target window: ~08:00–20:00 daily, covering every AIMS job including the
+// monthly audit sequence (15:00–18:20 on the 1st), which falls comfortably inside it.
 // RAMS target window: ~04:00–16:00 on the 1st of the month only, covering its full
 // rebuild + report sequence (04:30–08:10) with margin either side.
 //
@@ -593,14 +593,11 @@ const aimsPowerPauseDaily = koyebPowerJob({
   action: "pause",
 });
 
-const aimsPowerResumeMonthlyAudit = koyebPowerJob({
-  id: "aims-power-resume-monthly-audit",
-  group: "power-aims",
-  description: "Resume AIMS early on the 1st so the 01:00 monthly audit chain has a warm service. The regular 07:30 daily resume still runs afterwards as a no-op.",
-  schedule: { type: "monthly", dayOfMonth: 1, time: "00:45", timezone: LOCAL_TIME_ZONE },
-  serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
-  action: "resume",
-});
+// Note: there is no separate early-morning AIMS resume job here. All AIMS-hosted
+// monthly audit jobs (monthlyAuditJobs, above) run between 15:00 and 18:20 on the
+// 1st, which is already inside the normal 07:30-20:00 daily resume/pause window.
+// A previous early resume at 00:45 for a "01:00-08:10 audit chain" didn't correspond
+// to any real job and was just paying for ~7 extra hours of idle billing every month.
 
 const ramsPowerResumeMonthly = koyebPowerJob({
   id: "rams-power-resume-monthly",
@@ -624,7 +621,6 @@ const koyebPowerJobs = koyebPowerManagementEnabled()
   ? [
     aimsPowerResumeDaily,
     aimsPowerPauseDaily,
-    aimsPowerResumeMonthlyAudit,
     ramsPowerResumeMonthly,
     ramsPowerPauseMonthly,
   ]
