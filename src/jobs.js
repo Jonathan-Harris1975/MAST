@@ -474,7 +474,7 @@ const ramsJobs = [
     id: "rams-rebuild-seo-aeo-geo",
     group: "rams",
     description: "Trigger the RAMS SEO/AEO/GEO remediation pipeline on the 1st after the SEO/AEO/GEO council report is available.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "07:40", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "11:40", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_RAMS_REBUILD_SEO_AEO_GEO",
     fallbackUrl: "https://hooks.jonathan-harris.online/mwa6lp7lh1dht3",
     targetUrl: "https://mod.jonathan-harris.online/rebuild/seo-aeo-geo/run",
@@ -485,7 +485,7 @@ const ramsJobs = [
     id: "rams-rebuild-mobile-ux",
     group: "rams",
     description: "Trigger the RAMS Mobile UX remediation pipeline on the 1st after the Mobile UX council report is available.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "06:40", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "10:40", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_RAMS_REBUILD_MOBILE_UX",
     fallbackUrl: "https://hooks.jonathan-harris.online/wn7h7x388dwiyt",
     targetUrl: "https://mod.jonathan-harris.online/rebuild/mobile-ux/run",
@@ -496,7 +496,7 @@ const ramsJobs = [
     id: "rams-rebuild-on-brand",
     group: "rams",
     description: "Trigger the RAMS On-Brand remediation pipeline on the 1st after the brand/social council report is available.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "04:30", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "08:30", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_RAMS_REBUILD_ON_BRAND",
     fallbackUrl: "https://hooks.jonathan-harris.online/5po78dqk5h9gd9",
     targetUrl: "https://mod.jonathan-harris.online/rebuild/on-brand/run",
@@ -507,7 +507,7 @@ const ramsJobs = [
     id: "rams-report-mobile-ux-latest",
     group: "rams-reports",
     description: "Fetch the latest RAMS Mobile UX live report on the 1st after the Mobile UX rebuild finishes.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "07:10", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "11:10", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_RAMS_REPORT_MOBILE_UX_LATEST",
     fallbackUrl: "https://hooks.jonathan-harris.online/9zmq78a3r28mdh",
     targetUrl: "https://mod.jonathan-harris.online/reports/mobile-ux/latest",
@@ -518,7 +518,7 @@ const ramsJobs = [
     id: "rams-report-seo-aeo-geo-latest",
     group: "rams-reports",
     description: "Fetch the latest RAMS SEO/AEO/GEO live report on the 1st after the SEO/AEO/GEO rebuild finishes.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "08:10", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "12:10", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_RAMS_REPORT_SEO_AEO_GEO_LATEST",
     fallbackUrl: "https://hooks.jonathan-harris.online/wdcmlqfo9ry9cw",
     targetUrl: "https://mod.jonathan-harris.online/reports/seo-aeo-geo/latest",
@@ -529,7 +529,7 @@ const ramsJobs = [
     id: "rams-report-on-brand-latest",
     group: "rams-reports",
     description: "Fetch the latest RAMS On-Brand live report on the 1st after the on-brand rebuild finishes.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "05:00", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "09:00", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_RAMS_REPORT_ON_BRAND_LATEST",
     fallbackUrl: "https://hooks.jonathan-harris.online/hg845445lzbvjl",
     targetUrl: "https://mod.jonathan-harris.online/reports/on-brand/latest",
@@ -546,8 +546,9 @@ const ramsJobs = [
 //
 // AIMS target window: ~08:00–20:00 daily, covering every AIMS job including the
 // monthly audit sequence (15:00–18:20 on the 1st), which falls comfortably inside it.
-// RAMS target window: ~04:00–16:00 on the 1st of the month only, covering its full
-// rebuild + report sequence (04:30–08:10) with margin either side.
+// RAMS target window: 08:00–20:00 on the 1st of the month only, covering its full
+// rebuild + report sequence (08:30–12:10) with margin either side. Both AIMS and RAMS
+// must be available strictly within 08:00-20:00 Europe/London.
 //
 // KOYEB_TOKEN must have services:write scope (the existing deployment-watch usage only
 // needs read access to list deployments). Set KOYEB_SERVICE_ID_AIMS and
@@ -602,8 +603,8 @@ const aimsPowerPauseDaily = koyebPowerJob({
 const ramsPowerResumeMonthly = koyebPowerJob({
   id: "rams-power-resume-monthly",
   group: "power-rams",
-  description: "Resume RAMS ahead of the 1st-of-month rebuild/report sequence (04:30-08:10).",
-  schedule: { type: "monthly", dayOfMonth: 1, time: "04:00", timezone: LOCAL_TIME_ZONE },
+  description: "Resume RAMS ahead of the 1st-of-month rebuild/report sequence (08:30-12:10), inside the 08:00-20:00 window.",
+  schedule: { type: "monthly", dayOfMonth: 1, time: "08:00", timezone: LOCAL_TIME_ZONE },
   serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   action: "resume",
 });
@@ -611,8 +612,8 @@ const ramsPowerResumeMonthly = koyebPowerJob({
 const ramsPowerPauseMonthly = koyebPowerJob({
   id: "rams-power-pause-monthly",
   group: "power-rams",
-  description: "Pause RAMS for the rest of the month once the 1st-of-month sequence is done.",
-  schedule: { type: "monthly", dayOfMonth: 1, time: "16:00", timezone: LOCAL_TIME_ZONE },
+  description: "Pause RAMS for the rest of the month once the 1st-of-month sequence is done, at the edge of the 08:00-20:00 window.",
+  schedule: { type: "monthly", dayOfMonth: 1, time: "20:00", timezone: LOCAL_TIME_ZONE },
   serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   action: "pause",
 });
