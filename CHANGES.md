@@ -4,6 +4,13 @@
 
 # Changelog
 
+## RAMS monthly sequence moved fully inside the 8am-8pm window — 2 July 2026
+
+- Removed `aims-power-resume-monthly-audit`: the monthly audit chain runs at 15:00-18:20, already inside the normal 07:30-20:00 daily resume/pause window, so the extra 00:45 resume was paying for ~7 hours of unnecessary idle billing every month for no job that needed it.
+- Moved the RAMS rebuild/report sequence from ~04:30-08:10 to 08:30-12:10 Europe/London, and moved `rams-power-resume-monthly`/`rams-power-pause-monthly` from 04:00/16:00 to 08:00/20:00, so RAMS's once-a-month tasks run entirely within the same 08:00-20:00 boundary as AIMS instead of overnight.
+- Updated `test/scheduler.test.js` to match: job counts (41 base / 122 total), the monthly due-time cases, and the power-management checkpoints.
+- Updated `docs/POWER_MANAGEMENT.md` accordingly.
+
 ## Koyeb power management for AIMS and RAMS — 30 June 2026
 
 - Added five new jobs (`aims-power-resume-daily`, `aims-power-pause-daily`, `aims-power-resume-monthly-audit`, `rams-power-resume-monthly`, `rams-power-pause-monthly`) that call Koyeb's pause/resume API directly to stop billing AIMS and RAMS for idle time.
