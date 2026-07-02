@@ -21,9 +21,9 @@ function stateWithHealthAlreadyRun(iso) {
   };
 }
 
-assert.equal(baseJobs.length, 42, "AIMS scheduled jobs, all monthly audit/council reports, Blotato video jobs, RAMS protected scheduled/operator jobs, and Koyeb power-management jobs should be represented");
+assert.equal(baseJobs.length, 41, "AIMS scheduled jobs, all monthly audit/council reports, Blotato video jobs, RAMS protected scheduled/operator jobs, and Koyeb power-management jobs should be represented");
 assert.equal(pretriggerJobs.length, 81, "MAST should generate three AIMS pretrigger checks for each timed AIMS job");
-assert.equal(jobs.length, 123, "jobs should include base jobs plus automatic pretrigger checks");
+assert.equal(jobs.length, 122, "jobs should include base jobs plus automatic pretrigger checks");
 
 
 const blotatoHookdeckTargets = {
@@ -142,20 +142,32 @@ for (const healthId of publicHealthJobs) {
 
 assert.deepEqual(
   actualIds(dueJobsAt(at("2026-05-04T07:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T07:00:00.000Z"))),
-  ["oneup-ebooks-weekly", "rss-rewrite"],
-  "Monday 08:00 Europe/London should run RSS rewrite and weekly ebook scheduling during BST"
+  ["rss-rewrite"],
+  "Monday 08:00 Europe/London should run RSS rewrite during BST"
 );
 
 assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-05-04T08:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T08:30:00.000Z"))),
-  ["blog-daily-social-build", "outreach-batch-next"],
-  "09:30 Europe/London on weekdays should run outreach and the daily social blog build"
+  actualIds(dueJobsAt(at("2026-05-04T08:40:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T08:40:00.000Z"))),
+  ["outreach-batch-next"],
+  "09:40 Europe/London on weekdays should run the outreach batch"
 );
 
 assert.deepEqual(
-  actualIds(dueJobsAt(at("2026-05-10T08:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-10T08:30:00.000Z"))),
+  actualIds(dueJobsAt(at("2026-05-04T09:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T09:30:00.000Z"))),
   ["blog-daily-social-build"],
-  "daily social blog build should run at 09:30 Europe/London on weekends too"
+  "10:30 Europe/London should run the daily social blog build"
+);
+
+assert.deepEqual(
+  actualIds(dueJobsAt(at("2026-05-09T09:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-09T09:30:00.000Z"))),
+  ["blog-daily-social-build"],
+  "daily social blog build should run at 10:30 Europe/London on weekends too"
+);
+
+assert.deepEqual(
+  actualIds(dueJobsAt(at("2026-05-04T10:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T10:00:00.000Z"))),
+  ["oneup-ebooks-weekly"],
+  "weekly ebook scheduling should run at Monday 11:00 Europe/London during BST"
 );
 
 assert.deepEqual(
@@ -214,20 +226,21 @@ assert.deepEqual(
 );
 
 const monthlyDueCases = [
-  ["2026-06-01T00:00:00.000Z", ["seo-aeo-geo-audit"], "monthly SEO/AEO/GEO audit should run first at 01:00 London on the 1st"],
-  ["2026-06-01T00:10:00.000Z", ["mobile-audit"], "monthly mobile UX audit should run second at 01:10 London on the 1st"],
-  ["2026-06-01T01:00:00.000Z", ["on-brand-audit"], "monthly on-brand audit should run at 02:00 London on the 1st"],
-  ["2026-06-01T01:20:00.000Z", ["podcast-website-report"], "podcast website reports should run before social/council reports"],
-  ["2026-06-01T01:40:00.000Z", ["social-performance-audit"], "monthly social-performance audit should run before brand-social council"],
-  ["2026-06-01T02:10:00.000Z", ["brand-social-council-report"], "brand/social council should run after its evidence sources"],
-  ["2026-06-01T05:00:00.000Z", ["seo-aeo-geo-council-report"], "SEO/AEO/GEO council fallback report should run on the 1st"],
-  ["2026-06-01T05:20:00.000Z", ["mobile-ux-council-report"], "Mobile UX council fallback report should run on the 1st"],
-  ["2026-06-01T03:30:00.000Z", ["rams-rebuild-on-brand"], "RAMS on-brand rebuild should run on the 1st after the brand/social council"],
-  ["2026-06-01T04:00:00.000Z", ["rams-report-on-brand-latest"], "RAMS on-brand report fetch should run on the 1st"],
-  ["2026-06-01T05:40:00.000Z", ["rams-rebuild-mobile-ux"], "RAMS mobile UX rebuild should run on the 1st after the mobile council"],
-  ["2026-06-01T06:10:00.000Z", ["rams-report-mobile-ux-latest"], "RAMS mobile UX report fetch should run on the 1st"],
-  ["2026-06-01T06:40:00.000Z", ["rams-rebuild-seo-aeo-geo"], "RAMS SEO/AEO/GEO rebuild should run on the 1st after the SEO council"],
-  ["2026-06-01T07:10:00.000Z", ["rams-report-seo-aeo-geo-latest"], "RAMS SEO/AEO/GEO report fetch should run on the 1st"],
+  ["2026-06-01T07:00:00.000Z", ["rams-power-resume-monthly", "rss-rewrite"], "RAMS should resume at 08:00 London on the 1st, alongside the daily 08:00 rss-rewrite"],
+  ["2026-06-01T07:30:00.000Z", ["rams-rebuild-on-brand"], "RAMS on-brand rebuild should run at 08:30 London on the 1st, 30 min after RAMS resumes"],
+  ["2026-06-01T08:00:00.000Z", ["rams-report-on-brand-latest"], "RAMS on-brand report fetch should run at 09:00 London on the 1st"],
+  ["2026-06-01T09:40:00.000Z", ["rams-rebuild-mobile-ux"], "RAMS mobile UX rebuild should run at 10:40 London on the 1st"],
+  ["2026-06-01T10:10:00.000Z", ["rams-report-mobile-ux-latest"], "RAMS mobile UX report fetch should run at 11:10 London on the 1st"],
+  ["2026-06-01T10:40:00.000Z", ["rams-rebuild-seo-aeo-geo"], "RAMS SEO/AEO/GEO rebuild should run at 11:40 London on the 1st"],
+  ["2026-06-01T11:10:00.000Z", ["rams-report-seo-aeo-geo-latest"], "RAMS SEO/AEO/GEO report fetch should run at 12:10 London on the 1st, still well inside the 8am-8pm RAMS window"],
+  ["2026-06-01T14:00:00.000Z", ["seo-aeo-geo-audit"], "monthly SEO/AEO/GEO audit should run first at 15:00 London on the 1st"],
+  ["2026-06-01T14:20:00.000Z", ["mobile-audit"], "monthly mobile UX audit should run second at 15:20 London on the 1st"],
+  ["2026-06-01T15:00:00.000Z", ["on-brand-audit"], "monthly on-brand audit should run at 16:00 London on the 1st"],
+  ["2026-06-01T15:30:00.000Z", ["podcast-website-report"], "podcast website reports should run before social/council reports"],
+  ["2026-06-01T15:40:00.000Z", ["social-performance-audit"], "monthly social-performance audit should run before brand-social council"],
+  ["2026-06-01T16:10:00.000Z", ["brand-social-council-report"], "brand/social council should run after its evidence sources"],
+  ["2026-06-01T17:00:00.000Z", ["seo-aeo-geo-council-report"], "SEO/AEO/GEO council fallback report should run on the 1st"],
+  ["2026-06-01T17:20:00.000Z", ["mobile-ux-council-report"], "Mobile UX council fallback report should run on the 1st"],
 ];
 
 for (const [iso, expected, message] of monthlyDueCases) {
@@ -239,8 +252,8 @@ for (const [iso, expected, message] of monthlyDueCases) {
 }
 
 const ebookJob = jobs.find((job) => job.id === "oneup-ebooks-weekly");
-assert.ok(isTimedJobDue(ebookJob, at("2026-05-04T07:00:00.000Z")), "ebook weekly should run Monday 08:00 Europe/London during BST");
-assert.equal(buildPayload(ebookJob, at("2026-05-04T07:00:00.000Z")).weekStartDate, "2026-05-04");
+assert.ok(isTimedJobDue(ebookJob, at("2026-05-04T10:00:00.000Z")), "ebook weekly should run Monday 11:00 Europe/London during BST");
+assert.equal(buildPayload(ebookJob, at("2026-05-04T10:00:00.000Z")).weekStartDate, "2026-05-04");
 
 const winterParts = localParts(at("2026-12-07T09:00:00.000Z"), "Europe/London");
 assert.equal(winterParts.time, "09:00", "London winter local conversion should stay correct");
@@ -251,26 +264,26 @@ assert.ok(oldIntervalHealthDue.some((job) => job.id === "hive-keepawake"), "HIVE
 
 assert.deepEqual(
   ids(dueJobsAt(at("2026-05-11T04:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-11T04:00:00.000Z"))),
-  ["pretrigger-oneup-ebooks-weekly-health", "pretrigger-rss-rewrite-health"],
-  "Monday 05:00 Europe/London should run the T-3h checks for 08:00 London AIMS jobs"
+  ["pretrigger-rss-rewrite-health"],
+  "Monday 05:00 Europe/London should run the T-3h check for the 08:00 London rss-rewrite job"
 );
 
 assert.deepEqual(
   ids(dueJobsAt(at("2026-05-11T05:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-11T05:00:00.000Z"))),
-  ["pretrigger-oneup-ebooks-weekly-preflight", "pretrigger-rss-rewrite-preflight"],
-  "Monday 06:00 Europe/London should run the T-2h preflight checks for 08:00 London AIMS jobs"
+  ["pretrigger-rss-rewrite-preflight"],
+  "Monday 06:00 Europe/London should run the T-2h preflight check for the 08:00 London rss-rewrite job"
 );
 
 assert.deepEqual(
   ids(dueJobsAt(at("2026-05-11T06:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-11T06:30:00.000Z"))),
-  ["aims-power-resume-daily", "pretrigger-blog-daily-social-build-preflight", "pretrigger-oneup-ebooks-weekly-warmup", "pretrigger-outreach-batch-next-preflight", "pretrigger-rss-rewrite-warmup"],
-  "Monday 07:30 Europe/London should run the T-30m warmup checks for 08:00 London AIMS jobs, alongside the new AIMS power-management resume"
+  ["aims-power-resume-daily", "pretrigger-blog-daily-social-build-health", "pretrigger-rss-rewrite-warmup"],
+  "Monday 07:30 Europe/London should run the T-30m rss-rewrite warmup and T-3h blog-daily-social-build health check, alongside the AIMS power-management resume"
 );
 
 assert.deepEqual(
   ids(dueJobsAt(at("2026-05-11T05:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-11T05:30:00.000Z"))),
-  ["pretrigger-blog-daily-social-build-health", "pretrigger-outreach-batch-next-health"],
-  "Changing actual service schedules automatically changes the derived T-3h check time"
+  [],
+  "Nothing should be due at 06:30 Europe/London between the rss-rewrite preflight and warmup checks"
 );
 
 process.env.AIMS_API_KEY = "unit-test-aims-key";
@@ -282,7 +295,7 @@ delete process.env.AIMS_API_KEY;
 
 // --- Koyeb power management (cost optimisation) ---
 
-const powerJobIds = ["aims-power-resume-daily", "aims-power-pause-daily", "aims-power-resume-monthly-audit", "rams-power-resume-monthly", "rams-power-pause-monthly"];
+const powerJobIds = ["aims-power-resume-daily", "aims-power-pause-daily", "rams-power-resume-monthly", "rams-power-pause-monthly"];
 for (const id of powerJobIds) {
   const job = baseJobs.find((item) => item.id === id);
   assert.ok(job, `${id} should exist`);
@@ -303,9 +316,8 @@ function dueIncludes(iso, jobId, label) {
 
 dueIncludes("2026-06-01T06:30:00.000Z", "aims-power-resume-daily", "AIMS should resume daily at 07:30 Europe/London");
 dueIncludes("2026-06-01T19:00:00.000Z", "aims-power-pause-daily", "AIMS should pause daily at 20:00 Europe/London");
-dueIncludes("2026-06-30T23:45:00.000Z", "aims-power-resume-monthly-audit", "AIMS should get an early resume at 00:45 Europe/London on the 1st, ahead of the 01:00 audit chain");
-dueIncludes("2026-07-01T03:00:00.000Z", "rams-power-resume-monthly", "RAMS should resume at 04:00 Europe/London on the 1st, ahead of the 04:30 rebuild sequence");
-dueIncludes("2026-07-01T15:00:00.000Z", "rams-power-pause-monthly", "RAMS should pause at 16:00 Europe/London on the 1st once the sequence is long done");
+dueIncludes("2026-07-01T07:00:00.000Z", "rams-power-resume-monthly", "RAMS should resume at 08:00 Europe/London on the 1st, ahead of the 08:30 rebuild sequence, inside the 8am-8pm window");
+dueIncludes("2026-07-01T19:00:00.000Z", "rams-power-pause-monthly", "RAMS should pause at 20:00 Europe/London on the 1st, at the same boundary as AIMS's daily pause, once its full 08:30-12:10 sequence is long done");
 
 // --- oneup-daily / weekly quiz moved inside the AIMS 08:00-20:00 window ---
 
