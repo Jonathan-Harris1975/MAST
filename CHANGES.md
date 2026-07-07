@@ -4,6 +4,19 @@
 
 # Changelog
 
+## HIVE ecosystem governance jobs — 7 July 2026
+
+- MAST previously orchestrated AIMS and RAMS in depth but only pinged HIVE's `/healthz` (`hive-keepawake`). HIVE itself exposes admin-authenticated diagnostic/report endpoints (repo health, environment audit, provider health, skill-catalogue integrity, Vectorize/R2/connector diagnostics, Model Registry, AI Council, optimisation stats) that nothing outside a human opening HIVE-UI ever called.
+- Added 16 new jobs, group-prefixed `hive-*`, all authenticating with a new `HIVE_ADMIN_BEARER_TOKEN` (distinct from `AIMS_API_KEY`/`RMS_API_KEY`, matching HIVE's own single-token `ADMIN_BEARER_TOKEN` auth):
+  - Daily 06:00-06:15 Europe/London: `hive-readiness-check`, `hive-repo-health-check`, `hive-provider-health-check`, `hive-ops-events-digest`.
+  - Weekly (Monday) 06:25-06:55: `hive-env-audit`, `hive-repo-hygiene-check`, `hive-skills-integrity-check`, `hive-vectorize-diagnostics`, `hive-buckets-check`, `hive-connectors-check`, `hive-model-registry-snapshot`.
+  - Monthly (1st) 07:00-07:16, ahead of the existing 07:30 AIMS resume: `hive-ai-council-run` (POST, the one mutating job in this set), `hive-skills-duplicates-check`, `hive-skills-orphans-check`, `hive-skills-missing-check`, `hive-optimisation-stats-snapshot`.
+- All 16 are read-only GETs except `hive-ai-council-run`, which was already a fully automatic, self-contained POST endpoint in HIVE (no approval gate) that refreshes provider model catalogues and can auto-promote into the Model Registry.
+- Deliberately **not** scheduled: any repository-scoped HIVE endpoint (`POST /repositories/{id}/council`, `/qa`, `/reindex`, memory writes). Those depend on a repository already being uploaded into HIVE's repository registry within the same process lifetime, and that registry is in-memory only (not database-backed yet), so a cron call against it would silently 404 or run against nothing after any restart/idle cycle. Scheduling them now would look like automation while actually being a correctness regression; see `docs/HIVE-ORCHESTRATION-REPORT.md` for the full gap analysis.
+- New env vars: `HIVE_BASE_URL` (defaults to `https://hive.jonathan-harris.online`), `HIVE_ADMIN_BEARER_TOKEN`.
+- Updated `test/scheduler.test.js`: job counts (57 base / 138 total), explicit coverage of every new `hive-*` job's id/auth/method, and a standing guard test that fails if any repository-scoped HIVE endpoint is ever added to the schedule.
+- No existing job was removed, renamed, retimed, or had its schedule/body changed.
+
 ## RAMS monthly sequence moved fully inside the 8am-8pm window — 2 July 2026
 
 - Removed `aims-power-resume-monthly-audit`: the monthly audit chain runs at 15:00-18:20, already inside the normal 07:30-20:00 daily resume/pause window, so the extra 00:45 resume was paying for ~7 hours of unnecessary idle billing every month for no job that needed it.
