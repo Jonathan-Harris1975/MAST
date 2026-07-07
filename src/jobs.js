@@ -627,6 +627,178 @@ const koyebPowerJobs = koyebPowerManagementEnabled()
   ]
   : [];
 
+// --- HIVE governance jobs (read-only ecosystem checks + AI Council) --------------
+//
+// HIVE exposes a set of admin-authenticated diagnostic/report endpoints (see
+// backend/app/api/system.py, env_audit.py, ai_council.py, providers.py, skills.py,
+// vectorize.py, buckets.py, connectors.py, model_registry.py, optimisation_engine.py)
+// that were previously never called by anything except a human opening HIVE-UI.
+// hive-keepawake (below) only pings /healthz - it does not exercise any of these.
+// Everything here is intentionally read-only or self-contained (no repository upload
+// is required), because the repository-scoped endpoints (POST /repositories/{id}/council,
+// /qa, /reindex, memory writes) depend on a repository having been uploaded into HIVE's
+// in-memory repository registry in the same process lifetime - that registry is not
+// database-backed yet (see repository_manager.py), so scheduling those from MAST would
+// silently no-op or 404 against an empty registry after every Koyeb restart/idle cycle.
+// They are deliberately left unscheduled until that persistence gap is closed; scheduling
+// them now would be a correctness regression dressed up as automation.
+//
+// POST /ai-council/run is the one mutating exception here: it is already a fully
+// self-contained, unconditionally-automatic action (no approval gate in the route) that
+// discovers providers, refreshes model catalogues and can auto-promote models into the
+// Model Registry. The Model Registry is also currently in-memory (a second, separate
+// persistence gap flagged in HIVE's own release notes) so a promotion made by a scheduled
+// run can be lost on the next restart - that's a known limitation to close, not a reason
+// to leave AI Council unscheduled, since the D1-backed run history (lane="ai_council")
+// still gives an audit trail either way.
+function hiveBaseUrl() {
+  return String(process.env.HIVE_BASE_URL || "https://hive.jonathan-harris.online").replace(/\/+$/, "");
+}
+
+function hiveJob({ id, group, description, schedule, targetPath, method = "GET", body, requiresAuth = true }) {
+  const url = `${hiveBaseUrl()}${targetPath}`;
+  const shared = {
+    id,
+    group,
+    description,
+    schedule,
+    targetUrl: url,
+    targetPath,
+    authEnv: requiresAuth ? "HIVE_ADMIN_BEARER_TOKEN" : null,
+  };
+  return method === "POST"
+    ? postJob({ ...shared, hookEnv: null, fallbackUrl: url, body: body || {} })
+    : getJob({ ...shared, hookEnv: null, fallbackUrl: url });
+}
+
+const hiveGovernanceDailyJobs = [
+  hiveJob({
+    id: "hive-readiness-check",
+    group: "hive-governance",
+    description: "Check HIVE's full runtime readiness (providers, storage, config) once a day.",
+    schedule: { type: "weekly", days: WEEKDAYS, time: "06:00", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/v1/runtime/readiness",
+  }),
+  hiveJob({
+    id: "hive-repo-health-check",
+    group: "hive-governance",
+    description: "Fetch HIVE's governed repo-ecosystem liveness/readiness report (Repository Health Review).",
+    schedule: { type: "weekly", days: WEEKDAYS, time: "06:05", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/system/repo-health",
+  }),
+  hiveJob({
+    id: "hive-provider-health-check",
+    group: "hive-governance",
+    description: "Check the health of every configured AI provider (AI Provider Monitoring).",
+    schedule: { type: "weekly", days: WEEKDAYS, time: "06:10", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/providers/health",
+  }),
+  hiveJob({
+    id: "hive-ops-events-digest",
+    group: "hive-governance",
+    description: "Pull the last day of redacted HIVE operational events for the executive/ops trail.",
+    schedule: { type: "weekly", days: WEEKDAYS, time: "06:15", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/system/ops-events?limit=100",
+  }),
+];
+
+const hiveGovernanceWeeklyJobs = [
+  hiveJob({
+    id: "hive-env-audit",
+    group: "hive-governance-weekly",
+    description: "Run HIVE's environment/config audit (Environment Validation).",
+    schedule: { type: "weekly", days: ["monday"], time: "06:25", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/environment/audit",
+  }),
+  hiveJob({
+    id: "hive-repo-hygiene-check",
+    group: "hive-governance-weekly",
+    description: "Run HIVE's own repo-hygiene scan for duplicate/orphan/generated files.",
+    schedule: { type: "weekly", days: ["monday"], time: "06:30", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/system/repo-hygiene",
+  }),
+  hiveJob({
+    id: "hive-skills-integrity-check",
+    group: "hive-governance-weekly",
+    description: "Check HIVE's skill catalogue (181-skill registry) for integrity issues (Knowledge Base Review).",
+    schedule: { type: "weekly", days: ["monday"], time: "06:35", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/skills/integrity",
+  }),
+  hiveJob({
+    id: "hive-vectorize-diagnostics",
+    group: "hive-governance-weekly",
+    description: "Check Vectorize/embeddings diagnostics (R2 Storage Validation).",
+    schedule: { type: "weekly", days: ["monday"], time: "06:40", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/vectorize/diagnostics",
+  }),
+  hiveJob({
+    id: "hive-buckets-check",
+    group: "hive-governance-weekly",
+    description: "Check configured R2 bucket lanes are reachable and correctly scoped.",
+    schedule: { type: "weekly", days: ["monday"], time: "06:45", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/buckets",
+  }),
+  hiveJob({
+    id: "hive-connectors-check",
+    group: "hive-governance-weekly",
+    description: "Check the status of every registered HIVE connector (GitHub, R2, OpenRouter, AI-search).",
+    schedule: { type: "weekly", days: ["monday"], time: "06:50", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/connectors",
+  }),
+  hiveJob({
+    id: "hive-model-registry-snapshot",
+    group: "hive-governance-weekly",
+    description: "Snapshot the current Model Registry state (detects unexpected resets given it is not yet DB-backed).",
+    schedule: { type: "weekly", days: ["monday"], time: "06:55", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/model-registry",
+  }),
+];
+
+const hiveGovernanceMonthlyJobs = [
+  hiveJob({
+    id: "hive-ai-council-run",
+    group: "hive-ai-council",
+    description: "Run the AI Models Council: refresh provider model catalogues, score and auto-promote into the Model Registry.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "07:00", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/ai-council/run",
+    method: "POST",
+  }),
+  hiveJob({
+    id: "hive-skills-duplicates-check",
+    group: "hive-skills-catalogue",
+    description: "Deep monthly check for duplicate skills across the catalogue.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "07:10", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/skills/duplicates",
+  }),
+  hiveJob({
+    id: "hive-skills-orphans-check",
+    group: "hive-skills-catalogue",
+    description: "Deep monthly check for orphaned skills no longer referenced by any workflow.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "07:12", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/skills/orphans",
+  }),
+  hiveJob({
+    id: "hive-skills-missing-check",
+    group: "hive-skills-catalogue",
+    description: "Deep monthly check for skills referenced but missing from the catalogue.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "07:14", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/skills/missing",
+  }),
+  hiveJob({
+    id: "hive-optimisation-stats-snapshot",
+    group: "hive-governance-monthly",
+    description: "Pull optimisation-engine decision/experiment stats for the monthly executive governance report.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "07:16", timezone: LOCAL_TIME_ZONE },
+    targetPath: "/optimisation/stats",
+  }),
+];
+
+const hiveGovernanceJobs = [
+  ...hiveGovernanceDailyJobs,
+  ...hiveGovernanceWeeklyJobs,
+  ...hiveGovernanceMonthlyJobs,
+];
+
 export const baseJobs = [
   rssRewrite,
   outreachBatchNext,
@@ -640,6 +812,7 @@ export const baseJobs = [
   ...blotatoVideoJobs,
   healthPing,
   hiveKeepAwake,
+  ...hiveGovernanceJobs,
   ...ramsJobs,
   ...koyebPowerJobs,
 ];
