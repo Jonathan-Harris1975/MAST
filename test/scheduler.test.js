@@ -21,9 +21,57 @@ function stateWithHealthAlreadyRun(iso) {
   };
 }
 
-assert.equal(baseJobs.length, 41, "AIMS scheduled jobs, all monthly audit/council reports, Blotato video jobs, RAMS protected scheduled/operator jobs, and Koyeb power-management jobs should be represented");
-assert.equal(pretriggerJobs.length, 81, "MAST should generate three AIMS pretrigger checks for each timed AIMS job");
-assert.equal(jobs.length, 122, "jobs should include base jobs plus automatic pretrigger checks");
+assert.equal(baseJobs.length, 57, "AIMS scheduled jobs, all monthly audit/council reports, Blotato video jobs, RAMS protected scheduled/operator jobs, Koyeb power-management jobs, and HIVE governance jobs should be represented");
+assert.equal(pretriggerJobs.length, 81, "MAST should generate three AIMS pretrigger checks for each timed AIMS job (HIVE governance jobs use HIVE_ADMIN_BEARER_TOKEN, not AIMS_API_KEY, so they get none)");
+assert.equal(jobs.length, 138, "jobs should include base jobs plus automatic pretrigger checks");
+
+const hiveGovernanceJobIds = [
+  "hive-readiness-check",
+  "hive-repo-health-check",
+  "hive-provider-health-check",
+  "hive-ops-events-digest",
+  "hive-env-audit",
+  "hive-repo-hygiene-check",
+  "hive-skills-integrity-check",
+  "hive-vectorize-diagnostics",
+  "hive-buckets-check",
+  "hive-connectors-check",
+  "hive-model-registry-snapshot",
+  "hive-ai-council-run",
+  "hive-skills-duplicates-check",
+  "hive-skills-orphans-check",
+  "hive-skills-missing-check",
+  "hive-optimisation-stats-snapshot",
+];
+
+for (const id of hiveGovernanceJobIds) {
+  const job = jobs.find((item) => item.id === id);
+  assert.ok(job, `${id} should exist`);
+  assert.equal(job.authEnv, "HIVE_ADMIN_BEARER_TOKEN", `${id} should authenticate with HIVE's admin bearer token`);
+  assert.equal(job.managedPretrigger, undefined, `${id} should not get an AIMS-style pretrigger (it isn't an AIMS job)`);
+}
+
+assert.equal(
+  jobs.find((item) => item.id === "hive-ai-council-run")?.method,
+  "POST",
+  "hive-ai-council-run should POST to trigger the council run"
+);
+assert.equal(
+  jobs.find((item) => item.id === "hive-readiness-check")?.method,
+  "GET",
+  "read-only HIVE governance checks should use GET"
+);
+
+// No repository-scoped HIVE endpoint (council/qa/reindex/memory-write for an uploaded
+// repo) should ever be scheduled: HIVE's repository registry is in-memory only, so a
+// cron-triggered call against it would silently 404 after any restart or idle cycle.
+for (const job of jobs) {
+  assert.ok(
+    !/^\/repositories\/[^/]+\/(council|qa|reindex)/.test(job.targetPath || "") &&
+      !(job.method === "PUT" && /^\/repositories\/[^/]+\/memory\//.test(job.targetPath || "")),
+    `${job.id} must not schedule a repository-scoped HIVE action (repository registry is not persistent yet)`
+  );
+}
 
 
 const blotatoHookdeckTargets = {
