@@ -1,8 +1,42 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { dirname } from "node:path";
-import { jobs, LOCAL_TIME_ZONE, SERVICE_NAME, USER_AGENT } from "./jobs.js";
+import { jobs, LOCAL_TIME_ZONE, SERVICE_NAME, USER_AGENT, koyebServiceUrl } from "./jobs.js";
 import { sendOperationalEvent } from "./alerts.js";
+
+// --- Service lifecycle model -------------------------------------------------------
+//
+// MAST is the durable source of truth for AIMS/RAMS lifecycle intent, because Koyeb
+// "pause" fully suspends the instance: once paused, the service cannot respond to any
+// probe (self-reported state included), so only the actor that paused it - MAST - can
+// distinguish an intentional Standby from a genuine Offline/crash. HIVE consults this
+// ledger (via GET /services) instead of guessing from a failed health probe alone.
+//
+// Valid states: starting | online | busy | standby | offline | maintenance.
+export const LIFECYCLE_STATES = ["starting", "online", "busy", "standby", "offline", "maintenance"];
+export const MANAGED_SERVICES = ["aims", "rams"];
+
+const DEFAULT_SERVICE_LIFECYCLE = () => ({
+  state: "offline",
+  since: null,
+  reason: "no-data",
+  lastAction: null,
+  lastActionAt: null,
+  lastError: null,
+});
+
+const SERVICE_LIFECYCLE_CONFIG = {
+  aims: {
+    serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
+    healthUrlEnv: "AIMS_HEALTH_URL",
+    healthUrlFallback: "https://app.jonathan-harris.online/livez",
+  },
+  rams: {
+    serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
+    healthUrlEnv: "RAMS_HEALTH_URL",
+    healthUrlFallback: "https://mod.jonathan-harris.online/livez",
+  },
+};
 
 const DEFAULT_STATE = {
   version: 2,
@@ -15,6 +49,7 @@ const DEFAULT_STATE = {
   reviewQueue: [],
   operator: { schedulerEnabled: true, maintenanceMode: false, reason: null, updatedAt: null },
   metrics: { ticks: 0, delayedTicks: 0, duplicatePreventions: 0, jobsSucceeded: 0, jobsFailed: 0, lastTickLagMs: 0 },
+  services: { aims: DEFAULT_SERVICE_LIFECYCLE(), rams: DEFAULT_SERVICE_LIFECYCLE() },
 };
 
 export function numberEnv(name, fallback) {
@@ -293,6 +328,10 @@ function hydrateState(existing) {
     reviewQueue: Array.isArray(existing?.reviewQueue) ? existing.reviewQueue : [],
     operator: { ...DEFAULT_STATE.operator, ...(existing?.operator || {}) },
     metrics: { ...DEFAULT_STATE.metrics, ...(existing?.metrics || {}) },
+    services: {
+      aims: { ...DEFAULT_SERVICE_LIFECYCLE(), ...(existing?.services?.aims || {}) },
+      rams: { ...DEFAULT_SERVICE_LIFECYCLE(), ...(existing?.services?.rams || {}) },
+    },
     startedAt: existing?.startedAt || new Date().toISOString(),
   };
 }
@@ -367,6 +406,195 @@ export async function saveState() {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// --- Service lifecycle ledger -------------------------------------------------------
+
+export function getServiceLifecycle(serviceKey) {
+  const key = String(serviceKey || "").toLowerCase();
+  if (!MANAGED_SERVICES.includes(key)) return null;
+  return { service: key, ...(state.services?.[key] || DEFAULT_SERVICE_LIFECYCLE()) };
+}
+
+export function getAllServiceLifecycles() {
+  return Object.fromEntries(MANAGED_SERVICES.map((key) => [key, getServiceLifecycle(key)]));
+}
+
+export function setServiceLifecycle(serviceKey, value, { reason = null, lastAction = null, lastError = null } = {}) {
+  const key = String(serviceKey || "").toLowerCase();
+  if (!MANAGED_SERVICES.includes(key)) throw new Error(`Unknown managed service: ${serviceKey}`);
+  if (!LIFECYCLE_STATES.includes(value)) throw new Error(`Invalid lifecycle state: ${value}`);
+  state.services = state.services || {};
+  const previous = state.services[key] || DEFAULT_SERVICE_LIFECYCLE();
+  const changed = previous.state !== value;
+  state.services[key] = {
+    ...previous,
+    state: value,
+    since: changed ? new Date().toISOString() : previous.since || new Date().toISOString(),
+    reason: reason || previous.reason,
+    lastAction: lastAction || previous.lastAction,
+    lastActionAt: lastAction ? new Date().toISOString() : previous.lastActionAt,
+    lastError: lastError !== null ? lastError : (value === "online" ? null : previous.lastError),
+  };
+  console.log(JSON.stringify({
+    service: SERVICE_NAME, event: "service-lifecycle-transition",
+    managedService: key, from: previous.state, to: value, reason: reason || previous.reason,
+  }));
+  return getServiceLifecycle(key);
+}
+
+export function serviceHealthUrl(serviceKey) {
+  const config = SERVICE_LIFECYCLE_CONFIG[serviceKey];
+  if (!config) return "";
+  const configured = String(process.env[config.healthUrlEnv] || "").trim();
+  return configured || config.healthUrlFallback;
+}
+
+async function pingServiceHealth(serviceKey) {
+  const url = serviceHealthUrl(serviceKey);
+  if (!url) return { ok: false, reason: "health-url-not-configured" };
+  try {
+    const response = await fetchWithTimeout(url, { method: "GET", headers: { "user-agent": USER_AGENT } }, CONFIG.requestTimeoutMs);
+    return { ok: response.ok, httpStatus: response.status };
+  } catch (error) {
+    return { ok: false, reason: error?.name || "fetch-error" };
+  }
+}
+
+// Fire-and-forget background poll after a resume action. Bounded attempts so a
+// permanently-broken deployment cannot leave a poll loop running forever; on
+// exhaustion the ledger records "offline" with a clear reason so HIVE/MAST/operator
+// can retry deliberately rather than silently believing the service is "starting".
+async function pollServiceUntilOnline(serviceKey, {
+  maxAttempts = numberEnv("SERVICE_RESUME_POLL_MAX_ATTEMPTS", 40),
+  intervalMs = numberEnv("SERVICE_RESUME_POLL_INTERVAL_MS", 5_000),
+} = {}) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    await sleep(intervalMs);
+    await loadState();
+    const current = getServiceLifecycle(serviceKey);
+    if (!current || current.state !== "starting") return; // superseded (paused again, manual override, etc.)
+    const probe = await pingServiceHealth(serviceKey);
+    if (probe.ok) {
+      setServiceLifecycle(serviceKey, "online", { reason: "resume-poll-succeeded" });
+      await saveState();
+      return;
+    }
+  }
+  await loadState();
+  const stillStarting = getServiceLifecycle(serviceKey);
+  if (stillStarting && stillStarting.state === "starting") {
+    setServiceLifecycle(serviceKey, "offline", {
+      reason: "resume-poll-timed-out",
+      lastError: `Service did not become healthy within ${maxAttempts} attempts.`,
+    });
+    await saveState();
+  }
+}
+
+export async function requestServiceResume(serviceKey, { reason = "on-demand-request" } = {}) {
+  const key = String(serviceKey || "").toLowerCase();
+  if (!MANAGED_SERVICES.includes(key)) {
+    return { ok: false, error: "unknown-service", service: serviceKey };
+  }
+  await loadState();
+  const current = getServiceLifecycle(key);
+  if (["online", "busy", "starting"].includes(current.state)) {
+    return { ok: true, service: key, idempotent: true, ...current };
+  }
+
+  const config = SERVICE_LIFECYCLE_CONFIG[key];
+  const url = koyebServiceUrl(config.serviceIdEnv, "resume");
+  const token = envSecret("KOYEB_TOKEN");
+  if (!token) {
+    return { ok: false, error: "missing-koyeb-token", service: key };
+  }
+
+  try {
+    const response = await fetchWithRetry(url, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "user-agent": USER_AGENT },
+    }, CONFIG);
+    if (!response.ok) {
+      const errorState = setServiceLifecycle(key, "offline", {
+        reason: `koyeb-resume-http-${response.status}`,
+        lastAction: "resume",
+        lastError: `Koyeb resume call returned HTTP ${response.status}.`,
+      });
+      await saveState();
+      return { ok: false, error: `koyeb-resume-http-${response.status}`, ...errorState };
+    }
+  } catch (error) {
+    const errorState = setServiceLifecycle(key, "offline", {
+      reason: "koyeb-resume-request-failed",
+      lastAction: "resume",
+      lastError: error?.message || "Koyeb resume request failed.",
+    });
+    await saveState();
+    return { ok: false, error: "koyeb-resume-request-failed", ...errorState };
+  }
+
+  const started = setServiceLifecycle(key, "starting", { reason, lastAction: "resume" });
+  await saveState();
+
+  // Do not await: the HTTP caller (HIVE) polls the target's own health endpoint and/or
+  // this ledger for progress; this background loop is a resilience backstop that keeps
+  // the ledger accurate even if nobody polls.
+  pollServiceUntilOnline(key).catch((error) => {
+    console.error(JSON.stringify({ service: SERVICE_NAME, event: "service-resume-poll-error", managedService: key, errorName: error?.name || "Error" }));
+  });
+
+  return { ok: true, service: key, idempotent: false, ...started };
+}
+
+export async function requestServicePause(serviceKey, { reason = "on-demand-request" } = {}) {
+  const key = String(serviceKey || "").toLowerCase();
+  if (!MANAGED_SERVICES.includes(key)) {
+    return { ok: false, error: "unknown-service", service: serviceKey };
+  }
+  await loadState();
+  const current = getServiceLifecycle(key);
+  if (current.state === "busy") {
+    return { ok: false, error: "service-busy", ...current };
+  }
+  if (current.state === "standby") {
+    return { ok: true, service: key, idempotent: true, ...current };
+  }
+
+  const config = SERVICE_LIFECYCLE_CONFIG[key];
+  const url = koyebServiceUrl(config.serviceIdEnv, "pause");
+  const token = envSecret("KOYEB_TOKEN");
+  if (!token) {
+    return { ok: false, error: "missing-koyeb-token", service: key };
+  }
+
+  try {
+    const response = await fetchWithRetry(url, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "user-agent": USER_AGENT },
+    }, CONFIG);
+    if (!response.ok) {
+      const errorState = setServiceLifecycle(key, "offline", {
+        reason: `koyeb-pause-http-${response.status}`,
+        lastAction: "pause",
+        lastError: `Koyeb pause call returned HTTP ${response.status}.`,
+      });
+      await saveState();
+      return { ok: false, error: `koyeb-pause-http-${response.status}`, ...errorState };
+    }
+  } catch (error) {
+    const errorState = setServiceLifecycle(key, "offline", {
+      reason: "koyeb-pause-request-failed",
+      lastAction: "pause",
+      lastError: error?.message || "Koyeb pause request failed.",
+    });
+    await saveState();
+    return { ok: false, error: "koyeb-pause-request-failed", ...errorState };
+  }
+
+  const paused = setServiceLifecycle(key, "standby", { reason, lastAction: "pause" });
+  await saveState();
+  return { ok: true, service: key, idempotent: false, ...paused };
 }
 
 function resultSummary(result) {
@@ -529,6 +757,27 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
     };
   }
 
+  // A service mid-request should never be paused out from under it: skip this run and
+  // let the next scheduled pause (or an operator) retry once it is no longer busy.
+  if (job.lifecycle?.action === "pause") {
+    const current = getServiceLifecycle(job.lifecycle.service);
+    if (current?.state === "busy") {
+      return {
+        job: job.id,
+        group: job.group,
+        ok: true,
+        skipped: true,
+        reason: "service-busy-pause-deferred",
+        runKey,
+        trigger,
+        startedAt: startedAt.toISOString(),
+        finishedAt: new Date().toISOString(),
+        durationMs: 0,
+        targetPath: job.targetPath,
+      };
+    }
+  }
+
   runningJobs.add(job.id);
 
   const payload = buildPayload(job, at);
@@ -589,11 +838,30 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
       } else {
         state.lastRunKeys[job.id] = runKey;
       }
+
+      if (job.lifecycle?.action === "pause") {
+        setServiceLifecycle(job.lifecycle.service, "standby", { reason: `scheduled-pause:${trigger}`, lastAction: "pause" });
+      } else if (job.lifecycle?.action === "resume") {
+        setServiceLifecycle(job.lifecycle.service, "starting", { reason: `scheduled-resume:${trigger}`, lastAction: "resume" });
+      }
+    } else if (job.lifecycle) {
+      setServiceLifecycle(job.lifecycle.service, "offline", {
+        reason: `scheduled-${job.lifecycle.action}-http-${response.status}`,
+        lastAction: job.lifecycle.action,
+        lastError: `Koyeb ${job.lifecycle.action} call returned HTTP ${response.status}.`,
+      });
     }
 
     rememberResult(result);
     await saveState();
     console.log(JSON.stringify(result));
+
+    if (response.ok && job.lifecycle?.action === "resume") {
+      pollServiceUntilOnline(job.lifecycle.service).catch((pollError) => {
+        console.error(JSON.stringify({ service: SERVICE_NAME, event: "service-resume-poll-error", managedService: job.lifecycle.service, errorName: pollError?.name || "Error" }));
+      });
+    }
+
     return result;
   } catch (error) {
     const finishedAt = new Date();
@@ -608,6 +876,14 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
       finishedAt: finishedAt.toISOString(),
       durationMs: finishedAt.getTime() - startedAt.getTime(),
     };
+
+    if (job.lifecycle) {
+      setServiceLifecycle(job.lifecycle.service, "offline", {
+        reason: `scheduled-${job.lifecycle.action}-request-failed`,
+        lastAction: job.lifecycle.action,
+        lastError: error?.message || `Koyeb ${job.lifecycle.action} request failed.`,
+      });
+    }
 
     rememberResult(result);
     await saveState();

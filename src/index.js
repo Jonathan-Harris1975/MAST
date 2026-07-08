@@ -4,10 +4,15 @@ import { jobs, SERVICE_NAME } from "./jobs.js";
 import {
   booleanEnv,
   findJob,
+  getAllServiceLifecycles,
+  getServiceLifecycle,
   getStatus,
   loadState,
+  MANAGED_SERVICES,
   numberEnv,
   publicJob,
+  requestServicePause,
+  requestServiceResume,
   runDueJobs,
   runJob,
   stateBackendStatus,
@@ -225,6 +230,41 @@ async function route(req, res) {
     if (!protectedRoute(req, res, id)) return;
     const result = await schedulerTick("manual-tick");
     return jsonResponse(res, result.ok ? 200 : 500, result, id);
+  }
+  if (req.method === "GET" && url.pathname === "/services") {
+    await loadState();
+    return jsonResponse(res, 200, { ok: true, service: SERVICE_NAME, services: getAllServiceLifecycles(), time: new Date().toISOString() }, id);
+  }
+  if (req.method === "GET" && url.pathname.startsWith("/services/") && url.pathname.split("/").length === 3) {
+    await loadState();
+    const serviceKey = decodeURIComponent(url.pathname.replace("/services/", ""));
+    const lifecycle = getServiceLifecycle(serviceKey);
+    if (!lifecycle) return jsonResponse(res, 404, { ok: false, error: "unknown-service", requestedService: serviceKey, managedServices: MANAGED_SERVICES }, id);
+    return jsonResponse(res, 200, { ok: true, service: SERVICE_NAME, ...lifecycle, time: new Date().toISOString() }, id);
+  }
+  if (req.method === "POST" && /^\/services\/[^/]+\/resume$/.test(url.pathname)) {
+    if (!protectedRoute(req, res, id)) return;
+    const serviceKey = decodeURIComponent(url.pathname.split("/")[2]);
+    let body = {};
+    try {
+      body = await parseBody(req);
+    } catch (error) {
+      return jsonResponse(res, Number(error.statusCode || 400), { ok: false, error: error.message, requestId: id }, id);
+    }
+    const result = await requestServiceResume(serviceKey, { reason: String(body.reason || "hive-on-demand-request") });
+    return jsonResponse(res, result.ok ? 202 : (result.error === "unknown-service" ? 404 : 502), { ...result, requestId: id }, id);
+  }
+  if (req.method === "POST" && /^\/services\/[^/]+\/pause$/.test(url.pathname)) {
+    if (!protectedRoute(req, res, id)) return;
+    const serviceKey = decodeURIComponent(url.pathname.split("/")[2]);
+    let body = {};
+    try {
+      body = await parseBody(req);
+    } catch (error) {
+      return jsonResponse(res, Number(error.statusCode || 400), { ok: false, error: error.message, requestId: id }, id);
+    }
+    const result = await requestServicePause(serviceKey, { reason: String(body.reason || "operator-request") });
+    return jsonResponse(res, result.ok ? 200 : (result.error === "unknown-service" ? 404 : (result.error === "service-busy" ? 409 : 502)), { ...result, requestId: id }, id);
   }
   if (req.method === "POST" && url.pathname.startsWith("/run/")) {
     if (!protectedRoute(req, res, id)) return;

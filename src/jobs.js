@@ -16,7 +16,7 @@ function endpoint(envName, fallbackUrl) {
 // If a service id env var isn't set yet, the job still gets built (so job counts/tests stay
 // stable) but points at a deliberately-broken URL that fails loudly in the run log instead
 // of silently doing nothing.
-function koyebServiceUrl(serviceIdEnvName, action) {
+export function koyebServiceUrl(serviceIdEnvName, action) {
   const serviceId = String(process.env[serviceIdEnvName] || "").trim();
   if (!serviceId) {
     return `https://app.koyeb.com/v1/services/UNSET-${serviceIdEnvName}/${action}`;
@@ -562,18 +562,26 @@ function koyebPowerManagementEnabled() {
 }
 
 function koyebPowerJob({ id, group, description, schedule, serviceIdEnv, action }) {
-  return postJob({
-    id,
-    group,
-    description,
-    schedule,
-    hookEnv: null,
-    fallbackUrl: koyebServiceUrl(serviceIdEnv, action),
-    targetUrl: koyebServiceUrl(serviceIdEnv, action),
-    targetPath: `/v1/services/{${serviceIdEnv}}/${action}`,
-    authEnv: "KOYEB_TOKEN",
-    body: {},
-  });
+  const lifecycleService = serviceIdEnv === "KOYEB_SERVICE_ID_AIMS" ? "aims" : serviceIdEnv === "KOYEB_SERVICE_ID_RAMS" ? "rams" : null;
+  return {
+    ...postJob({
+      id,
+      group,
+      description,
+      schedule,
+      hookEnv: null,
+      fallbackUrl: koyebServiceUrl(serviceIdEnv, action),
+      targetUrl: koyebServiceUrl(serviceIdEnv, action),
+      targetPath: `/v1/services/{${serviceIdEnv}}/${action}`,
+      authEnv: "KOYEB_TOKEN",
+      body: {},
+    }),
+    // Consumed by scheduler.runJob(): on a successful pause/resume call, the lifecycle
+    // ledger is updated so HIVE/MAST agree on intentional Standby vs a genuine fault,
+    // and (for resume) a bounded background poll confirms the service actually came
+    // back online rather than assuming success from the Koyeb API call alone.
+    lifecycle: lifecycleService ? { service: lifecycleService, action } : null,
+  };
 }
 
 const aimsPowerResumeDaily = koyebPowerJob({
