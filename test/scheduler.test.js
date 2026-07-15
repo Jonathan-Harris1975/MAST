@@ -214,7 +214,7 @@ assert.deepEqual(
 
 assert.deepEqual(
   actualIds(dueJobsAt(at("2026-05-04T10:00:00.000Z"), stateWithHealthAlreadyRun("2026-05-04T10:00:00.000Z"))),
-  ["oneup-ebooks-weekly"],
+  ["zernio-ebooks-weekly"],
   "weekly ebook scheduling should run at Monday 11:00 Europe/London during BST"
 );
 
@@ -232,13 +232,13 @@ assert.deepEqual(
 
 assert.deepEqual(
   actualIds(dueJobsAt(at("2026-05-03T18:30:00.000Z"), stateWithHealthAlreadyRun("2026-05-03T18:30:00.000Z"))),
-  ["oneup-monday"],
-  "Monday OneUp post should be prepared Sunday 19:30 Europe/London, inside the AIMS power window"
+  ["zernio-monday"],
+  "Monday Zernio post should be prepared Sunday 19:30 Europe/London, inside the AIMS power window"
 );
 
 assert.deepEqual(
   actualIds(dueJobsAt(at("2026-05-03T18:35:00.000Z"), stateWithHealthAlreadyRun("2026-05-03T18:35:00.000Z"))),
-  ["oneup-weekly-quiz"],
+  ["zernio-weekly-quiz"],
   "weekly quiz should be prepared Sunday 19:35 Europe/London, inside the AIMS power window"
 );
 
@@ -299,7 +299,7 @@ for (const [iso, expected, message] of monthlyDueCases) {
   );
 }
 
-const ebookJob = jobs.find((job) => job.id === "oneup-ebooks-weekly");
+const ebookJob = jobs.find((job) => job.id === "zernio-ebooks-weekly");
 assert.ok(isTimedJobDue(ebookJob, at("2026-05-04T10:00:00.000Z")), "ebook weekly should run Monday 11:00 Europe/London during BST");
 assert.equal(buildPayload(ebookJob, at("2026-05-04T10:00:00.000Z")).weekStartDate, "2026-05-04");
 
@@ -367,14 +367,14 @@ dueIncludes("2026-06-01T19:00:00.000Z", "aims-power-pause-daily", "AIMS should p
 dueIncludes("2026-07-01T07:00:00.000Z", "rams-power-resume-monthly", "RAMS should resume at 08:00 Europe/London on the 1st, ahead of the 08:30 rebuild sequence, inside the 8am-8pm window");
 dueIncludes("2026-07-01T19:00:00.000Z", "rams-power-pause-monthly", "RAMS should pause at 20:00 Europe/London on the 1st, at the same boundary as AIMS's daily pause, once its full 08:30-12:10 sequence is long done");
 
-// --- oneup-daily / weekly quiz moved inside the AIMS 08:00-20:00 window ---
+// --- zernio-daily / weekly quiz moved inside the AIMS 08:00-20:00 window ---
 
-dueIncludes("2026-06-07T18:30:00.000Z", "oneup-monday", "oneup-monday should now queue at 19:30 Europe/London (Sunday evening), inside the AIMS power window");
-dueIncludes("2026-06-07T18:35:00.000Z", "oneup-weekly-quiz", "oneup-weekly-quiz should now queue at 19:35 Europe/London on Sundays, inside the AIMS power window");
+dueIncludes("2026-06-07T18:30:00.000Z", "zernio-monday", "zernio-monday should now queue at 19:30 Europe/London (Sunday evening), inside the AIMS power window");
+dueIncludes("2026-06-07T18:35:00.000Z", "zernio-weekly-quiz", "zernio-weekly-quiz should now queue at 19:35 Europe/London on Sundays, inside the AIMS power window");
 
 assert.ok(
-  !ids(dueJobsAt(at("2026-06-07T22:15:00.000Z"), { lastRunKeys: {}, intervalLastRunAt: {} })).includes("oneup-monday"),
-  "oneup-monday should no longer fire at its old 23:15 Europe/London slot"
+  !ids(dueJobsAt(at("2026-06-07T22:15:00.000Z"), { lastRunKeys: {}, intervalLastRunAt: {} })).includes("zernio-monday"),
+  "zernio-monday should no longer fire at its old 23:15 Europe/London slot"
 );
 
 console.log("scheduler tests passed");
