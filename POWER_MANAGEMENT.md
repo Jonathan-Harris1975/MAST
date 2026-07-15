@@ -30,9 +30,9 @@ tasks now run inside the same daily boundary as AIMS instead of overnight):
 
 RAMS stays paused every other day of the month. AIMS stays paused 20:00-07:30 daily.
 
-## Why the daily oneup jobs moved
+## Why the daily zernio jobs moved
 
-The daily `oneup-*` content-queue jobs and `oneup-weekly-quiz` previously ran at
+The daily `zernio-*` content-queue jobs and `zernio-weekly-quiz` previously ran at
 23:15/23:20 Europe/London - outside any reasonable AIMS running window. They've been
 moved to 19:30/19:35 (same day-before-publish timing, just earlier) so AIMS can pause at
 20:00 without missing them. No other job behaviour changed.
