@@ -361,7 +361,7 @@ const zernioEbooksWeekly = postJob({
   addLocalDateAsWeekStartDate: true,
   body: {
     dryRun: false,
-    profileName: "Ebooks",
+    profileName: "Default",
     accountId: "ALL",
     usePodcastFeaturedBook: true,
   },
