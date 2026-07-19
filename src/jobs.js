@@ -117,6 +117,32 @@ const blogDailySocialBuild = postJob({
   authEnv: "AIMS_API_KEY",
 });
 
+const newsletterAiEdgeGenerate = postJob({
+  id: "newsletter-ai-edge-generate",
+  group: "newsletter",
+  description: "Build today's AI Edge newsletter issue (RSS ingest, ranking, composition, QA loop, hero image; stored in R2) ahead of the 10:00 send.",
+  schedule: { type: "weekly", days: WEEKDAYS, time: "09:20", timezone: LOCAL_TIME_ZONE },
+  hookEnv: "HOOK_NEWSLETTER_AI_EDGE_GENERATE",
+  fallbackUrl: "https://app.jonathan-harris.online/newsletter/generate",
+  targetUrl: "https://app.jonathan-harris.online/newsletter/generate",
+  targetPath: "/newsletter/generate",
+  authEnv: "AIMS_API_KEY",
+  body: { profileId: "ai-edge" },
+});
+
+const newsletterAiEdgeSend = postJob({
+  id: "newsletter-ai-edge-send",
+  group: "newsletter",
+  description: "Send today's built AI Edge newsletter issue via Brevo (creates the campaign and sends it immediately).",
+  schedule: { type: "weekly", days: WEEKDAYS, time: "10:00", timezone: LOCAL_TIME_ZONE },
+  hookEnv: "HOOK_NEWSLETTER_AI_EDGE_SEND",
+  fallbackUrl: "https://app.jonathan-harris.online/newsletter/send",
+  targetUrl: "https://app.jonathan-harris.online/newsletter/send",
+  targetPath: "/newsletter/send",
+  authEnv: "AIMS_API_KEY",
+  body: { profileId: "ai-edge" },
+});
+
 const zernioDailyJobs = [
   postJob({
     id: "zernio-monday",
@@ -821,6 +847,8 @@ export const baseJobs = [
   podcastRun,
   blogWeeklyBuild,
   blogDailySocialBuild,
+  newsletterAiEdgeGenerate,
+  newsletterAiEdgeSend,
   ...zernioDailyJobs,
   zernioWeeklyQuiz,
   ...monthlyAuditJobs,
@@ -850,6 +878,7 @@ function serviceForJob(job) {
   if (job.group === "podcast") return "podcast";
   if (job.group === "rss") return "rss";
   if (job.group === "blog") return "blog";
+  if (job.group === "newsletter") return "newsletter";
   if (job.group === "outreach") return "outreach";
   return "suite";
 }
