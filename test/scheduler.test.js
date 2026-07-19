@@ -21,9 +21,9 @@ function stateWithHealthAlreadyRun(iso) {
   };
 }
 
-assert.equal(baseJobs.length, 57, "AIMS scheduled jobs, all monthly audit/council reports, Blotato video jobs, RAMS protected scheduled/operator jobs, Koyeb power-management jobs, and HIVE governance jobs should be represented");
-assert.equal(pretriggerJobs.length, 81, "MAST should generate three AIMS pretrigger checks for each timed AIMS job (HIVE governance jobs use HIVE_ADMIN_BEARER_TOKEN, not AIMS_API_KEY, so they get none)");
-assert.equal(jobs.length, 138, "jobs should include base jobs plus automatic pretrigger checks");
+assert.equal(baseJobs.length, 60, "AIMS scheduled jobs, all monthly audit/council reports, Blotato video jobs, RAMS protected scheduled/operator jobs, Koyeb power-management jobs, HIVE governance jobs, and the daily AI Edge newsletter generate/send jobs should be represented");
+assert.equal(pretriggerJobs.length, 87, "MAST should generate three AIMS pretrigger checks for each timed AIMS job (HIVE governance jobs use HIVE_ADMIN_BEARER_TOKEN, not AIMS_API_KEY, so they get none)");
+assert.equal(jobs.length, 147, "jobs should include base jobs plus automatic pretrigger checks");
 
 const hiveGovernanceJobIds = [
   "hive-readiness-check",
