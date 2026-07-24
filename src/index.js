@@ -281,8 +281,11 @@ async function route(req, res) {
     const publicResult = result.ok
       ? result
       : {
-          ...result,
-          errorMessage: "Job execution failed",
+          ok: false,
+          event: "job-failed",
+          jobId: job.id,
+          error: "Job execution failed",
+          requestId: id,
         };
     return jsonResponse(res, result.ok ? 200 : 500, publicResult, id);
   }
