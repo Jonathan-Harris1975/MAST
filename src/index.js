@@ -278,7 +278,13 @@ async function route(req, res) {
       return jsonResponse(res, Number(error.statusCode || 400), { ok: false, error: error.message, requestId: id }, id);
     }
     const result = await runJob(job, { trigger: "manual-run", force: body.force !== false });
-    return jsonResponse(res, result.ok ? 200 : 500, result, id);
+    const publicResult = result.ok
+      ? result
+      : {
+          ...result,
+          errorMessage: "Job execution failed",
+        };
+    return jsonResponse(res, result.ok ? 200 : 500, publicResult, id);
   }
   return textResponse(res, 404, "Not found", id);
 }
