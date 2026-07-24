@@ -279,7 +279,16 @@ async function route(req, res) {
     }
     const result = await runJob(job, { trigger: "manual-run", force: body.force !== false });
     const publicResult = result.ok
-      ? result
+      ? {
+          ok: true,
+          event: result.event || "job-finished",
+          jobId: job.id,
+          requestId: id,
+          statusCode: result.statusCode ?? null,
+          startedAt: result.startedAt ?? null,
+          finishedAt: result.finishedAt ?? null,
+          durationMs: result.durationMs ?? null,
+        }
       : {
           ok: false,
           event: "job-failed",
