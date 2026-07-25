@@ -120,14 +120,11 @@ assert.equal(socialPerformanceJob.targetPath, "/audits/social-performance/run", 
 assert.equal(socialPerformanceJob.authEnv, "AIMS_API_KEY", "social-performance-audit should send AIMS bearer auth");
 
 const monthlyAuditSequence = [
-  ["seo-aeo-geo-audit", "audits", "HOOK_AUDIT_SEO_AEO_GEO", "/audits/seo-aeo-geo/run"],
-  ["mobile-audit", "audits", "HOOK_AUDIT_MOBILE_UX", "/audits/mobile-ux/run"],
+  ["website-audit-pipeline", "audits", "HOOK_AUDIT_WEBSITE_PIPELINE", "/audits/website/run"],
   ["on-brand-audit", "audits", "HOOK_AUDIT_ON_BRAND", "/audits/on-brand/run"],
   ["podcast-website-report", "audits", "HOOK_AUDIT_PODCAST_WEBSITE", "/audits/podcast-website/run"],
   ["social-performance-audit", "audits", "HOOK_AUDIT_SOCIAL_PERFORMANCE", "/audits/social-performance/run"],
   ["brand-social-council-report", "audit-councils", "HOOK_AUDIT_BRAND_SOCIAL_COUNCIL", "/audits/brand-social-council/run"],
-  ["seo-aeo-geo-council-report", "audit-councils", "HOOK_AUDIT_SEO_AEO_GEO_COUNCIL", "/audits/seo-aeo-geo-council/run"],
-  ["mobile-ux-council-report", "audit-councils", "HOOK_AUDIT_MOBILE_UX_COUNCIL", "/audits/mobile-ux-council/run"],
 ];
 
 for (const [id, group, hookEnv, targetPath] of monthlyAuditSequence) {
@@ -281,14 +278,11 @@ const monthlyDueCases = [
   ["2026-06-01T10:10:00.000Z", ["rams-report-mobile-ux-latest"], "RAMS mobile UX report fetch should run at 11:10 London on the 1st"],
   ["2026-06-01T10:40:00.000Z", ["rams-rebuild-seo-aeo-geo"], "RAMS SEO/AEO/GEO rebuild should run at 11:40 London on the 1st"],
   ["2026-06-01T11:10:00.000Z", ["rams-report-seo-aeo-geo-latest"], "RAMS SEO/AEO/GEO report fetch should run at 12:10 London on the 1st, still well inside the 8am-8pm RAMS window"],
-  ["2026-06-01T14:00:00.000Z", ["seo-aeo-geo-audit"], "monthly SEO/AEO/GEO audit should run first at 15:00 London on the 1st"],
-  ["2026-06-01T14:20:00.000Z", ["mobile-audit"], "monthly mobile UX audit should run second at 15:20 London on the 1st"],
+  ["2026-06-01T14:00:00.000Z", ["website-audit-pipeline"], "MAST should trigger the complete AIMS website audit pipeline once at 15:00 London on the 1st"],
   ["2026-06-01T15:00:00.000Z", ["on-brand-audit"], "monthly on-brand audit should run at 16:00 London on the 1st"],
   ["2026-06-01T15:30:00.000Z", ["podcast-website-report"], "podcast website reports should run before social/council reports"],
   ["2026-06-01T15:40:00.000Z", ["social-performance-audit"], "monthly social-performance audit should run before brand-social council"],
   ["2026-06-01T16:10:00.000Z", ["brand-social-council-report"], "brand/social council should run after its evidence sources"],
-  ["2026-06-01T17:00:00.000Z", ["seo-aeo-geo-council-report"], "SEO/AEO/GEO council fallback report should run on the 1st"],
-  ["2026-06-01T17:20:00.000Z", ["mobile-ux-council-report"], "Mobile UX council fallback report should run on the 1st"],
 ];
 
 for (const [iso, expected, message] of monthlyDueCases) {
