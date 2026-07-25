@@ -237,35 +237,18 @@ const zernioWeeklyQuiz = postJob({
 
 const monthlyAuditJobs = [
   postJob({
-    id: "seo-aeo-geo-audit",
+    id: "website-audit-pipeline",
     group: "audits",
-    description: "Run the SEO/AEO/GEO source audit first so website evidence starts collecting on the 1st.",
+    description: "Trigger AIMS once for the complete website audit pipeline; AIMS owns Digital Growth, SEO/AEO/GEO, Mobile UX, expert council, final PDF publication and temporary cleanup.",
     schedule: { type: "monthly", dayOfMonth: 1, time: "15:00", timezone: LOCAL_TIME_ZONE },
-    hookEnv: "HOOK_AUDIT_SEO_AEO_GEO",
-    fallbackUrl: "https://hooks.jonathan-harris.online/q36ha3y3919gzf",
-    targetUrl: "Configured in Hookdeck: POST /audits/seo-aeo-geo/run",
-    targetPath: "/audits/seo-aeo-geo/run",
+    hookEnv: "HOOK_AUDIT_WEBSITE_PIPELINE",
+    fallbackUrl: "https://app.jonathan-harris.online/audits/website/run",
+    targetUrl: "https://app.jonathan-harris.online/audits/website/run",
+    targetPath: "/audits/website/run",
     authEnv: "AIMS_API_KEY",
     body: {
       requestedBy: SERVICE_NAME,
-      runCouncil: true,
-      notes: "Monthly audit sequence step 1: source SEO/AEO/GEO evidence. Council is also queued from callback as a safety net.",
-    },
-  }),
-  postJob({
-    id: "mobile-audit",
-    group: "audits",
-    description: "Run the mobile UX source audit after SEO/AEO/GEO so rendered evidence is available for the council layer.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "15:20", timezone: LOCAL_TIME_ZONE },
-    hookEnv: "HOOK_AUDIT_MOBILE_UX",
-    fallbackUrl: "https://hooks.jonathan-harris.online/0xtlks9y88br6o",
-    targetUrl: "Configured in Hookdeck: POST /audits/mobile-ux/run",
-    targetPath: "/audits/mobile-ux/run",
-    authEnv: "AIMS_API_KEY",
-    body: {
-      requestedBy: SERVICE_NAME,
-      runCouncil: true,
-      notes: "Monthly audit sequence step 2: mobile UX evidence. Council is also queued from callback as a safety net.",
+      notes: "Single monthly website-audit trigger. AIMS owns the complete sequential pipeline and retains only the final PDF after temporary artefact cleanup.",
     },
   }),
   postJob({
@@ -338,38 +321,6 @@ const monthlyAuditJobs = [
       requestedBy: SERVICE_NAME,
       sourceTrigger: "monthly-audit-sequence",
       notes: "Monthly audit sequence step 6: council report using on-brand, podcast, transcript, social and thumbnail latest pointers.",
-    },
-  }),
-  postJob({
-    id: "seo-aeo-geo-council-report",
-    group: "audit-councils",
-    description: "Run the SEO/AEO/GEO council after the source workflow has had time to publish its latest evidence.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "18:00", timezone: LOCAL_TIME_ZONE },
-    hookEnv: "HOOK_AUDIT_SEO_AEO_GEO_COUNCIL",
-    fallbackUrl: "https://app.jonathan-harris.online/audits/seo-aeo-geo-council/run",
-    targetUrl: "https://app.jonathan-harris.online/audits/seo-aeo-geo-council/run",
-    targetPath: "/audits/seo-aeo-geo-council/run",
-    authEnv: "AIMS_API_KEY",
-    body: {
-      requestedBy: SERVICE_NAME,
-      sourceTrigger: "monthly-audit-sequence",
-      notes: "Monthly audit sequence step 7: SEO/AEO/GEO council fallback/report generation on the 1st.",
-    },
-  }),
-  postJob({
-    id: "mobile-ux-council-report",
-    group: "audit-councils",
-    description: "Run the Mobile UX council after the source workflow has had time to publish its latest evidence.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "18:20", timezone: LOCAL_TIME_ZONE },
-    hookEnv: "HOOK_AUDIT_MOBILE_UX_COUNCIL",
-    fallbackUrl: "https://app.jonathan-harris.online/audits/mobile-ux-council/run",
-    targetUrl: "https://app.jonathan-harris.online/audits/mobile-ux-council/run",
-    targetPath: "/audits/mobile-ux-council/run",
-    authEnv: "AIMS_API_KEY",
-    body: {
-      requestedBy: SERVICE_NAME,
-      sourceTrigger: "monthly-audit-sequence",
-      notes: "Monthly audit sequence step 8: Mobile UX council fallback/report generation on the 1st.",
     },
   }),
 ];
@@ -571,7 +522,7 @@ const ramsJobs = [
 // Koyeb's own pause/resume API directly (not AIMS/RAMS routes), using KOYEB_TOKEN for auth.
 //
 // AIMS target window: ~08:00–20:00 daily, covering every AIMS job including the
-// monthly audit sequence (15:00–18:20 on the 1st), which falls comfortably inside it.
+// single website-audit trigger at 15:00 plus separate brand/social jobs through 17:10 on the 1st, all inside it.
 // RAMS target window: 08:00–20:00 on the 1st of the month only, covering its full
 // rebuild + report sequence (08:30–12:10) with margin either side. Both AIMS and RAMS
 // must be available strictly within 08:00-20:00 Europe/London.
@@ -629,8 +580,8 @@ const aimsPowerPauseDaily = koyebPowerJob({
 });
 
 // Note: there is no separate early-morning AIMS resume job here. All AIMS-hosted
-// monthly audit jobs (monthlyAuditJobs, above) run between 15:00 and 18:20 on the
-// 1st, which is already inside the normal 07:30-20:00 daily resume/pause window.
+// the unified website audit starts once at 15:00 and AIMS owns its child sequencing.
+// The other monthly brand/social jobs finish scheduling by 17:10, inside the normal 07:30-20:00 window.
 // A previous early resume at 00:45 for a "01:00-08:10 audit chain" didn't correspond
 // to any real job and was just paying for ~7 extra hours of idle billing every month.
 
