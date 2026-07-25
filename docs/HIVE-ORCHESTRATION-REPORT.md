@@ -55,14 +55,13 @@ prerequisite for automating repo-level council/QA/reindex runs, not a scheduler 
 Most of the brief's example list (SEO Council, Mobile UX Council, Brand Council, Lighthouse,
 Core Web Vitals, Search Console, sitemap/robots/OpenGraph/Twitter Card validation, dead-link
 review, podcast/social/blog reviews) is **not** HIVE surface at all — it's already
-orchestrated through `monthlyAuditJobs` and `ramsJobs` against AIMS (`app.jonathan-harris.online`)
-and RAMS (`mod.jonathan-harris.online`). Those were left untouched; re-adding them against HIVE
+orchestrated through AIMS and RAMS. MAST now sends one monthly website-audit trigger to AIMS, which owns Digital Growth, SEO/AEO/GEO, Mobile UX, council synthesis, final PDF retention and temporary cleanup. The separate RAMS remediation and brand/social schedules remain distinct; re-adding them against HIVE
 would create duplicate, conflicting schedules for work already owned elsewhere.
 
 ## 3. Schedule placement and dependency ordering
 
 All new jobs sit in a previously-empty 06:00-07:16 Europe/London window, ahead of the
-existing 07:30 AIMS resume and hours ahead of the 15:00-18:20 monthly audit sequence, so they
+existing 07:30 AIMS resume and hours ahead of the single 15:00 website-audit trigger and later brand/social jobs, so they
 never contend with AIMS/RAMS work for Koyeb capacity or scheduler tick budget:
 
 - **Daily** 06:00 → 06:15, 5 minutes apart: readiness → repo health → provider health → ops
