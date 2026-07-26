@@ -1,5 +1,5 @@
 > **Document status:** Production reference
-> **Last reviewed:** 30 June 2026
+> **Last reviewed:** 26 July 2026
 > **Operational authority:** Current repository README and `src/jobs.js`.
 
 # Koyeb power management
@@ -12,20 +12,20 @@ application routes MAST also triggers.
 
 ## Schedule
 
-**AIMS** - running window ~08:00-20:00 Europe/London, every day:
+**AIMS** - running window ~08:00-20:00 Europe/London, every day, covering every AIMS
+job including the monthly audit sequence, beginning with the unified website audit at 08:15 on the 1st:
 
 | Job | Schedule | Action |
 | --- | --- | --- |
 | `aims-power-resume-daily` | every day, 07:30 | resume (30 min warmup before the 08:00 job block) |
 | `aims-power-pause-daily` | every day, 20:00 | pause |
-| `aims-power-resume-monthly-audit` | 1st of month, 00:45 | resume early - the monthly audit chain starts at 01:00 and runs to ~08:10, well ahead of the normal 07:30 resume |
 
-**RAMS** - running window ~04:00-16:00 Europe/London, 1st of the month only:
+**RAMS** - running window ~08:00-20:00 Europe/London, 1st of the month only (RAMS is kept available for on-brand work and the event-driven unified website handoff from AIMS):
 
 | Job | Schedule | Action |
 | --- | --- | --- |
-| `rams-power-resume-monthly` | 1st of month, 04:00 | resume (30 min before the 04:30 rebuild sequence starts) |
-| `rams-power-pause-monthly` | 1st of month, 16:00 | pause (RAMS's last scheduled job finishes by 08:10; this leaves a wide margin for manual reruns before pausing) |
+| `rams-power-resume-monthly` | 1st of month, 08:00 | resume before on-brand work and the later AIMS website handoff |
+| `rams-power-pause-monthly` | 1st of month, 20:00 | pause after the unified website handoff window; AIMS starts that pipeline early at 08:15 to leave nearly twelve hours before the shared 20:00 boundary |
 
 RAMS stays paused every other day of the month. AIMS stays paused 20:00-07:30 daily.
 
@@ -60,7 +60,7 @@ review queue rather than silently doing nothing.
 - **Manual RAMS checks:** `rams-health` and `rams-readiness` are manual-trigger jobs and
   won't wake RAMS up themselves - run `rams-power-resume-monthly`'s underlying Koyeb
   resume call (or resume the service in the Koyeb dashboard) before using them outside
-  the 1st-of-month window.
+  the 1st-of-month 08:00-20:00 window.
 - **Failures:** pause/resume jobs go through the same retry, failure-streak and review
   queue machinery as every other MAST job - repeated failures will surface in the
   operator review queue exactly like a failed AIMS/RAMS trigger.
