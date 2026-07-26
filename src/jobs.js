@@ -239,8 +239,8 @@ const monthlyAuditJobs = [
   postJob({
     id: "website-audit-pipeline",
     group: "audits",
-    description: "Trigger AIMS once for the complete website audit pipeline; AIMS owns Digital Growth, SEO/AEO/GEO, Mobile UX, expert council, final PDF publication and temporary cleanup.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "15:00", timezone: LOCAL_TIME_ZONE },
+    description: "Trigger AIMS once for the complete website audit pipeline; AIMS owns Digital Growth, SEO/AEO/GEO, Mobile UX, expert council, final PDF/HTML/JSON publication, temporary cleanup and RAMS website handoff.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "08:15", timezone: LOCAL_TIME_ZONE },
     hookEnv: "HOOK_AUDIT_WEBSITE_PIPELINE",
     fallbackUrl: "https://app.jonathan-harris.online/audits/website/run",
     targetUrl: "https://app.jonathan-harris.online/audits/website/run",
@@ -248,7 +248,7 @@ const monthlyAuditJobs = [
     authEnv: "AIMS_API_KEY",
     body: {
       requestedBy: SERVICE_NAME,
-      notes: "Single monthly website-audit trigger. AIMS owns the complete sequential pipeline and retains only the final PDF after temporary artefact cleanup.",
+      notes: "Single monthly website-audit trigger. AIMS owns sequencing, retains only the final PDF/HTML/JSON report set, verifies temporary cleanup, then dispatches the exact JSON report to RAMS.",
     },
   }),
   postJob({
@@ -448,28 +448,6 @@ const ramsJobs = [
     authEnv: "RMS_API_KEY",
   }),
   postJob({
-    id: "rams-rebuild-seo-aeo-geo",
-    group: "rams",
-    description: "Trigger the RAMS SEO/AEO/GEO remediation pipeline on the 1st after the SEO/AEO/GEO council report is available.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "11:40", timezone: LOCAL_TIME_ZONE },
-    hookEnv: "HOOK_RAMS_REBUILD_SEO_AEO_GEO",
-    fallbackUrl: "https://hooks.jonathan-harris.online/mwa6lp7lh1dht3",
-    targetUrl: "https://mod.jonathan-harris.online/rebuild/seo-aeo-geo/run",
-    targetPath: "/rebuild/seo-aeo-geo/run",
-    authEnv: "RMS_API_KEY",
-  }),
-  postJob({
-    id: "rams-rebuild-mobile-ux",
-    group: "rams",
-    description: "Trigger the RAMS Mobile UX remediation pipeline on the 1st after the Mobile UX council report is available.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "10:40", timezone: LOCAL_TIME_ZONE },
-    hookEnv: "HOOK_RAMS_REBUILD_MOBILE_UX",
-    fallbackUrl: "https://hooks.jonathan-harris.online/wn7h7x388dwiyt",
-    targetUrl: "https://mod.jonathan-harris.online/rebuild/mobile-ux/run",
-    targetPath: "/rebuild/mobile-ux/run",
-    authEnv: "RMS_API_KEY",
-  }),
-  postJob({
     id: "rams-rebuild-on-brand",
     group: "rams",
     description: "Trigger the RAMS On-Brand remediation pipeline on the 1st after the brand/social council report is available.",
@@ -478,28 +456,6 @@ const ramsJobs = [
     fallbackUrl: "https://hooks.jonathan-harris.online/5po78dqk5h9gd9",
     targetUrl: "https://mod.jonathan-harris.online/rebuild/on-brand/run",
     targetPath: "/rebuild/on-brand/run",
-    authEnv: "RMS_API_KEY",
-  }),
-  getJob({
-    id: "rams-report-mobile-ux-latest",
-    group: "rams-reports",
-    description: "Fetch the latest RAMS Mobile UX live report on the 1st after the Mobile UX rebuild finishes.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "11:10", timezone: LOCAL_TIME_ZONE },
-    hookEnv: "HOOK_RAMS_REPORT_MOBILE_UX_LATEST",
-    fallbackUrl: "https://hooks.jonathan-harris.online/9zmq78a3r28mdh",
-    targetUrl: "https://mod.jonathan-harris.online/reports/mobile-ux/latest",
-    targetPath: "/reports/mobile-ux/latest",
-    authEnv: "RMS_API_KEY",
-  }),
-  getJob({
-    id: "rams-report-seo-aeo-geo-latest",
-    group: "rams-reports",
-    description: "Fetch the latest RAMS SEO/AEO/GEO live report on the 1st after the SEO/AEO/GEO rebuild finishes.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "12:10", timezone: LOCAL_TIME_ZONE },
-    hookEnv: "HOOK_RAMS_REPORT_SEO_AEO_GEO_LATEST",
-    fallbackUrl: "https://hooks.jonathan-harris.online/wdcmlqfo9ry9cw",
-    targetUrl: "https://mod.jonathan-harris.online/reports/seo-aeo-geo/latest",
-    targetPath: "/reports/seo-aeo-geo/latest",
     authEnv: "RMS_API_KEY",
   }),
   getJob({
@@ -522,9 +478,9 @@ const ramsJobs = [
 // Koyeb's own pause/resume API directly (not AIMS/RAMS routes), using KOYEB_TOKEN for auth.
 //
 // AIMS target window: ~08:00–20:00 daily, covering every AIMS job including the
-// single website-audit trigger at 15:00 plus separate brand/social jobs through 17:10 on the 1st, all inside it.
+// single website-audit trigger at 08:15 plus separate brand/social jobs through 17:10 on the 1st, all inside it.
 // RAMS target window: 08:00–20:00 on the 1st of the month only, covering its full
-// rebuild + report sequence (08:30–12:10) with margin either side. Both AIMS and RAMS
+// on-brand work plus the event-driven website handoff from AIMS, with margin either side. Both AIMS and RAMS
 // must be available strictly within 08:00-20:00 Europe/London.
 //
 // KOYEB_TOKEN must have services:write scope (the existing deployment-watch usage only
@@ -579,16 +535,17 @@ const aimsPowerPauseDaily = koyebPowerJob({
   action: "pause",
 });
 
-// Note: there is no separate early-morning AIMS resume job here. All AIMS-hosted
-// the unified website audit starts once at 15:00 and AIMS owns its child sequencing.
-// The other monthly brand/social jobs finish scheduling by 17:10, inside the normal 07:30-20:00 window.
+// Note: there is no separate midnight/early-morning AIMS resume job. The unified
+// website audit starts once at 08:15 on the 1st and AIMS owns every child stage, final
+// PDF/HTML/JSON publication, cleanup and the event-driven RAMS website handoff.
+// Other monthly brand/social jobs remain inside the normal 07:30-20:00 window.
 // A previous early resume at 00:45 for a "01:00-08:10 audit chain" didn't correspond
 // to any real job and was just paying for ~7 extra hours of idle billing every month.
 
 const ramsPowerResumeMonthly = koyebPowerJob({
   id: "rams-power-resume-monthly",
   group: "power-rams",
-  description: "Resume RAMS ahead of the 1st-of-month rebuild/report sequence (08:30-12:10), inside the 08:00-20:00 window.",
+  description: "Resume RAMS before monthly on-brand work and keep it ready for the event-driven unified website report handoff from AIMS.",
   schedule: { type: "monthly", dayOfMonth: 1, time: "08:00", timezone: LOCAL_TIME_ZONE },
   serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   action: "resume",
@@ -597,7 +554,7 @@ const ramsPowerResumeMonthly = koyebPowerJob({
 const ramsPowerPauseMonthly = koyebPowerJob({
   id: "rams-power-pause-monthly",
   group: "power-rams",
-  description: "Pause RAMS for the rest of the month once the 1st-of-month sequence is done, at the edge of the 08:00-20:00 window.",
+  description: "Pause RAMS for the rest of the month after the AIMS-owned website audit and RAMS handoff window closes.",
   schedule: { type: "monthly", dayOfMonth: 1, time: "20:00", timezone: LOCAL_TIME_ZONE },
   serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   action: "pause",
