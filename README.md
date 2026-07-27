@@ -28,3 +28,22 @@ Deploy as the intended paid production Worker with one active scheduler instance
 ## Koyeb power management
 
 MAST also pauses and resumes the AIMS and RAMS Koyeb services on a schedule, instead of leaving them running (and billed per second) around the clock. See [`docs/POWER_MANAGEMENT.md`](docs/POWER_MANAGEMENT.md) for the schedule, required `KOYEB_TOKEN` scope and `KOYEB_SERVICE_ID_*` secrets, and how to disable it.
+
+## Ten AIMS content-operation windows
+
+Normal content scheduling is consolidated into ten weekday MAST triggers. MAST
+calls the authenticated `https://app.jonathan-harris.online/ops/run/<window>`
+endpoint and AIMS owns task-level orchestration inside the window.
+
+- Monday-Friday AM: RSS rewrite, outreach, blog social, gated newsletter,
+  weekday Zernio and the additional Blotato AutoShorts-style post.
+- Monday AM additionally includes the weekly blog, Zernio ebooks and the weekly
+  quiz. The Monday Zernio lane also owns topical mini-series selection.
+- Monday-Thursday PM: the corresponding existing Blotato evening short lane.
+- Friday PM is extended: Friday Blotato evening short, podcast pipeline, then
+  Saturday and Sunday Zernio scheduling before weekend standby.
+
+The former task-level content jobs remain manual recovery controls only, so they
+cannot double-fire alongside the operation windows. AIMS traffic uses the
+`app.jonathan-harris.online` base endpoint directly; Hookdeck is not part of
+these MAST operation calls.
