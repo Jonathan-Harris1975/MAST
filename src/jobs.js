@@ -12,7 +12,7 @@ function endpoint(envName, fallbackUrl) {
 
 // Koyeb's REST API exposes POST /v1/services/{id}/pause and /v1/services/{id}/resume.
 // Service IDs are environment-specific (not secret, but not portable across accounts),
-// so they're read from env at startup rather than hardcoded like the Hookdeck fallback URLs.
+// so they are read from env at startup rather than hardcoded.
 // If a service id env var isn't set yet, the job still gets built (so job counts/tests stay
 // stable) but points at a deliberately-broken URL that fails loudly in the run log instead
 // of silently doing nothing.
@@ -239,88 +239,31 @@ const monthlyAuditJobs = [
   postJob({
     id: "website-audit-pipeline",
     group: "audits",
-    description: "Trigger AIMS once for the complete website audit pipeline; AIMS owns Digital Growth, SEO/AEO/GEO, Mobile UX, expert council, final PDF/HTML/JSON publication, temporary cleanup and RAMS website handoff.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "08:15", timezone: LOCAL_TIME_ZONE },
-    hookEnv: "HOOK_AUDIT_WEBSITE_PIPELINE",
-    fallbackUrl: "https://app.jonathan-harris.online/audits/website/run",
-    targetUrl: "https://app.jonathan-harris.online/audits/website/run",
+    description: "Run the complete website audit on the first Saturday of each month. AIMS owns the full council/report/RAMS sequence.",
+    schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "09:15", timezone: LOCAL_TIME_ZONE },
+    hookEnv: null,
+    fallbackUrl: `${aimsBaseUrl()}/audits/website/run`,
+    targetUrl: `${aimsBaseUrl()}/audits/website/run`,
     targetPath: "/audits/website/run",
     authEnv: "AIMS_API_KEY",
     body: {
       requestedBy: SERVICE_NAME,
-      notes: "Single monthly website-audit trigger. AIMS owns sequencing, retains only the final PDF/HTML/JSON report set, verifies temporary cleanup, then dispatches the exact JSON report to RAMS.",
+      notes: "First-Saturday website audit. AIMS owns sequencing, final PDF/HTML/JSON publication and RAMS remediation handoff.",
     },
   }),
   postJob({
-    id: "on-brand-audit",
+    id: "aims-audit-pipeline",
     group: "audits",
-    description: "Run the on-brand audit once a month across Zernio, podcast transcripts, and RSS.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "16:00", timezone: LOCAL_TIME_ZONE },
+    description: "Run the complete AIMS audit on the second Saturday of each month. AIMS owns the full council/report/RAMS sequence.",
+    schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "09:15", timezone: LOCAL_TIME_ZONE },
     hookEnv: null,
-    fallbackUrl: "https://app.jonathan-harris.online/audits/on-brand/run",
-    targetUrl: "https://app.jonathan-harris.online/audits/on-brand/run",
-    targetPath: "/audits/on-brand/run",
-    authEnv: "AIMS_API_KEY",
-    body: {
-      lookbackDays: 31,
-      includeZernio: true,
-      includePodcastTranscripts: true,
-      includeRss: true,
-      runPodcastWebsiteReports: true,
-      dryRun: false,
-      requestedBy: SERVICE_NAME,
-    },
-  }),
-  postJob({
-    id: "podcast-website-report",
-    group: "audits",
-    description: "Run podcast episode and transcript website reports before the brand/social council consumes them.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "16:30", timezone: LOCAL_TIME_ZONE },
-    hookEnv: "HOOK_AUDIT_PODCAST_WEBSITE",
-    fallbackUrl: "https://app.jonathan-harris.online/audits/podcast-website/run",
-    targetUrl: "https://app.jonathan-harris.online/audits/podcast-website/run",
-    targetPath: "/audits/podcast-website/run",
-    authEnv: "AIMS_API_KEY",
-    body: {
-      lookbackDays: 31,
-      includeZernio: true,
-      includePodcastTranscripts: true,
-      includeRss: true,
-      requestedBy: SERVICE_NAME,
-      notes: "Monthly audit sequence step 4: podcast episode/transcript website evidence for brand-social council.",
-    },
-  }),
-  postJob({
-    id: "social-performance-audit",
-    group: "audits",
-    description: "Run the monthly Zernio social-performance analysis report with short thumbnail evidence enabled.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "16:40", timezone: LOCAL_TIME_ZONE },
-    hookEnv: "HOOK_AUDIT_SOCIAL_PERFORMANCE",
-    fallbackUrl: "https://app.jonathan-harris.online/audits/social-performance/run",
-    targetUrl: "https://app.jonathan-harris.online/audits/social-performance/run",
-    targetPath: "/audits/social-performance/run",
+    fallbackUrl: `${aimsBaseUrl()}/audits/aims/run`,
+    targetUrl: `${aimsBaseUrl()}/audits/aims/run`,
+    targetPath: "/audits/aims/run",
     authEnv: "AIMS_API_KEY",
     body: {
       requestedBy: SERVICE_NAME,
-      runCouncil: false,
-      thumbnailAudit: true,
-      notes: "Monthly audit sequence step 5: social-performance and thumbnail evidence before the brand/social council runs.",
-    },
-  }),
-  postJob({
-    id: "brand-social-council-report",
-    group: "audit-councils",
-    description: "Run the brand/social council after on-brand, podcast website and social-performance evidence exists.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "17:10", timezone: LOCAL_TIME_ZONE },
-    hookEnv: "HOOK_AUDIT_BRAND_SOCIAL_COUNCIL",
-    fallbackUrl: "https://app.jonathan-harris.online/audits/brand-social-council/run",
-    targetUrl: "https://app.jonathan-harris.online/audits/brand-social-council/run",
-    targetPath: "/audits/brand-social-council/run",
-    authEnv: "AIMS_API_KEY",
-    body: {
-      requestedBy: SERVICE_NAME,
-      sourceTrigger: "monthly-audit-sequence",
-      notes: "Monthly audit sequence step 6: council report using on-brand, podcast, transcript, social and thumbnail latest pointers.",
+      notes: "Second-Saturday AIMS audit. AIMS owns sequencing, final PDF/HTML/JSON publication and RAMS remediation handoff.",
     },
   }),
 ];
@@ -406,7 +349,7 @@ const blotatoVideoJobs = [
 const healthPing = getJob({
   id: "suite-health-ping",
   group: "health",
-  description: "Manual fallback ping for the AI Management Suite health endpoint via Hookdeck.",
+  description: "Manual fallback ping for the AI Management Suite health endpoint.",
   schedule: { type: "manual" },
   hookEnv: null,
   fallbackUrl: "https://app.jonathan-harris.online/health",
@@ -450,8 +393,8 @@ const ramsJobs = [
   postJob({
     id: "rams-rebuild-on-brand",
     group: "rams",
-    description: "Trigger the RAMS On-Brand remediation pipeline on the 1st after the brand/social council report is available.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "08:30", timezone: LOCAL_TIME_ZONE },
+    description: "Manual RAMS On-Brand remediation recovery control. Normal audit remediation is triggered by AIMS in sequence.",
+    schedule: { type: "manual" },
     hookEnv: "HOOK_RAMS_REBUILD_ON_BRAND",
     fallbackUrl: "https://hooks.jonathan-harris.online/5po78dqk5h9gd9",
     targetUrl: "https://mod.jonathan-harris.online/rebuild/on-brand/run",
@@ -461,8 +404,8 @@ const ramsJobs = [
   getJob({
     id: "rams-report-on-brand-latest",
     group: "rams-reports",
-    description: "Fetch the latest RAMS On-Brand live report on the 1st after the on-brand rebuild finishes.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "09:00", timezone: LOCAL_TIME_ZONE },
+    description: "Manual RAMS On-Brand report recovery control. Normal audit reporting is orchestrated by AIMS.",
+    schedule: { type: "manual" },
     hookEnv: "HOOK_RAMS_REPORT_ON_BRAND_LATEST",
     fallbackUrl: "https://hooks.jonathan-harris.online/hg845445lzbvjl",
     targetUrl: "https://mod.jonathan-harris.online/reports/on-brand/latest",
@@ -471,22 +414,11 @@ const ramsJobs = [
   }),
 ];
 
-// --- Koyeb power management (cost optimisation) -----------------------------------
+// --- Koyeb power management -------------------------------------------------------
 //
-// AIMS and RAMS are billed per second on Koyeb (eco instances), so leaving them running
-// idle overnight/all month costs the same as leaving them running busy. These jobs call
-// Koyeb's own pause/resume API directly (not AIMS/RAMS routes), using KOYEB_TOKEN for auth.
-//
-// AIMS target window: ~08:00–20:00 daily, covering every AIMS job including the
-// single website-audit trigger at 08:15 plus separate brand/social jobs through 17:10 on the 1st, all inside it.
-// RAMS target window: 08:00–20:00 on the 1st of the month only, covering its full
-// on-brand work plus the event-driven website handoff from AIMS, with margin either side. Both AIMS and RAMS
-// must be available strictly within 08:00-20:00 Europe/London.
-//
-// KOYEB_TOKEN must have services:write scope (the existing deployment-watch usage only
-// needs read access to list deployments). Set KOYEB_SERVICE_ID_AIMS and
-// KOYEB_SERVICE_ID_RAMS to the Koyeb service IDs (not names) for each app.
-// Disable the whole feature without a redeploy via KOYEB_POWER_MANAGEMENT_ENABLED=false.
+// AIMS wakes at 09:00 for weekday operations and for the two governed Saturday audit
+// windows. RAMS wakes only for those audit Saturdays. Shutdown is completion-driven:
+// the relevant service pauses one hour after the final operation/audit endpoint returns.
 
 function koyebPowerManagementEnabled() {
   const raw = process.env.KOYEB_POWER_MANAGEMENT_ENABLED;
@@ -520,52 +452,120 @@ function koyebPowerJob({ id, group, description, schedule, serviceIdEnv, action 
 const aimsPowerResumeDaily = koyebPowerJob({
   id: "aims-power-resume-daily",
   group: "power-aims",
-  description: "Resume the AIMS Koyeb service ahead of the daily 08:00 job window.",
-  schedule: { type: "weekly", days: WEEKDAYS, time: "07:30", timezone: LOCAL_TIME_ZONE },
+  description: "Resume AIMS at 09:00 before weekday operations.",
+  schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "09:00", timezone: LOCAL_TIME_ZONE },
   serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   action: "resume",
 });
 
-const aimsPowerPauseDaily = koyebPowerJob({
-  id: "aims-power-pause-daily",
+const aimsPowerResumeWebsiteAudit = koyebPowerJob({
+  id: "aims-power-resume-website-audit",
   group: "power-aims",
-  description: "Pause the AIMS Koyeb service once the daily job window is done.",
-  schedule: { type: "weekly", days: WEEKDAYS, time: "20:00", timezone: LOCAL_TIME_ZONE },
+  description: "Resume AIMS at 09:00 for the first-Saturday website audit.",
+  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "09:00", timezone: LOCAL_TIME_ZONE },
   serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
-  action: "pause",
+  action: "resume",
 });
 
-// Note: there is no separate midnight/early-morning AIMS resume job. The unified
-// website audit starts once at 08:15 on the 1st and AIMS owns every child stage, final
-// PDF/HTML/JSON publication, cleanup and the event-driven RAMS website handoff.
-// Other monthly brand/social jobs remain inside the normal 07:30-20:00 window.
-// A previous early resume at 00:45 for a "01:00-08:10 audit chain" didn't correspond
-// to any real job and was just paying for ~7 extra hours of idle billing every month.
+const aimsPowerResumeAimsAudit = koyebPowerJob({
+  id: "aims-power-resume-aims-audit",
+  group: "power-aims",
+  description: "Resume AIMS at 09:00 for the second-Saturday AIMS audit.",
+  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "09:00", timezone: LOCAL_TIME_ZONE },
+  serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
+  action: "resume",
+});
 
-const ramsPowerResumeMonthly = koyebPowerJob({
-  id: "rams-power-resume-monthly",
+const ramsPowerResumeWebsiteAudit = koyebPowerJob({
+  id: "rams-power-resume-website-audit",
   group: "power-rams",
-  description: "Resume RAMS before monthly on-brand work and keep it ready for the event-driven unified website report handoff from AIMS.",
-  schedule: { type: "monthly", dayOfMonth: 1, time: "08:00", timezone: LOCAL_TIME_ZONE },
+  description: "Resume RAMS for the first-Saturday website audit remediation sequence controlled by AIMS.",
+  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "09:00", timezone: LOCAL_TIME_ZONE },
   serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   action: "resume",
 });
 
-const ramsPowerPauseMonthly = koyebPowerJob({
-  id: "rams-power-pause-monthly",
+const ramsPowerResumeAimsAudit = koyebPowerJob({
+  id: "rams-power-resume-aims-audit",
   group: "power-rams",
-  description: "Pause RAMS for the rest of the month after the AIMS-owned website audit and RAMS handoff window closes.",
-  schedule: { type: "monthly", dayOfMonth: 1, time: "20:00", timezone: LOCAL_TIME_ZONE },
+  description: "Resume RAMS for the second-Saturday AIMS audit remediation sequence controlled by AIMS.",
+  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "09:00", timezone: LOCAL_TIME_ZONE },
   serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
-  action: "pause",
+  action: "resume",
 });
+
+function posttriggerPauseJob({ id, group, description, sourceJobId, serviceIdEnv }) {
+  return koyebPowerJob({
+    id,
+    group,
+    description,
+    schedule: { type: "posttrigger", sourceJobId, delayMinutes: 60 },
+    serviceIdEnv,
+    action: "pause",
+  });
+}
+
+const aimsWeekdayPauseJobs = [
+  ...["monday", "tuesday", "wednesday", "thursday"].map((day) => posttriggerPauseJob({
+    id: `aims-power-pause-${day}`,
+    group: "power-aims",
+    description: `Pause AIMS one hour after ${day} PM operations finish.`,
+    sourceJobId: `operation-${day}-pm`,
+    serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
+  })),
+  posttriggerPauseJob({
+    id: "aims-power-pause-friday",
+    group: "power-aims",
+    description: "Pause AIMS one hour after the Friday extended Blotato/podcast/weekend-Zernio window finishes.",
+    sourceJobId: "operation-friday-pm",
+    serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
+  }),
+];
+
+const aimsAuditPauseJobs = [
+  posttriggerPauseJob({
+    id: "aims-power-pause-after-website-audit",
+    group: "power-aims",
+    description: "Pause AIMS one hour after the first-Saturday website audit pipeline finishes.",
+    sourceJobId: "website-audit-pipeline",
+    serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
+  }),
+  posttriggerPauseJob({
+    id: "aims-power-pause-after-aims-audit",
+    group: "power-aims",
+    description: "Pause AIMS one hour after the second-Saturday AIMS audit pipeline finishes.",
+    sourceJobId: "aims-audit-pipeline",
+    serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
+  }),
+];
+
+const ramsAuditPauseJobs = [
+  posttriggerPauseJob({
+    id: "rams-power-pause-after-website-audit",
+    group: "power-rams",
+    description: "Pause RAMS one hour after AIMS completes the first-Saturday website audit/remediation sequence.",
+    sourceJobId: "website-audit-pipeline",
+    serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
+  }),
+  posttriggerPauseJob({
+    id: "rams-power-pause-after-aims-audit",
+    group: "power-rams",
+    description: "Pause RAMS one hour after AIMS completes the second-Saturday AIMS audit/remediation sequence.",
+    sourceJobId: "aims-audit-pipeline",
+    serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
+  }),
+];
 
 const koyebPowerJobs = koyebPowerManagementEnabled()
   ? [
     aimsPowerResumeDaily,
-    aimsPowerPauseDaily,
-    ramsPowerResumeMonthly,
-    ramsPowerPauseMonthly,
+    aimsPowerResumeWebsiteAudit,
+    aimsPowerResumeAimsAudit,
+    ramsPowerResumeWebsiteAudit,
+    ramsPowerResumeAimsAudit,
+    ...aimsWeekdayPauseJobs,
+    ...aimsAuditPauseJobs,
+    ...ramsAuditPauseJobs,
   ]
   : [];
 
@@ -755,7 +755,7 @@ const operationWindowJobs = [
     id: `operation-${day}-am`,
     group: "operations",
     description: `${day} AM AIMS operating window: RSS, outreach, blog social, gated newsletter, Zernio and Blotato AutoShorts; Monday also owns weekly blog, ebooks and quiz.`,
-    schedule: { type: "weekly", days: [day], time: String(process.env.MAST_AM_OPERATION_TIME || "10:00"), timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: [day], time: String(process.env.MAST_AM_OPERATION_TIME || "09:15"), timezone: LOCAL_TIME_ZONE },
     hookEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
     targetUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
