@@ -1,10 +1,10 @@
 > **Document status:** Production reference  
-> **Last reviewed:** 16 June 2026  
+> **Last reviewed:** 28 July 2026  
 > **Operational authority:** Current repository README, SECURITY policy and operations guide.
 
 # MAST
 
-MAST is the master automation scheduler for the Jonathan Harris ecosystem. It runs as a paid Node.js Worker on Koyeb, evaluates governed schedules in the Europe/London time zone and triggers AIMS, RAMS and Hookdeck routes with bounded retries.
+MAST is the master automation scheduler for the Jonathan Harris ecosystem. It runs as a paid Node.js Worker on Koyeb, evaluates governed schedules in the Europe/London time zone and triggers AIMS and RAMS routes with bounded retries.
 
 ## Production monitoring
 
@@ -27,23 +27,35 @@ Deploy as the intended paid production Worker with one active scheduler instance
 
 ## Koyeb power management
 
-MAST also pauses and resumes the AIMS and RAMS Koyeb services on a schedule, instead of leaving them running (and billed per second) around the clock. See [`docs/POWER_MANAGEMENT.md`](docs/POWER_MANAGEMENT.md) for the schedule, required `KOYEB_TOKEN` scope and `KOYEB_SERVICE_ID_*` secrets, and how to disable it.
+MAST resumes AIMS at **09:00 Europe/London** on Monday-Friday and on the first two
+Saturdays used for governed audits. Weekday AM operations begin at 09:15. RAMS is
+resumed only for the first- and second-Saturday audit windows.
 
-## Ten AIMS content-operation windows
+Shutdown is completion-driven. MAST waits until the final operation or audit endpoint
+returns, then pauses the relevant service **one hour later**. There is no fixed 20:00
+shutdown that can cut across a long podcast or audit run.
 
-Normal content scheduling is consolidated into ten weekday MAST triggers. MAST
-calls the authenticated `https://app.jonathan-harris.online/ops/run/<window>`
-endpoint and AIMS owns task-level orchestration inside the window.
+See [`docs/POWER_MANAGEMENT.md`](docs/POWER_MANAGEMENT.md).
 
-- Monday-Friday AM: RSS rewrite, outreach, blog social, gated newsletter,
-  weekday Zernio and the additional Blotato AutoShorts-style post.
-- Monday AM additionally includes the weekly blog, Zernio ebooks and the weekly
-  quiz. The Monday Zernio lane also owns topical mini-series selection.
-- Monday-Thursday PM: the corresponding existing Blotato evening short lane.
-- Friday PM is extended: Friday Blotato evening short, podcast pipeline, then
-  Saturday and Sunday Zernio scheduling before weekend standby.
+## Weekday AIMS operations
 
-The former task-level content jobs remain manual recovery controls only, so they
-cannot double-fire alongside the operation windows. AIMS traffic uses the
-`app.jonathan-harris.online` base endpoint directly; Hookdeck is not part of
-these MAST operation calls.
+MAST provides ten weekday operation triggers. AIMS owns task sequencing inside each
+window.
+
+- Monday-Friday AM: authenticated `/ops/run/<day>-am` at 09:15 by default.
+- Monday-Thursday PM: authenticated `/ops/run/<day>-pm` at 18:30 by default.
+- Friday PM: authenticated `/ops/run/friday-pm` at 15:00. This is the extended
+  Blotato -> podcast -> Saturday/Sunday Zernio handoff window.
+- Task-level content routes remain manual recovery controls and do not carry their own
+  schedules.
+
+## Monthly audit windows
+
+MAST has two scheduled audit entry points only:
+
+- **First Saturday, 09:15:** `POST /audits/website/run`
+- **Second Saturday, 09:15:** `POST /audits/aims/run`
+
+AIMS owns every downstream audit stage, council, final report and RAMS remediation
+sequence. MAST does not independently schedule RAMS rebuild pipelines. This keeps
+monthly audit work away from Monday-Friday core operations.
