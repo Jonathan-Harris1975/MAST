@@ -24,7 +24,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Install the official Koyeb CLI
         run: |
-          curl -fsSL https://raw.githubusercontent.com/koyeb/koyeb-cli/master/install.sh | sh
+          curl -fsSL https://www.koyeb.com/install.sh | bash
           echo "$HOME/.koyeb/bin" >> "$GITHUB_PATH"
       - name: Watch production deployment
         env:
