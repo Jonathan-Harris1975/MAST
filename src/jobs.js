@@ -755,13 +755,13 @@ const operationWindowJobs = [
     id: `operation-${day}-am`,
     group: "operations",
     description: `${day} AM AIMS operating window: RSS, outreach, blog social, gated newsletter, Zernio and Blotato AutoShorts; Monday also owns weekly blog, ebooks and quiz.`,
-    schedule: { type: "weekly", days: [day], time: String(process.env.MAST_AM_OPERATION_TIME || "09:30"), timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: [day], time: String(process.env.MAST_AM_OPERATION_TIME || "10:00"), timezone: LOCAL_TIME_ZONE },
     hookEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
     targetUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
     targetPath: `/ops/run/${day}-am`,
     authEnv: "AIMS_API_KEY",
-  })),⁴
+  })),
   ...["monday", "tuesday", "wednesday", "thursday"].map((day) => postJob({
     id: `operation-${day}-pm`,
     group: "operations",
