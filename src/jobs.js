@@ -862,7 +862,7 @@ function pretriggerJob(sourceJob, stage, offsetMinutes) {
 
 function shouldHavePretriggers(job) {
   return job?.authEnv === "AIMS_API_KEY"
-    && ["weekly", "monthly"].includes(job.schedule?.type)
+    && ["weekly", "monthly", "nth-weekday-monthly"].includes(job.schedule?.type)
     && !job.managedPretrigger
     && job.group !== "operations";
 }
