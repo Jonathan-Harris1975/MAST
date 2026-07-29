@@ -766,7 +766,7 @@ const operationWindowJobs = [
     id: `operation-${day}-pm`,
     group: "operations",
     description: `${day} PM AIMS operating window: Blotato evening short.`,
-    schedule: { type: "weekly", days: [day], time: String(process.env.MAST_PM_OPERATION_TIME || "15:45"), timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: [day], time: String(process.env.MAST_PM_OPERATION_TIME || "07:56"), timezone: LOCAL_TIME_ZONE },
     hookEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/ops/run/${day}-pm`,
     targetUrl: `${aimsBaseUrl()}/ops/run/${day}-pm`,
