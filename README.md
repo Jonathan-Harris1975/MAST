@@ -39,15 +39,13 @@ See [`docs/POWER_MANAGEMENT.md`](docs/POWER_MANAGEMENT.md).
 
 ## Weekday AIMS operations
 
-MAST provides ten weekday operation triggers. AIMS owns task sequencing inside each
+MAST provides six weekday operation triggers. AIMS owns task sequencing inside each
 window.
 
-- Monday-Friday AM: authenticated `/ops/run/<day>-am` at 09:15 by default.
-- Monday-Thursday PM: authenticated `/ops/run/<day>-pm` at 18:30 by default.
-- Friday PM: authenticated `/ops/run/friday-pm` at 15:00. This is the extended
-  Blotato -> podcast -> Saturday/Sunday Zernio handoff window.
-- Task-level content routes remain manual recovery controls and do not carry their own
-  schedules.
+- Monday-Friday AM: authenticated `/ops/run/<day>-am` at 09:15 by default. Each AM window prepares both scheduled Blotato posts. Friday AM also prepares Saturday and Sunday Zernio content.
+- Friday PM: authenticated `/ops/run/friday-pm` at 15:00 for the podcast pipeline only.
+- There are no Monday-Thursday PM operation triggers.
+- Task-level content routes remain manual recovery controls and do not carry their own schedules.
 
 ## Monthly audit windows
 
