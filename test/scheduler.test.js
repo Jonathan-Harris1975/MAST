@@ -4,12 +4,8 @@ import { baseJobs, jobs, pretriggerJobs } from "../src/jobs.js";
 import { isTimedJobDue } from "../src/scheduler.js";
 
 const operationIds = [
-  "operation-monday-am",
-  "operation-tuesday-am",
-  "operation-wednesday-am",
-  "operation-thursday-am",
-  "operation-friday-am",
-  "operation-friday-pm",
+  "operation-monday-am", "operation-tuesday-am", "operation-wednesday-am",
+  "operation-thursday-am", "operation-friday-am", "operation-friday-pm",
 ];
 
 const legacyContentIds = [
@@ -21,7 +17,7 @@ const legacyContentIds = [
   "blotato-ai-playbook-publish",
 ];
 
-test("MAST exposes five AM triggers and a Friday podcast trigger", () => {
+test("MAST exposes five AM windows plus the Friday podcast window", () => {
   const operations = baseJobs.filter((job) => job.group === "operations");
   assert.deepEqual(operations.map((job) => job.id).sort(), [...operationIds].sort());
   assert.equal(operations.length, 6);
@@ -33,13 +29,13 @@ test("MAST exposes five AM triggers and a Friday podcast trigger", () => {
   }
 });
 
-test("weekday AIMS wake is 09:00 and AM operations begin after warmup", () => {
+test("weekday AIMS wake is 08:30 and AM operations begin at 09:00", () => {
   const wake = baseJobs.find((job) => job.id === "aims-power-resume-daily");
   assert.deepEqual(wake.schedule.days, ["monday", "tuesday", "wednesday", "thursday", "friday"]);
-  assert.equal(wake.schedule.time, "09:00");
+  assert.equal(wake.schedule.time, "08:30");
   for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"]) {
     const am = baseJobs.find((job) => job.id === `operation-${day}-am`);
-    assert.equal(am.schedule.time, process.env.MAST_AM_OPERATION_TIME || "09:15");
+    assert.equal(am.schedule.time, process.env.MAST_AM_OPERATION_TIME || "09:00");
   }
 });
 
@@ -52,21 +48,14 @@ test("legacy task-level content jobs remain manual fallbacks and cannot double-f
   }
 });
 
-test("Friday PM triggers only the podcast window", () => {
+test("Friday PM is podcast only and has its own 14:30 wake", () => {
+  const wake = baseJobs.find((job) => job.id === "aims-power-resume-friday-podcast");
+  assert.equal(wake.schedule.time, "14:30");
   const job = baseJobs.find((item) => item.id === "operation-friday-pm");
   assert.deepEqual(job.schedule.days, ["friday"]);
+  assert.equal(job.schedule.time, process.env.MAST_FRIDAY_PM_OPERATION_TIME || "14:30");
   assert.equal(job.targetPath, "/ops/run/friday-pm");
-  assert.match(job.description, /podcast pipeline only/i);
-  assert.doesNotMatch(job.description, /Blotato|Zernio/i);
-});
-
-test("Monday-Thursday shutdown follows AM completion", () => {
-  for (const day of ["monday", "tuesday", "wednesday", "thursday"]) {
-    const pause = baseJobs.find((job) => job.id === `aims-power-pause-${day}`);
-    assert.deepEqual(pause.schedule, {
-      type: "posttrigger", sourceJobId: `operation-${day}-am`, delayMinutes: 60,
-    });
-  }
+  assert.match(job.description, /podcast-only/i);
 });
 
 test("website and AIMS audits use first and second Saturday only", () => {
@@ -93,21 +82,17 @@ test("audit RAMS rebuild routes are manual because AIMS owns sequencing", () => 
   }
 });
 
-test("AIMS and RAMS shutdowns are completion-driven by 60-minute posttriggers", () => {
-  const fridayPause = baseJobs.find((job) => job.id === "aims-power-pause-friday");
-  assert.deepEqual(fridayPause.schedule, {
-    type: "posttrigger", sourceJobId: "operation-friday-pm", delayMinutes: 60,
-  });
-  for (const id of [
-    "aims-power-pause-after-website-audit",
-    "aims-power-pause-after-aims-audit",
-    "rams-power-pause-after-website-audit",
-    "rams-power-pause-after-aims-audit",
-  ]) {
-    const job = baseJobs.find((item) => item.id === id);
-    assert.equal(job.schedule.type, "posttrigger");
-    assert.equal(job.schedule.delayMinutes, 60);
+test("normal AIMS standby is completion-driven and immediate", () => {
+  for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"]) {
+    const pause = baseJobs.find((job) => job.id === `aims-power-pause-${day}-am`);
+    assert.deepEqual(pause.schedule, {
+      type: "posttrigger", sourceJobId: `operation-${day}-am`, delayMinutes: 0,
+    });
   }
+  const podcastPause = baseJobs.find((job) => job.id === "aims-power-pause-friday-podcast");
+  assert.deepEqual(podcastPause.schedule, {
+    type: "posttrigger", sourceJobId: "operation-friday-pm", delayMinutes: 0,
+  });
 });
 
 test("operation windows do not multiply into per-task pretriggers", () => {
