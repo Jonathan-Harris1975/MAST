@@ -205,11 +205,35 @@ function pretriggerSourceTime(job, at) {
   return new Date(at.getTime() + offsetMinutes * 60_000);
 }
 
+
+function latestSuccessfulSourceResult(job, currentState = state) {
+  const sourceJobId = job?.schedule?.sourceJobId || job?.sourceJobId;
+  if (!sourceJobId) return null;
+  return [...(currentState.recentResults || [])]
+    .reverse()
+    .find((result) => (result?.job === sourceJobId || result?.jobId === sourceJobId) && result?.ok === true && result?.finishedAt);
+}
+
+function posttriggerDueAt(job, currentState = state) {
+  const result = latestSuccessfulSourceResult(job, currentState);
+  if (!result) return null;
+  const delayMinutes = Number(job?.schedule?.delayMinutes || 0);
+  if (!Number.isFinite(delayMinutes) || delayMinutes < 0) return null;
+  const finishedAt = Date.parse(result.finishedAt);
+  if (!Number.isFinite(finishedAt)) return null;
+  return new Date(finishedAt + delayMinutes * 60_000);
+}
+
 export function buildRunKey(job, at) {
   const schedule = job.schedule || {};
   if (schedule.type === "interval") {
     const everyMs = Number(schedule.everyMinutes) * 60_000;
     return `${job.id}:${Math.floor(at.getTime() / everyMs)}`;
+  }
+
+  if (schedule.type === "posttrigger") {
+    const result = latestSuccessfulSourceResult(job);
+    return `${job.id}:source-${schedule.sourceJobId}:${result?.finishedAt || "pending"}`;
   }
 
   if (schedule.type === "pretrigger") {
@@ -228,6 +252,12 @@ export function buildRunKey(job, at) {
 export function isTimedJobDue(job, at = new Date()) {
   const schedule = job.schedule || {};
   if (!schedule || schedule.type === "interval" || schedule.type === "manual") return false;
+
+  if (schedule.type === "posttrigger") {
+    const dueAt = posttriggerDueAt(job);
+    if (!dueAt) return false;
+    return at.getTime() >= dueAt.getTime();
+  }
 
   if (schedule.type === "pretrigger") {
     const sourceJob = sourceJobForPretrigger(job);

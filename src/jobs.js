@@ -416,9 +416,9 @@ const ramsJobs = [
 
 // --- Koyeb power management -------------------------------------------------------
 //
-// AIMS wakes at 09:00 for weekday operations and for the two governed Saturday audit
-// windows. RAMS wakes only for those audit Saturdays. Shutdown is completion-driven:
-// the relevant service pauses one hour after the final operation/audit endpoint returns.
+// AIMS wakes at 08:30 for weekday operations, then the AM window starts at 09:00.
+// On Friday it wakes again at 14:30 for the podcast-only window. Normal weekday standby
+// is completion-driven: AIMS pauses as soon as the relevant operation endpoint returns.
 
 function koyebPowerManagementEnabled() {
   const raw = process.env.KOYEB_POWER_MANAGEMENT_ENABLED;
@@ -452,8 +452,17 @@ function koyebPowerJob({ id, group, description, schedule, serviceIdEnv, action 
 const aimsPowerResumeDaily = koyebPowerJob({
   id: "aims-power-resume-daily",
   group: "power-aims",
-  description: "Resume AIMS at 09:00 before weekday operations.",
-  schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "09:00", timezone: LOCAL_TIME_ZONE },
+  description: "Resume AIMS at 08:30 before weekday morning operations.",
+  schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "08:30", timezone: LOCAL_TIME_ZONE },
+  serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
+  action: "resume",
+});
+
+const aimsPowerResumeFridayPodcast = koyebPowerJob({
+  id: "aims-power-resume-friday-podcast",
+  group: "power-aims",
+  description: "Resume AIMS at 14:30 for the Friday podcast-only window.",
+  schedule: { type: "weekly", days: ["friday"], time: "14:30", timezone: LOCAL_TIME_ZONE },
   serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   action: "resume",
 });
@@ -494,29 +503,29 @@ const ramsPowerResumeAimsAudit = koyebPowerJob({
   action: "resume",
 });
 
-function posttriggerPauseJob({ id, group, description, sourceJobId, serviceIdEnv }) {
+function posttriggerPauseJob({ id, group, description, sourceJobId, serviceIdEnv, delayMinutes = 0 }) {
   return koyebPowerJob({
     id,
     group,
     description,
-    schedule: { type: "posttrigger", sourceJobId, delayMinutes: 60 },
+    schedule: { type: "posttrigger", sourceJobId, delayMinutes },
     serviceIdEnv,
     action: "pause",
   });
 }
 
 const aimsWeekdayPauseJobs = [
-  ...["monday", "tuesday", "wednesday", "thursday"].map((day) => posttriggerPauseJob({
-    id: `aims-power-pause-${day}`,
+  ...["monday", "tuesday", "wednesday", "thursday", "friday"].map((day) => posttriggerPauseJob({
+    id: `aims-power-pause-${day}-am`,
     group: "power-aims",
-    description: `Pause AIMS one hour after ${day} AM operations finish.`,
+    description: `Pause AIMS immediately after ${day} AM operations finish.`,
     sourceJobId: `operation-${day}-am`,
     serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   })),
   posttriggerPauseJob({
-    id: "aims-power-pause-friday",
+    id: "aims-power-pause-friday-podcast",
     group: "power-aims",
-    description: "Pause AIMS one hour after the Friday podcast pipeline finishes.",
+    description: "Pause AIMS immediately after the Friday podcast window finishes.",
     sourceJobId: "operation-friday-pm",
     serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   }),
@@ -528,6 +537,7 @@ const aimsAuditPauseJobs = [
     group: "power-aims",
     description: "Pause AIMS one hour after the first-Saturday website audit pipeline finishes.",
     sourceJobId: "website-audit-pipeline",
+    delayMinutes: 60,
     serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   }),
   posttriggerPauseJob({
@@ -535,6 +545,7 @@ const aimsAuditPauseJobs = [
     group: "power-aims",
     description: "Pause AIMS one hour after the second-Saturday AIMS audit pipeline finishes.",
     sourceJobId: "aims-audit-pipeline",
+    delayMinutes: 60,
     serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   }),
 ];
@@ -545,6 +556,7 @@ const ramsAuditPauseJobs = [
     group: "power-rams",
     description: "Pause RAMS one hour after AIMS completes the first-Saturday website audit/remediation sequence.",
     sourceJobId: "website-audit-pipeline",
+    delayMinutes: 60,
     serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   }),
   posttriggerPauseJob({
@@ -552,6 +564,7 @@ const ramsAuditPauseJobs = [
     group: "power-rams",
     description: "Pause RAMS one hour after AIMS completes the second-Saturday AIMS audit/remediation sequence.",
     sourceJobId: "aims-audit-pipeline",
+    delayMinutes: 60,
     serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   }),
 ];
@@ -559,6 +572,7 @@ const ramsAuditPauseJobs = [
 const koyebPowerJobs = koyebPowerManagementEnabled()
   ? [
     aimsPowerResumeDaily,
+  aimsPowerResumeFridayPodcast,
     aimsPowerResumeWebsiteAudit,
     aimsPowerResumeAimsAudit,
     ramsPowerResumeWebsiteAudit,
@@ -754,8 +768,8 @@ const operationWindowJobs = [
   ...["monday", "tuesday", "wednesday", "thursday", "friday"].map((day) => postJob({
     id: `operation-${day}-am`,
     group: "operations",
-    description: `${day} AM AIMS operating window: RSS, outreach, Blog Social, newsletter, Zernio and both scheduled Blotato posts; Monday also owns the weekly blog, ebooks and quiz, while Friday also prepares weekend Zernio content.`,
-    schedule: { type: "weekly", days: [day], time: String(process.env.MAST_AM_OPERATION_TIME || "09:15"), timezone: LOCAL_TIME_ZONE },
+    description: `${day} AM AIMS operating window: all weekday content preparation, including both scheduled Blotato posts; Monday also owns weekly blog, ebooks and quiz, while Friday also prepares weekend Zernio content.`,
+    schedule: { type: "weekly", days: [day], time: String(process.env.MAST_AM_OPERATION_TIME || "09:00"), timezone: LOCAL_TIME_ZONE },
     hookEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
     targetUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
@@ -765,8 +779,8 @@ const operationWindowJobs = [
   postJob({
     id: "operation-friday-pm",
     group: "operations",
-    description: "Friday PM AIMS operating window: podcast pipeline only.",
-    schedule: { type: "weekly", days: ["friday"], time: String(process.env.MAST_FRIDAY_PM_OPERATION_TIME || "15:00"), timezone: LOCAL_TIME_ZONE },
+    description: "Friday podcast-only AIMS operating window.",
+    schedule: { type: "weekly", days: ["friday"], time: String(process.env.MAST_FRIDAY_PM_OPERATION_TIME || "14:30"), timezone: LOCAL_TIME_ZONE },
     hookEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/ops/run/friday-pm`,
     targetUrl: `${aimsBaseUrl()}/ops/run/friday-pm`,
