@@ -27,24 +27,18 @@ Deploy as the intended paid production Worker with one active scheduler instance
 
 ## Koyeb power management
 
-MAST resumes AIMS at **09:00 Europe/London** on Monday-Friday and on the first two
-Saturdays used for governed audits. Weekday AM operations begin at 09:15. RAMS is
-resumed only for the first- and second-Saturday audit windows.
+MAST resumes AIMS at **08:30 Europe/London** on Monday-Friday. Weekday AM operations begin at **09:00**. After the full morning window returns, MAST pauses AIMS immediately back to standby.
 
-Shutdown is completion-driven. MAST waits until the final operation or audit endpoint
-returns, then pauses the relevant service **one hour later**. There is no fixed 20:00
-shutdown that can cut across a long podcast or audit run.
+On Friday, MAST resumes AIMS again at **14:30** for the podcast-only window and pauses it when the podcast endpoint returns. RAMS is resumed only for governed audit windows. Future Comms Hub activity will request additional AIMS wake periods through its own controlled flow.
 
 See [`docs/POWER_MANAGEMENT.md`](docs/POWER_MANAGEMENT.md).
 
 ## Weekday AIMS operations
 
-MAST provides six weekday operation triggers. AIMS owns task sequencing inside each
-window.
+MAST provides six normal weekday operation triggers. AIMS owns task sequencing inside each window.
 
-- Monday-Friday AM: authenticated `/ops/run/<day>-am` at 09:15 by default. Each AM window prepares both scheduled Blotato posts. Friday AM also prepares Saturday and Sunday Zernio content.
-- Friday PM: authenticated `/ops/run/friday-pm` at 15:00 for the podcast pipeline only.
-- There are no Monday-Thursday PM operation triggers.
+- Monday-Friday AM: authenticated `/ops/run/<day>-am` at 09:00. Each morning window prepares all daily content, including both scheduled Blotato posts. Friday AM also prepares Saturday and Sunday Zernio content.
+- Friday PM: authenticated `/ops/run/friday-pm` at 14:30. This window runs only the podcast pipeline.
 - Task-level content routes remain manual recovery controls and do not carry their own schedules.
 
 ## Monthly audit windows
