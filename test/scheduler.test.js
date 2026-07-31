@@ -26,16 +26,18 @@ test("MAST exposes five AM windows plus the Friday podcast window", () => {
     assert.equal(job.authEnv, "AIMS_API_KEY");
     assert.match(job.url, /^https:\/\/app\.jonathan-harris\.online\/ops\/run\//);
     assert.equal(job.hookEnv, null);
+    assert.ok(job.asyncCompletion, `${job.id} must poll AIMS until the operation is terminal`);
+    assert.equal(job.asyncCompletion.statusPathTemplate, "/ops/jobs/{jobId}");
   }
 });
 
-test("weekday AIMS wake is 08:30 and AM operations begin at 09:00", () => {
+test("weekday AIMS wake is 09:30 and AM operations begin at 10:00", () => {
   const wake = baseJobs.find((job) => job.id === "aims-power-resume-daily");
   assert.deepEqual(wake.schedule.days, ["monday", "tuesday", "wednesday", "thursday", "friday"]);
-  assert.equal(wake.schedule.time, "08:30");
+  assert.equal(wake.schedule.time, "09:30");
   for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"]) {
     const am = baseJobs.find((job) => job.id === `operation-${day}-am`);
-    assert.equal(am.schedule.time, process.env.MAST_AM_OPERATION_TIME || "09:00");
+    assert.equal(am.schedule.time, process.env.MAST_AM_OPERATION_TIME || "10:00");
   }
 });
 
