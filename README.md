@@ -1,8 +1,13 @@
-> **Document status:** Production reference  
-> **Last reviewed:** 28 July 2026  
+> **Document status:** Production reference
+> **Last reviewed:** 31 July 2026
 > **Operational authority:** Current repository README, SECURITY policy and operations guide.
 
 # MAST
+
+## Release 1.2.2: fail-closed AIMS operation control
+
+MAST now requires a valid pollable AIMS operation job, treats `completed-with-failures` as a failed trigger, records operation status in its durable state, and will not launch the automatic standby job after an incomplete morning or Friday podcast window. The production environment patch now contains the complete Koyeb wake/pause and durable-state contract.
+
 
 MAST is the master automation scheduler for the Jonathan Harris ecosystem. It runs as a paid Node.js Worker on Koyeb, evaluates governed schedules in the Europe/London time zone and triggers AIMS and RAMS routes with bounded retries.
 
@@ -27,9 +32,9 @@ Deploy as the intended paid production Worker with one active scheduler instance
 
 ## Koyeb power management
 
-MAST resumes AIMS at **09:30 Europe/London** on Monday-Friday. Weekday AM operations begin at **10:00**. After the full morning window returns, MAST pauses AIMS immediately back to standby.
+MAST resumes AIMS at **08:30 Europe/London** on Monday-Friday. Weekday AM operations begin at **09:00**. After the full morning window returns, MAST pauses AIMS immediately back to standby.
 
-On Friday, MAST resumes AIMS again at **14:30** for the podcast-only window and pauses it when the podcast endpoint returns. RAMS is resumed only for governed audit windows. Future Comms Hub activity will request additional AIMS wake periods through its own controlled flow.
+On Friday, MAST resumes AIMS again at **14:30** and starts the podcast-only window at **15:00**. MAST polls the AIMS operation until the podcast job is genuinely terminal, then pauses AIMS one hour later. RAMS is resumed only for governed audit windows. Future Comms Hub activity will request additional AIMS wake periods through its own controlled flow.
 
 See [`docs/POWER_MANAGEMENT.md`](docs/POWER_MANAGEMENT.md).
 
@@ -37,9 +42,10 @@ See [`docs/POWER_MANAGEMENT.md`](docs/POWER_MANAGEMENT.md).
 
 MAST provides six normal weekday operation triggers. AIMS owns task sequencing inside each window.
 
-- Monday-Friday AM: authenticated `/ops/run/<day>-am` at 10:00. Each morning window prepares all daily content, including both scheduled Blotato posts. Friday AM also prepares Saturday and Sunday Zernio content.
-- Friday PM: authenticated `/ops/run/friday-pm` at 14:30. This window runs only the podcast pipeline.
+- Monday-Friday AM: authenticated `/ops/run/<day>-am` at 09:00. Each morning window prepares all daily content, including both scheduled Blotato posts. Monday generates the mini-series through the Monday Zernio lane, and Friday AM also prepares Saturday and Sunday Zernio content.
+- Friday PM: authenticated `/ops/run/friday-pm` at 15:00. This window runs only the podcast pipeline.
 - Task-level content routes remain manual recovery controls and do not carry their own schedules.
+- MAST does not treat HTTP `202 Accepted` as completion: it polls the AIMS operation job until all accepted async child jobs, including both Blotato renders and the podcast pipeline, are terminal. An operation ending as `failed` or `completed-with-failures` is recorded as a MAST failure and cannot trigger automatic standby.
 
 ## Monthly audit windows
 

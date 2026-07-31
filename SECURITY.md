@@ -1,6 +1,6 @@
 # MAST security policy
 
-**Status:** Production-controlled  
+**Status:** Production-controlled
 **Last reviewed:** 16 June 2026
 
 MAST controls scheduled and manual triggers. Production manual routes require `CRON_ADMIN_TOKEN` and `ALLOW_PUBLIC_MANUAL_RUNS` must remain `false`. Downstream AIMS and RAMS tokens are stored only in Koyeb Secrets.
