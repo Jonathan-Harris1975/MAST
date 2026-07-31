@@ -645,6 +645,8 @@ function resultSummary(result) {
     managedPretrigger: Boolean(result.managedPretrigger),
     pretriggerStage: result.pretriggerStage || null,
     sourceJobId: result.sourceJobId || null,
+    operationStatus: result.operationJob?.status || result.operationFailure?.status || null,
+    operationFailures: Number(result.operationJob?.failures ?? result.operationFailure?.failures ?? 0),
   };
 }
 
@@ -754,9 +756,15 @@ async function fetchWithRetry(url, options, config) {
 async function waitForAimsOperation(job, responseText) {
   if (job.group !== "operations") return null;
   let payload;
-  try { payload = JSON.parse(responseText); } catch { return null; }
+  try {
+    payload = JSON.parse(responseText);
+  } catch {
+    throw new Error("AIMS operation response was not valid JSON");
+  }
   const operation = payload?.job;
-  if (!operation?.id) return null;
+  if (!operation?.id) {
+    throw new Error("AIMS operation response omitted job.id");
+  }
   const statusUrl = new URL(`/ops/jobs/${encodeURIComponent(operation.id)}`, job.url).toString();
   const deadline = Date.now() + CONFIG.aimsOperationTimeoutMs;
   while (Date.now() < deadline) {
@@ -872,23 +880,30 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
 
     const responseText = await response.text();
     const operationJob = response.ok ? await waitForAimsOperation(job, responseText) : null;
+    const operationOk = !operationJob || (operationJob.status === "completed" && Number(operationJob.failures || 0) === 0);
+    const jobOk = response.ok && operationOk;
     const finishedAt = new Date();
 
     const result = {
       ...logBase,
-      event: "job-finished",
-      ok: response.ok,
+      event: jobOk ? "job-finished" : "job-failed",
+      ok: jobOk,
       status: response.status,
       statusText: response.statusText,
       responsePreview: responseText.slice(0, 700),
       operationJob,
+      operationFailure: operationJob && !operationOk ? {
+        status: operationJob.status,
+        failures: Number(operationJob.failures || 0),
+        results: operationJob.results || [],
+      } : null,
       payload: payload || null,
       startedAt: startedAt.toISOString(),
       finishedAt: finishedAt.toISOString(),
       durationMs: finishedAt.getTime() - startedAt.getTime(),
     };
 
-    if (response.ok) {
+    if (jobOk) {
       if (job.schedule?.type === "interval") {
         state.intervalLastRunAt[job.id] = finishedAt.toISOString();
       } else {
@@ -912,7 +927,7 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
     await saveState();
     console.log(JSON.stringify(result));
 
-    if (response.ok && job.lifecycle?.action === "resume") {
+    if (jobOk && job.lifecycle?.action === "resume") {
       pollServiceUntilOnline(job.lifecycle.service).catch((pollError) => {
         console.error(JSON.stringify({ service: SERVICE_NAME, event: "service-resume-poll-error", managedService: job.lifecycle.service, errorName: pollError?.name || "Error" }));
       });

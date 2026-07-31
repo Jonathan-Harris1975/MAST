@@ -1,6 +1,6 @@
 export const SERVICE_NAME = "MAST";
 export const LOCAL_TIME_ZONE = "Europe/London";
-export const USER_AGENT = "Jonathan-Harris-MAST/1.1 (+https://jonathan-harris.online)";
+export const USER_AGENT = "Jonathan-Harris-MAST/1.2.2 (+https://jonathan-harris.online)";
 
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const WEEKDAYS_MON_TO_FRI = ["monday", "tuesday", "wednesday", "thursday", "friday"];
@@ -120,7 +120,7 @@ const blogDailySocialBuild = postJob({
 const newsletterAiEdgeGenerate = postJob({
   id: "newsletter-ai-edge-generate",
   group: "newsletter",
-  description: "Build today's AI Edge newsletter issue (RSS ingest, ranking, composition, QA loop, hero image; stored in R2) ahead of the 10:00 send.",
+  description: "Build today's AI Edge newsletter issue (RSS ingest, ranking, composition, QA loop and hero image) before the governed morning delivery step.",
   schedule: { type: "manual" },
   hookEnv: null,
   fallbackUrl: "https://app.jonathan-harris.online/newsletter/generate",
@@ -769,7 +769,7 @@ const operationWindowJobs = [
   ...["monday", "tuesday", "wednesday", "thursday", "friday"].map((day) => postJob({
     id: `operation-${day}-am`,
     group: "operations",
-    description: `${day} AM AIMS operating window: all weekday content preparation, including both scheduled Blotato posts; Monday also owns weekly blog, ebooks and quiz, while Friday also prepares weekend Zernio content.`,
+    description: `${day} AM AIMS operating window: all weekday content preparation, including both scheduled Blotato posts; Monday also owns weekly blog, ebooks, quiz and the mini-series through its Zernio lane, while Friday also prepares weekend Zernio content.`,
     schedule: { type: "weekly", days: [day], time: String(process.env.MAST_AM_OPERATION_TIME || "09:00"), timezone: LOCAL_TIME_ZONE },
     hookEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
