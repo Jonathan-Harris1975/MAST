@@ -12,8 +12,8 @@ MAST lifecycle ledger.
 
 | Event | Europe/London | Behaviour |
 | --- | ---: | --- |
-| AIMS weekday wake | 08:30 Monday-Friday | Resume AIMS and allow a 30-minute warm-up. |
-| AIMS morning operations | 09:00 Monday-Friday | Trigger `/ops/run/<day>-am`. AIMS processes the full morning sequence. |
+| AIMS weekday wake | 09:30 Monday-Friday | Resume AIMS and allow a 30-minute warm-up. |
+| AIMS morning operations | 10:00 Monday-Friday | Trigger `/ops/run/<day>-am`. AIMS processes the full morning sequence. |
 | AIMS morning standby | completion-driven | Pause AIMS immediately after the morning operation endpoint returns successfully. |
 | Friday podcast wake | 14:30 Friday | Resume AIMS for the podcast-only window. |
 | Friday podcast | 14:30 Friday | Trigger `/ops/run/friday-pm`, which contains only `/podcast/run`. |
@@ -51,7 +51,7 @@ communications. MAST should not invent a permanent always-on window for that ser
 - `KOYEB_TOKEN` with `services:write` permission.
 - `KOYEB_SERVICE_ID_AIMS` and `KOYEB_SERVICE_ID_RAMS` using Koyeb service IDs.
 - `KOYEB_POWER_MANAGEMENT_ENABLED=true` to enable lifecycle control.
-- `MAST_AM_OPERATION_TIME=09:00`.
+- `MAST_AM_OPERATION_TIME=10:00`.
 - `MAST_FRIDAY_PM_OPERATION_TIME=14:30`.
 
 Set `KOYEB_POWER_MANAGEMENT_ENABLED=false` during deliberate maintenance when AIMS or
