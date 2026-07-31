@@ -416,7 +416,7 @@ const ramsJobs = [
 
 // --- Koyeb power management -------------------------------------------------------
 //
-// AIMS wakes at 08:30 for weekday operations, then the AM window starts at 09:00.
+// AIMS wakes at 09:30 for weekday operations, then the AM window starts at 10:00.
 // On Friday it wakes again at 14:30 for the podcast-only window. Normal weekday standby
 // is completion-driven: AIMS pauses as soon as the relevant operation endpoint returns.
 
@@ -452,8 +452,8 @@ function koyebPowerJob({ id, group, description, schedule, serviceIdEnv, action 
 const aimsPowerResumeDaily = koyebPowerJob({
   id: "aims-power-resume-daily",
   group: "power-aims",
-  description: "Resume AIMS at 08:30 before weekday morning operations.",
-  schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "08:30", timezone: LOCAL_TIME_ZONE },
+  description: "Resume AIMS at 09:30 before weekday morning operations.",
+  schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "09:30", timezone: LOCAL_TIME_ZONE },
   serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   action: "resume",
 });
@@ -769,12 +769,19 @@ const operationWindowJobs = [
     id: `operation-${day}-am`,
     group: "operations",
     description: `${day} AM AIMS operating window: all weekday content preparation, including both scheduled Blotato posts; Monday also owns weekly blog, ebooks and quiz, while Friday also prepares weekend Zernio content.`,
-    schedule: { type: "weekly", days: [day], time: String(process.env.MAST_AM_OPERATION_TIME || "09:00"), timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: [day], time: String(process.env.MAST_AM_OPERATION_TIME || "10:00"), timezone: LOCAL_TIME_ZONE },
     hookEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
     targetUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
     targetPath: `/ops/run/${day}-am`,
     authEnv: "AIMS_API_KEY",
+    asyncCompletion: {
+      statusPathTemplate: "/ops/jobs/{jobId}",
+      pollIntervalMs: Number(process.env.MAST_AIMS_OPERATION_POLL_INTERVAL_MS || 15_000),
+      timeoutMs: Number(process.env.MAST_AIMS_OPERATION_TIMEOUT_MS || 8 * 60 * 60 * 1000),
+      terminalStatuses: ["completed", "completed-with-failures", "failed"],
+      successfulStatuses: ["completed", "completed-with-failures"],
+    },
   })),
   postJob({
     id: "operation-friday-pm",
@@ -786,6 +793,13 @@ const operationWindowJobs = [
     targetUrl: `${aimsBaseUrl()}/ops/run/friday-pm`,
     targetPath: "/ops/run/friday-pm",
     authEnv: "AIMS_API_KEY",
+    asyncCompletion: {
+      statusPathTemplate: "/ops/jobs/{jobId}",
+      pollIntervalMs: Number(process.env.MAST_AIMS_OPERATION_POLL_INTERVAL_MS || 15_000),
+      timeoutMs: Number(process.env.MAST_AIMS_OPERATION_TIMEOUT_MS || 8 * 60 * 60 * 1000),
+      terminalStatuses: ["completed", "completed-with-failures", "failed"],
+      successfulStatuses: ["completed", "completed-with-failures"],
+    },
   }),
 ];
 
