@@ -27,7 +27,7 @@ Deploy as the intended paid production Worker with one active scheduler instance
 
 ## Koyeb power management
 
-MAST resumes AIMS at **08:30 Europe/London** on Monday-Friday. Weekday AM operations begin at **09:00**. After the full morning window returns, MAST pauses AIMS immediately back to standby.
+MAST resumes AIMS at **09:30 Europe/London** on Monday-Friday. Weekday AM operations begin at **10:00**. After the full morning window returns, MAST pauses AIMS immediately back to standby.
 
 On Friday, MAST resumes AIMS again at **14:30** for the podcast-only window and pauses it when the podcast endpoint returns. RAMS is resumed only for governed audit windows. Future Comms Hub activity will request additional AIMS wake periods through its own controlled flow.
 
@@ -37,7 +37,7 @@ See [`docs/POWER_MANAGEMENT.md`](docs/POWER_MANAGEMENT.md).
 
 MAST provides six normal weekday operation triggers. AIMS owns task sequencing inside each window.
 
-- Monday-Friday AM: authenticated `/ops/run/<day>-am` at 09:00. Each morning window prepares all daily content, including both scheduled Blotato posts. Friday AM also prepares Saturday and Sunday Zernio content.
+- Monday-Friday AM: authenticated `/ops/run/<day>-am` at 10:00. Each morning window prepares all daily content, including both scheduled Blotato posts. Friday AM also prepares Saturday and Sunday Zernio content.
 - Friday PM: authenticated `/ops/run/friday-pm` at 14:30. This window runs only the podcast pipeline.
 - Task-level content routes remain manual recovery controls and do not carry their own schedules.
 
