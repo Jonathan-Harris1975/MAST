@@ -1,5 +1,5 @@
 > **Document status:** Production reference
-> **Last reviewed:** 30 July 2026
+> **Last reviewed:** 31 July 2026
 > **Operational authority:** Current repository README and `src/jobs.js`.
 
 # Koyeb power management
@@ -12,12 +12,12 @@ MAST lifecycle ledger.
 
 | Event | Europe/London | Behaviour |
 | --- | ---: | --- |
-| AIMS weekday wake | 09:30 Monday-Friday | Resume AIMS and allow a 30-minute warm-up. |
-| AIMS morning operations | 10:00 Monday-Friday | Trigger `/ops/run/<day>-am`. AIMS processes the full morning sequence. |
+| AIMS weekday wake | 08:30 Monday-Friday | Resume AIMS and allow a 30-minute warm-up. |
+| AIMS morning operations | 09:00 Monday-Friday | Trigger `/ops/run/<day>-am`. AIMS processes the full morning sequence. |
 | AIMS morning standby | completion-driven | Pause AIMS immediately after the morning operation endpoint returns successfully. |
 | Friday podcast wake | 14:30 Friday | Resume AIMS for the podcast-only window. |
-| Friday podcast | 14:30 Friday | Trigger `/ops/run/friday-pm`, which contains only `/podcast/run`. |
-| Friday podcast standby | completion-driven | Pause AIMS immediately after the podcast operation endpoint returns successfully. |
+| Friday podcast | 15:00 Friday | Trigger `/ops/run/friday-pm`, which runs podcast readiness followed immediately by `/podcast/run`. |
+| Friday podcast standby | one hour after completion | MAST waits for the podcast child job to finish, then pauses AIMS one hour later. |
 
 There are no Monday-Thursday PM operation windows. Friday AM prepares both scheduled
 Blotato posts and the Saturday/Sunday Zernio content. Friday afternoon is reserved for
@@ -32,12 +32,12 @@ allowing final reports and remediation state to settle.
 ## Completion-driven standby
 
 Normal weekday pause jobs use `posttrigger` schedules linked to the successful result of
-the corresponding operation job. The scheduler derives the pause run key from the source
+the corresponding operation job. MAST polls `/ops/jobs/:id`, so a `202 Accepted` response
+from the operation trigger is not considered completion. The scheduler derives the pause run key from the source
 job's completion timestamp, which prevents duplicate pause calls while allowing the next
 day's completed operation to create a new standby action.
 
-If an operation fails, MAST does not treat it as a successful completion and does not
-silently mark the service standby. The failure remains visible through normal failure
+If an operation ends as `failed` or `completed-with-failures`, MAST does not treat the HTTP status poll as success and does not trigger automatic standby. The failure remains visible through normal failure
 streak and review-queue handling.
 
 ## Future Comms Hub wake control
@@ -51,8 +51,8 @@ communications. MAST should not invent a permanent always-on window for that ser
 - `KOYEB_TOKEN` with `services:write` permission.
 - `KOYEB_SERVICE_ID_AIMS` and `KOYEB_SERVICE_ID_RAMS` using Koyeb service IDs.
 - `KOYEB_POWER_MANAGEMENT_ENABLED=true` to enable lifecycle control.
-- `MAST_AM_OPERATION_TIME=10:00`.
-- `MAST_FRIDAY_PM_OPERATION_TIME=14:30`.
+- `MAST_AM_OPERATION_TIME=09:00`.
+- `MAST_FRIDAY_PM_OPERATION_TIME=15:00`.
 
 Set `KOYEB_POWER_MANAGEMENT_ENABLED=false` during deliberate maintenance when AIMS or
 RAMS must remain continuously available.

@@ -1,6 +1,6 @@
 # MAST professional operations and alerting
 
-**Status:** Production Koyeb Worker  
+**Status:** Production Koyeb Worker
 **Last reviewed:** 17 June 2026
 
 MAST runs as a paid Koyeb Worker. It has no public inbound HTTP health contract. HIVE monitors the durable R2 heartbeat at `state/mast/scheduler-state.json`.

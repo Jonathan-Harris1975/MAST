@@ -1,6 +1,6 @@
 # MAST production operations
 
-**Status:** Paid Koyeb production Worker  
+**Status:** Paid Koyeb production Worker
 **Last reviewed:** 17 June 2026
 
 MAST is deployed as a Worker, not a Web Service. It has no public inbound probe. HIVE monitors `state/mast/scheduler-state.json` in the `metasystem` R2 bucket and classifies health from heartbeat age, failure streak and operator-control state.
