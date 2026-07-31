@@ -109,6 +109,8 @@ export const CONFIG = {
   failureReviewThreshold: numberEnv("MAST_FAILURE_REVIEW_THRESHOLD", 3),
   reviewQueueLimit: numberEnv("MAST_REVIEW_QUEUE_LIMIT", 50),
   expectedTickSeconds: numberEnv("SCHEDULER_TICK_SECONDS", 20),
+  aimsOperationPollIntervalMs: numberEnv("MAST_AIMS_OPERATION_POLL_INTERVAL_MS", 15_000),
+  aimsOperationTimeoutMs: numberEnv("MAST_AIMS_OPERATION_TIMEOUT_MS", 8 * 60 * 60 * 1000),
 };
 
 function stateClient() {
@@ -749,69 +751,26 @@ async function fetchWithRetry(url, options, config) {
   throw lastError || new Error("Request failed before response was created");
 }
 
-function parseJsonObject(text) {
-  try {
-    const value = JSON.parse(text);
-    return value && typeof value === "object" ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-async function waitForAsyncCompletion(job, initialText, headers) {
-  const config = job.asyncCompletion;
-  if (!config) return null;
-
-  const initial = parseJsonObject(initialText);
-  const jobId = initial?.job?.id || initial?.jobId || initial?.id;
-  if (!jobId) throw new Error(`Async job ${job.id} returned no operation job id`);
-
-  const statusPath = String(config.statusPathTemplate || "/ops/jobs/{jobId}")
-    .replace("{jobId}", encodeURIComponent(String(jobId)));
-  const statusUrl = new URL(statusPath, job.targetUrl).toString();
-  const terminalStatuses = new Set(config.terminalStatuses || ["completed", "completed-with-failures", "failed"]);
-  const successfulStatuses = new Set(config.successfulStatuses || ["completed", "completed-with-failures"]);
-  const pollIntervalMs = Math.max(1_000, Number(config.pollIntervalMs || 15_000));
-  const timeoutMs = Math.max(pollIntervalMs, Number(config.timeoutMs || 8 * 60 * 60 * 1000));
-  const deadline = Date.now() + timeoutMs;
-
+async function waitForAimsOperation(job, responseText) {
+  if (job.group !== "operations") return null;
+  let payload;
+  try { payload = JSON.parse(responseText); } catch { return null; }
+  const operation = payload?.job;
+  if (!operation?.id) return null;
+  const statusUrl = new URL(`/ops/jobs/${encodeURIComponent(operation.id)}`, job.url).toString();
+  const deadline = Date.now() + CONFIG.aimsOperationTimeoutMs;
   while (Date.now() < deadline) {
-    await sleep(pollIntervalMs);
-    const response = await fetchWithRetry(statusUrl, {
-      method: "GET",
-      headers: { authorization: headers.authorization || "", "user-agent": USER_AGENT, accept: "application/json" },
-      redirect: "follow",
-    }, CONFIG);
+    const response = await fetchWithRetry(statusUrl, { method: "GET", headers: buildRequestHeaders(job, `poll:${operation.id}`), redirect: "follow" }, CONFIG);
     const text = await response.text();
-    if (!response.ok) throw new Error(`Async status poll for ${job.id} returned HTTP ${response.status}: ${text.slice(0, 300)}`);
-    const payload = parseJsonObject(text);
-    const remoteJob = payload?.job || payload;
-    const status = String(remoteJob?.status || "").trim().toLowerCase();
-    if (!status) throw new Error(`Async status poll for ${job.id} returned no status`);
-
-    console.log(JSON.stringify({
-      service: SERVICE_NAME,
-      event: "async-job-poll",
-      job: job.id,
-      remoteJobId: String(jobId),
-      remoteStatus: status,
-      currentTask: remoteJob?.currentTask || null,
-      failures: Number(remoteJob?.failures || 0),
-    }));
-
-    if (terminalStatuses.has(status)) {
-      return {
-        ok: successfulStatuses.has(status),
-        remoteJobId: String(jobId),
-        remoteStatus: status,
-        statusUrl,
-        payload,
-        responsePreview: text.slice(0, 700),
-      };
-    }
+    if (!response.ok) throw new Error(`AIMS operation status returned HTTP ${response.status}: ${text.slice(0, 300)}`);
+    const statusPayload = JSON.parse(text);
+    const current = statusPayload?.job;
+    if (!current?.status) throw new Error("AIMS operation status response omitted job.status");
+    if (["completed", "completed-with-failures", "failed"].includes(current.status)) return current;
+    if (!["accepted", "running"].includes(current.status)) throw new Error(`Unexpected AIMS operation status: ${current.status}`);
+    await sleep(CONFIG.aimsOperationPollIntervalMs);
   }
-
-  throw new Error(`Async operation ${job.id} did not reach a terminal state within ${timeoutMs}ms`);
+  throw new Error(`AIMS operation ${operation.id} exceeded ${CONFIG.aimsOperationTimeoutMs}ms timeout`);
 }
 
 export async function runJob(job, { at = new Date(), trigger = "scheduled", force = false } = {}) {
@@ -912,28 +871,24 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
     }, CONFIG);
 
     const responseText = await response.text();
-    const asyncResult = response.ok && job.asyncCompletion
-      ? await waitForAsyncCompletion(job, responseText, headers)
-      : null;
+    const operationJob = response.ok ? await waitForAimsOperation(job, responseText) : null;
     const finishedAt = new Date();
 
     const result = {
       ...logBase,
       event: "job-finished",
-      ok: asyncResult ? asyncResult.ok : response.ok,
+      ok: response.ok,
       status: response.status,
       statusText: response.statusText,
-      responsePreview: asyncResult?.responsePreview || responseText.slice(0, 700),
-      remoteJobId: asyncResult?.remoteJobId || null,
-      remoteStatus: asyncResult?.remoteStatus || null,
-      remoteStatusUrl: asyncResult?.statusUrl || null,
+      responsePreview: responseText.slice(0, 700),
+      operationJob,
       payload: payload || null,
       startedAt: startedAt.toISOString(),
       finishedAt: finishedAt.toISOString(),
       durationMs: finishedAt.getTime() - startedAt.getTime(),
     };
 
-    if (result.ok) {
+    if (response.ok) {
       if (job.schedule?.type === "interval") {
         state.intervalLastRunAt[job.id] = finishedAt.toISOString();
       } else {
@@ -957,7 +912,7 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
     await saveState();
     console.log(JSON.stringify(result));
 
-    if (result.ok && job.lifecycle?.action === "resume") {
+    if (response.ok && job.lifecycle?.action === "resume") {
       pollServiceUntilOnline(job.lifecycle.service).catch((pollError) => {
         console.error(JSON.stringify({ service: SERVICE_NAME, event: "service-resume-poll-error", managedService: job.lifecycle.service, errorName: pollError?.name || "Error" }));
       });
