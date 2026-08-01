@@ -374,7 +374,7 @@ export function publicJob(job, at = new Date()) {
     schedule: job.schedule,
     targetPath: job.targetPath,
     targetUrl: job.targetUrl,
-    hookEnv: job.hookEnv,
+    urlEnv: job.urlEnv,
     configuredUrl: Boolean(job.url),
     urlPreview: redactUrl(job.url),
     authRequired: Boolean(job.authEnv),
@@ -908,6 +908,39 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
       durationMs: 0,
       targetPath: job.targetPath,
     };
+  }
+
+  // Resume is idempotent. Probe the target before calling Koyeb so an already-running
+  // service cannot turn a harmless wake request into a failed schedule window.
+  if (job.lifecycle?.action === "resume") {
+    const probe = await pingServiceHealth(job.lifecycle.service);
+    if (probe.ok) {
+      const finishedAt = new Date();
+      setServiceLifecycle(job.lifecycle.service, "online", {
+        reason: `scheduled-resume-already-online:${trigger}`,
+        lastAction: "resume",
+      });
+      if (job.schedule?.type === "interval") state.intervalLastRunAt[job.id] = finishedAt.toISOString();
+      else state.lastRunKeys[job.id] = runKey;
+      const result = {
+        job: job.id,
+        group: job.group,
+        ok: true,
+        skipped: true,
+        reason: "service-already-online",
+        runKey,
+        trigger,
+        status: probe.httpStatus || 200,
+        startedAt: startedAt.toISOString(),
+        finishedAt: finishedAt.toISOString(),
+        durationMs: finishedAt.getTime() - startedAt.getTime(),
+        targetPath: job.targetPath,
+      };
+      rememberResult(result);
+      await saveState();
+      console.log(JSON.stringify({ service: SERVICE_NAME, event: "job-finished", ...result }));
+      return result;
+    }
   }
 
   // A service mid-request should never be paused out from under it: skip this run and

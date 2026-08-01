@@ -19,7 +19,7 @@ import {
 } from "./scheduler.js";
 
 const PORT = Number(process.env.PORT || 8000);
-const APP_VERSION = process.env.APP_VERSION || "1.1.0";
+const APP_VERSION = process.env.APP_VERSION || "1.2.3";
 const APP_ENV = process.env.APP_ENV || process.env.NODE_ENV || "development";
 const SCHEDULER_ENABLED = booleanEnv("SCHEDULER_ENABLED", true);
 const TICK_SECONDS = numberEnv("SCHEDULER_TICK_SECONDS", 20);
@@ -33,6 +33,12 @@ let tickInProgress = false;
 let lastTickResult = null;
 let tickTimer = null;
 let shuttingDown = false;
+
+
+function configuredEnv(name) {
+  const value = String(process.env[name] || "").trim();
+  return Boolean(value && !/^\{\{\s*secret\.[^}]+\}\}$/i.test(value));
+}
 
 function requestId(req) {
   const supplied = String(req.headers["x-request-id"] || "").trim();
@@ -125,8 +131,11 @@ function readiness() {
     { name: "scheduler", ok: SCHEDULER_ENABLED, detail: SCHEDULER_ENABLED ? "enabled" : "disabled" },
     { name: "durable_state", ok: stateBackendStatus().ready, detail: stateBackendStatus().durable ? "R2" : "local/ephemeral" },
     { name: "admin_token", ok: APP_ENV !== "production" || Boolean(ADMIN_TOKEN) || ALLOW_PUBLIC_MANUAL_RUNS, detail: ADMIN_TOKEN ? "configured" : "missing" },
-    { name: "aims_token", ok: APP_ENV !== "production" || Boolean((process.env.AIMS_API_KEY || "").trim()), detail: (process.env.AIMS_API_KEY || "").trim() ? "configured" : "missing" },
-    { name: "rams_token", ok: APP_ENV !== "production" || Boolean((process.env.RMS_API_KEY || "").trim()), detail: (process.env.RMS_API_KEY || "").trim() ? "configured" : "missing" },
+    { name: "aims_token", ok: APP_ENV !== "production" || configuredEnv("AIMS_API_KEY"), detail: configuredEnv("AIMS_API_KEY") ? "configured" : "missing-or-placeholder" },
+    { name: "rams_token", ok: APP_ENV !== "production" || configuredEnv("RMS_API_KEY"), detail: configuredEnv("RMS_API_KEY") ? "configured" : "missing-or-placeholder" },
+    { name: "koyeb_token", ok: APP_ENV !== "production" || !booleanEnv("KOYEB_POWER_MANAGEMENT_ENABLED", true) || configuredEnv("KOYEB_TOKEN"), detail: configuredEnv("KOYEB_TOKEN") ? "configured" : "missing-or-placeholder" },
+    { name: "koyeb_aims_service", ok: APP_ENV !== "production" || !booleanEnv("KOYEB_POWER_MANAGEMENT_ENABLED", true) || configuredEnv("KOYEB_SERVICE_ID_AIMS"), detail: configuredEnv("KOYEB_SERVICE_ID_AIMS") ? "configured" : "missing-or-placeholder" },
+    { name: "koyeb_rams_service", ok: APP_ENV !== "production" || !booleanEnv("KOYEB_POWER_MANAGEMENT_ENABLED", true) || configuredEnv("KOYEB_SERVICE_ID_RAMS"), detail: configuredEnv("KOYEB_SERVICE_ID_RAMS") ? "configured" : "missing-or-placeholder" },
   ];
   const ready = !shuttingDown && checks.every((check) => check.ok);
   return { ready, status: ready ? "ready" : "degraded", checks };

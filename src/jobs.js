@@ -1,11 +1,11 @@
 export const SERVICE_NAME = "MAST";
 export const LOCAL_TIME_ZONE = "Europe/London";
-export const USER_AGENT = "Jonathan-Harris-MAST/1.2.2 (+https://jonathan-harris.online)";
+export const USER_AGENT = "Jonathan-Harris-MAST/1.2.3 (+https://jonathan-harris.online)";
 
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const WEEKDAYS_MON_TO_FRI = ["monday", "tuesday", "wednesday", "thursday", "friday"];
-const WEBSITE_AUDIT_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME || "15:00");
-const WEBSITE_AUDIT_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "15:30");
+const WEBSITE_AUDIT_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME || "08:30");
+const WEBSITE_AUDIT_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "09:00");
 const WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 const WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES || 180));
 
@@ -28,15 +28,15 @@ export function koyebServiceUrl(serviceIdEnvName, action) {
   return `https://app.koyeb.com/v1/services/${serviceId}/${action}`;
 }
 
-function postJob({ id, group, description, schedule, hookEnv, fallbackUrl, targetUrl, targetPath, body, addLocalDateAsWeekStartDate = false, authEnv = null, asyncStatus = null, requiredServices = [] }) {
+function postJob({ id, group, description, schedule, urlEnv, fallbackUrl, targetUrl, targetPath, body, addLocalDateAsWeekStartDate = false, authEnv = null, asyncStatus = null, requiredServices = [], pretriggerOffsets = null }) {
   return {
     id,
     group,
     description,
     method: "POST",
     schedule,
-    hookEnv,
-    url: endpoint(hookEnv, fallbackUrl),
+    urlEnv,
+    url: endpoint(urlEnv, fallbackUrl),
     targetUrl,
     targetPath,
     body: body || {},
@@ -44,18 +44,19 @@ function postJob({ id, group, description, schedule, hookEnv, fallbackUrl, targe
     authEnv,
     asyncStatus,
     requiredServices,
+    pretriggerOffsets,
   };
 }
 
-function getJob({ id, group, description, schedule, hookEnv, fallbackUrl, targetUrl, targetPath, authEnv = null }) {
+function getJob({ id, group, description, schedule, urlEnv, fallbackUrl, targetUrl, targetPath, authEnv = null }) {
   return {
     id,
     group,
     description,
     method: "GET",
     schedule,
-    hookEnv,
-    url: endpoint(hookEnv, fallbackUrl),
+    urlEnv,
+    url: endpoint(urlEnv, fallbackUrl),
     targetUrl,
     targetPath,
     authEnv,
@@ -67,7 +68,7 @@ const rssRewrite = postJob({
   group: "rss",
   description: "Run the RSS rewrite pipeline.",
   schedule: { type: "manual" },
-  hookEnv: null,
+  urlEnv: null,
   fallbackUrl: "https://app.jonathan-harris.online/rss/rewrite",
   targetUrl: "https://app.jonathan-harris.online/rss/rewrite",
   targetPath: "/rss/rewrite",
@@ -80,7 +81,7 @@ const outreachBatchNext = postJob({
   group: "outreach",
   description: "Process the next outreach batch.",
   schedule: { type: "manual" },
-  hookEnv: null,
+  urlEnv: null,
   fallbackUrl: "https://app.jonathan-harris.online/outreach/batch/next",
   targetUrl: "https://app.jonathan-harris.online/outreach/batch/next",
   targetPath: "/outreach/batch/next",
@@ -92,7 +93,7 @@ const podcastRun = postJob({
   group: "podcast",
   description: "Trigger the podcast pipeline.",
   schedule: { type: "manual" },
-  hookEnv: null,
+  urlEnv: null,
   fallbackUrl: "https://app.jonathan-harris.online/podcast/run",
   targetUrl: "https://app.jonathan-harris.online/podcast/run",
   targetPath: "/podcast/run",
@@ -104,7 +105,7 @@ const blogWeeklyBuild = postJob({
   group: "blog",
   description: "Build the weekly blog package.",
   schedule: { type: "manual" },
-  hookEnv: null,
+  urlEnv: null,
   fallbackUrl: "https://app.jonathan-harris.online/blog/weekly/build",
   targetUrl: "https://app.jonathan-harris.online/blog/weekly/build",
   targetPath: "/blog/weekly/build",
@@ -116,7 +117,7 @@ const blogDailySocialBuild = postJob({
   group: "blog",
   description: "Build and publish the daily social media blog RSS package.",
   schedule: { type: "manual" },
-  hookEnv: null,
+  urlEnv: null,
   fallbackUrl: "https://app.jonathan-harris.online/blog/social/daily/build",
   targetUrl: "https://app.jonathan-harris.online/blog/social/daily/build",
   targetPath: "/blog/social/daily/build",
@@ -128,7 +129,7 @@ const newsletterAiEdgeGenerate = postJob({
   group: "newsletter",
   description: "Build today's AI Edge newsletter issue (RSS ingest, ranking, composition, QA loop and hero image) before the governed morning delivery step.",
   schedule: { type: "manual" },
-  hookEnv: null,
+  urlEnv: null,
   fallbackUrl: "https://app.jonathan-harris.online/newsletter/generate",
   targetUrl: "https://app.jonathan-harris.online/newsletter/generate",
   targetPath: "/newsletter/generate",
@@ -141,7 +142,7 @@ const newsletterAiEdgeSend = postJob({
   group: "newsletter",
   description: "Send today's built AI Edge newsletter issue via Brevo (creates the campaign and sends it immediately).",
   schedule: { type: "manual" },
-  hookEnv: null,
+  urlEnv: null,
   fallbackUrl: "https://app.jonathan-harris.online/newsletter/send",
   targetUrl: "https://app.jonathan-harris.online/newsletter/send",
   targetPath: "/newsletter/send",
@@ -155,7 +156,7 @@ const zernioDailyJobs = [
     group: "zernio-daily",
     description: "Trigger Monday Motivation post build and schedule for Monday.",
     schedule: { type: "manual" },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: "https://app.jonathan-harris.online/zernio/daily/monday",
     targetUrl: "https://app.jonathan-harris.online/zernio/daily/monday",
     targetPath: "/zernio/daily/monday",
@@ -166,7 +167,7 @@ const zernioDailyJobs = [
     group: "zernio-daily",
     description: "Trigger Tuesday Tech Talk post build and schedule for Tuesday.",
     schedule: { type: "manual" },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: "https://app.jonathan-harris.online/zernio/daily/tuesday",
     targetUrl: "https://app.jonathan-harris.online/zernio/daily/tuesday",
     targetPath: "/zernio/daily/tuesday",
@@ -177,7 +178,7 @@ const zernioDailyJobs = [
     group: "zernio-daily",
     description: "Trigger Wednesday Writer's Corner post build and schedule for Wednesday.",
     schedule: { type: "manual" },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: "https://app.jonathan-harris.online/zernio/daily/wednesday",
     targetUrl: "https://app.jonathan-harris.online/zernio/daily/wednesday",
     targetPath: "/zernio/daily/wednesday",
@@ -188,7 +189,7 @@ const zernioDailyJobs = [
     group: "zernio-daily",
     description: "Trigger Thursday Industry AI post build and schedule for Thursday.",
     schedule: { type: "manual" },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: "https://app.jonathan-harris.online/zernio/daily/thursday",
     targetUrl: "https://app.jonathan-harris.online/zernio/daily/thursday",
     targetPath: "/zernio/daily/thursday",
@@ -199,7 +200,7 @@ const zernioDailyJobs = [
     group: "zernio-daily",
     description: "Trigger Friday post build and schedule for Friday.",
     schedule: { type: "manual" },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: "https://app.jonathan-harris.online/zernio/daily/friday",
     targetUrl: "https://app.jonathan-harris.online/zernio/daily/friday",
     targetPath: "/zernio/daily/friday",
@@ -210,7 +211,7 @@ const zernioDailyJobs = [
     group: "zernio-daily",
     description: "Trigger Saturday post build and schedule for Saturday.",
     schedule: { type: "manual" },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: "https://app.jonathan-harris.online/zernio/daily/saturday",
     targetUrl: "https://app.jonathan-harris.online/zernio/daily/saturday",
     targetPath: "/zernio/daily/saturday",
@@ -221,7 +222,7 @@ const zernioDailyJobs = [
     group: "zernio-daily",
     description: "Trigger Sunday post build and schedule for Sunday.",
     schedule: { type: "manual" },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: "https://app.jonathan-harris.online/zernio/daily/sunday",
     targetUrl: "https://app.jonathan-harris.online/zernio/daily/sunday",
     targetPath: "/zernio/daily/sunday",
@@ -234,7 +235,7 @@ const zernioWeeklyQuiz = postJob({
   group: "zernio-quiz",
   description: "Build and schedule the weekly AI quiz pair.",
   schedule: { type: "manual" },
-  hookEnv: null,
+  urlEnv: null,
   fallbackUrl: "https://app.jonathan-harris.online/zernio/quiz/weekly",
   targetUrl: "https://app.jonathan-harris.online/zernio/quiz/weekly",
   targetPath: "/zernio/quiz/weekly",
@@ -245,14 +246,15 @@ const monthlyAuditJobs = [
   postJob({
     id: "website-audit-pipeline",
     group: "audits",
-    description: "Run the complete website audit at 15:30 on the first Saturday of each month. AIMS owns the full council/report/RAMS sequence and MAST waits for terminal completion.",
-    schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: WEBSITE_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES },
-    hookEnv: null,
+    description: "Run the complete website audit at 09:00 on the first Sunday of each month. AIMS owns the full council/report/RAMS sequence and MAST waits for terminal completion.",
+    schedule: { type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: WEBSITE_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES },
+    urlEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/audits/website/run`,
     targetUrl: `${aimsBaseUrl()}/audits/website/run`,
     targetPath: "/audits/website/run",
     authEnv: "AIMS_API_KEY",
     requiredServices: koyebPowerManagementEnabled() ? ["aims", "rams"] : [],
+    pretriggerOffsets: { health: 20, preflight: 15, warmup: 10 },
     asyncStatus: {
       responseIdField: "sessionId",
       statusPath: "/audits/website/jobs/{id}",
@@ -263,7 +265,7 @@ const monthlyAuditJobs = [
     },
     body: {
       requestedBy: SERVICE_NAME,
-      notes: "First-Saturday website audit. AIMS owns sequencing, final PDF/HTML/JSON publication and RAMS remediation handoff.",
+      notes: "First-Sunday website audit. AIMS owns sequencing, final PDF/HTML/JSON publication and RAMS remediation handoff.",
     },
   }),
   postJob({
@@ -271,7 +273,7 @@ const monthlyAuditJobs = [
     group: "audits",
     description: "Run the complete AIMS audit on the second Saturday of each month. AIMS owns the full council/report/RAMS sequence.",
     schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "09:15", timezone: LOCAL_TIME_ZONE },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/audits/monthly/aims`,
     targetUrl: `${aimsBaseUrl()}/audits/monthly/aims`,
     targetPath: "/audits/monthly/aims",
@@ -297,7 +299,7 @@ const zernioEbooksWeekly = postJob({
   group: "zernio-ebooks",
   description: "Schedule the Tuesday, Thursday, and Saturday ebook posts for the current featured book.",
   schedule: { type: "manual" },
-  hookEnv: null,
+  urlEnv: null,
   fallbackUrl: "https://app.jonathan-harris.online/zernio/ebooks/weekly",
   targetUrl: "https://app.jonathan-harris.online/zernio/ebooks/weekly",
   targetPath: "/zernio/ebooks/weekly",
@@ -318,7 +320,7 @@ const blotatoVideoJobs = [
     group: "blotato-videos",
     description: "Trigger the Monday Blotato AI News Insight social video across Instagram, YouTube, TikTok, and Facebook.",
     schedule: { type: "manual" },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: "https://app.jonathan-harris.online/blotato/shorts/news-insight/publish-now",
     targetUrl: "https://app.jonathan-harris.online/blotato/shorts/news-insight/publish-now",
     targetPath: "/blotato/shorts/news-insight/publish-now",
@@ -329,7 +331,7 @@ const blotatoVideoJobs = [
     group: "blotato-videos",
     description: "Trigger the Tuesday Blotato AI model/tool verdict social video across Instagram, YouTube, TikTok, and Facebook.",
     schedule: { type: "manual" },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: "https://app.jonathan-harris.online/blotato/shorts/model-verdict/publish-now",
     targetUrl: "https://app.jonathan-harris.online/blotato/shorts/model-verdict/publish-now",
     targetPath: "/blotato/shorts/model-verdict/publish-now",
@@ -340,7 +342,7 @@ const blotatoVideoJobs = [
     group: "blotato-videos",
     description: "Trigger the Wednesday Blotato AI at Work social video across Instagram, YouTube, TikTok, and Facebook.",
     schedule: { type: "manual" },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: "https://app.jonathan-harris.online/blotato/shorts/ai-at-work/publish-now",
     targetUrl: "https://app.jonathan-harris.online/blotato/shorts/ai-at-work/publish-now",
     targetPath: "/blotato/shorts/ai-at-work/publish-now",
@@ -351,7 +353,7 @@ const blotatoVideoJobs = [
     group: "blotato-videos",
     description: "Trigger the Thursday Blotato AI risk and reality-check social video across Instagram, YouTube, TikTok, and Facebook.",
     schedule: { type: "manual" },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: "https://app.jonathan-harris.online/blotato/shorts/reality-check/publish-now",
     targetUrl: "https://app.jonathan-harris.online/blotato/shorts/reality-check/publish-now",
     targetPath: "/blotato/shorts/reality-check/publish-now",
@@ -362,7 +364,7 @@ const blotatoVideoJobs = [
     group: "blotato-videos",
     description: "Trigger the Friday Blotato AI playbook/how-to social video across Instagram, YouTube, TikTok, and Facebook.",
     schedule: { type: "manual" },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: "https://app.jonathan-harris.online/blotato/shorts/ai-playbook/publish-now",
     targetUrl: "https://app.jonathan-harris.online/blotato/shorts/ai-playbook/publish-now",
     targetPath: "/blotato/shorts/ai-playbook/publish-now",
@@ -375,7 +377,7 @@ const healthPing = getJob({
   group: "health",
   description: "Manual fallback ping for the AI Management Suite health endpoint.",
   schedule: { type: "manual" },
-  hookEnv: null,
+  urlEnv: null,
   fallbackUrl: "https://app.jonathan-harris.online/health",
   targetUrl: "https://app.jonathan-harris.online/health",
   targetPath: "/health",
@@ -386,7 +388,7 @@ const hiveKeepAwake = getJob({
   group: "hive",
   description: "Ping HIVE /healthz gently so the Koyeb free web service is less likely to sleep before ops work.",
   schedule: { type: "interval", everyMinutes: Number(process.env.HIVE_KEEPAWAKE_EVERY_MINUTES || 15) },
-  hookEnv: "HIVE_KEEPAWAKE_URL",
+  urlEnv: "HIVE_KEEPAWAKE_URL",
   fallbackUrl: "https://liable-loreen-jonathanharris-57884580.koyeb.app/healthz",
   targetUrl: "https://liable-loreen-jonathanharris-57884580.koyeb.app/healthz",
   targetPath: "/healthz",
@@ -398,7 +400,7 @@ const ramsJobs = [
     group: "rams",
     description: "Check RAMS liveness manually without bearer auth.",
     schedule: { type: "manual" },
-    hookEnv: "HOOK_RAMS_HEALTH",
+    urlEnv: null,
     fallbackUrl: "https://mod.jonathan-harris.online/health",
     targetUrl: "https://mod.jonathan-harris.online/health",
     targetPath: "/health",
@@ -408,7 +410,7 @@ const ramsJobs = [
     group: "rams",
     description: "Check authenticated RAMS dependency readiness before triggering remediation.",
     schedule: { type: "manual" },
-    hookEnv: "HOOK_RAMS_READINESS",
+    urlEnv: null,
     fallbackUrl: "https://mod.jonathan-harris.online/readiness",
     targetUrl: "https://mod.jonathan-harris.online/readiness",
     targetPath: "/readiness",
@@ -419,7 +421,7 @@ const ramsJobs = [
     group: "rams",
     description: "Manual RAMS On-Brand remediation recovery control. Normal audit remediation is triggered by AIMS in sequence.",
     schedule: { type: "manual" },
-    hookEnv: "HOOK_RAMS_REBUILD_ON_BRAND",
+    urlEnv: null,
     fallbackUrl: "https://mod.jonathan-harris.online/rebuild/on-brand/run",
     targetUrl: "https://mod.jonathan-harris.online/rebuild/on-brand/run",
     targetPath: "/rebuild/on-brand/run",
@@ -430,7 +432,7 @@ const ramsJobs = [
     group: "rams-reports",
     description: "Manual RAMS On-Brand report recovery control. Normal audit reporting is orchestrated by AIMS.",
     schedule: { type: "manual" },
-    hookEnv: "HOOK_RAMS_REPORT_ON_BRAND_LATEST",
+    urlEnv: null,
     fallbackUrl: "https://mod.jonathan-harris.online/reports/on-brand/latest",
     targetUrl: "https://mod.jonathan-harris.online/reports/on-brand/latest",
     targetPath: "/reports/on-brand/latest",
@@ -458,7 +460,7 @@ function koyebPowerJob({ id, group, description, schedule, serviceIdEnv, action 
       group,
       description,
       schedule,
-      hookEnv: null,
+      urlEnv: null,
       fallbackUrl: koyebServiceUrl(serviceIdEnv, action),
       targetUrl: koyebServiceUrl(serviceIdEnv, action),
       targetPath: `/v1/services/{${serviceIdEnv}}/${action}`,
@@ -494,8 +496,8 @@ const aimsPowerResumeFridayPodcast = koyebPowerJob({
 const aimsPowerResumeWebsiteAudit = koyebPowerJob({
   id: "aims-power-resume-website-audit",
   group: "power-aims",
-  description: "Resume AIMS at 15:00 for the first-Saturday website audit.",
-  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: WEBSITE_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES },
+  description: "Resume AIMS at 08:30 for the first-Sunday website audit.",
+  schedule: { type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: WEBSITE_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES },
   serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   action: "resume",
 });
@@ -512,8 +514,8 @@ const aimsPowerResumeAimsAudit = koyebPowerJob({
 const ramsPowerResumeWebsiteAudit = koyebPowerJob({
   id: "rams-power-resume-website-audit",
   group: "power-rams",
-  description: "Resume RAMS at 15:00 for the first-Saturday website audit remediation sequence controlled by AIMS.",
-  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: WEBSITE_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES },
+  description: "Resume RAMS at 08:30 for the first-Sunday website audit remediation sequence controlled by AIMS.",
+  schedule: { type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: WEBSITE_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES },
   serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   action: "resume",
 });
@@ -560,7 +562,7 @@ const aimsAuditPauseJobs = [
   posttriggerPauseJob({
     id: "aims-power-pause-after-website-audit",
     group: "power-aims",
-    description: "Pause AIMS one hour after the first-Saturday website audit pipeline finishes.",
+    description: "Pause AIMS one hour after the first-Sunday website audit pipeline finishes.",
     sourceJobId: "website-audit-pipeline",
     delayMinutes: 60,
     serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
@@ -579,7 +581,7 @@ const ramsAuditPauseJobs = [
   posttriggerPauseJob({
     id: "rams-power-pause-after-website-audit",
     group: "power-rams",
-    description: "Pause RAMS one hour after AIMS completes the first-Saturday website audit/remediation sequence.",
+    description: "Pause RAMS one hour after AIMS completes the first-Sunday website audit/remediation sequence.",
     sourceJobId: "website-audit-pipeline",
     delayMinutes: 60,
     serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
@@ -648,8 +650,8 @@ function hiveJob({ id, group, description, schedule, targetPath, method = "GET",
     authEnv: requiresAuth ? "HIVE_ADMIN_BEARER_TOKEN" : null,
   };
   return method === "POST"
-    ? postJob({ ...shared, hookEnv: null, fallbackUrl: url, body: body || {} })
-    : getJob({ ...shared, hookEnv: null, fallbackUrl: url });
+    ? postJob({ ...shared, urlEnv: null, fallbackUrl: url, body: body || {} })
+    : getJob({ ...shared, urlEnv: null, fallbackUrl: url });
 }
 
 const hiveGovernanceDailyJobs = [
@@ -795,7 +797,7 @@ const operationWindowJobs = [
     group: "operations",
     description: `${day} AM AIMS operating window: all weekday content preparation, including both scheduled Blotato posts; Monday also owns weekly blog, ebooks, quiz and the mini-series through its Zernio lane, while Friday also prepares weekend Zernio content.`,
     schedule: { type: "weekly", days: [day], time: String(process.env.MAST_AM_OPERATION_TIME || "09:00"), timezone: LOCAL_TIME_ZONE },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
     targetUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
     targetPath: `/ops/run/${day}-am`,
@@ -806,7 +808,7 @@ const operationWindowJobs = [
     group: "operations",
     description: "Friday podcast-only AIMS operating window.",
     schedule: { type: "weekly", days: ["friday"], time: String(process.env.MAST_FRIDAY_PM_OPERATION_TIME || "15:00"), timezone: LOCAL_TIME_ZONE },
-    hookEnv: null,
+    urlEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/ops/run/friday-pm`,
     targetUrl: `${aimsBaseUrl()}/ops/run/friday-pm`,
     targetPath: "/ops/run/friday-pm",
@@ -875,7 +877,7 @@ function pretriggerJob(sourceJob, stage, offsetMinutes) {
     description: `Run ${stage} check ${offsetMinutes} minutes before ${sourceJob.id}.`,
     method: "GET",
     schedule: { type: "pretrigger", sourceJobId: sourceJob.id, offsetMinutes },
-    hookEnv: null,
+    urlEnv: null,
     url: pretriggerUrl(stage, sourceJob, offsetMinutes),
     targetUrl: pretriggerUrl(stage, sourceJob, offsetMinutes),
     targetPath: `/ops/${stage}`,
@@ -900,11 +902,14 @@ function buildPretriggerJobs(sourceJobs) {
 
   return sourceJobs
     .filter(shouldHavePretriggers)
-    .flatMap((job) => [
-      pretriggerJob(job, "health", 180),
-      pretriggerJob(job, "preflight", 120),
-      pretriggerJob(job, "warmup", 30),
-    ]);
+    .flatMap((job) => {
+      const offsets = job.pretriggerOffsets || { health: 180, preflight: 120, warmup: 30 };
+      return [
+        pretriggerJob(job, "health", Number(offsets.health ?? 180)),
+        pretriggerJob(job, "preflight", Number(offsets.preflight ?? 120)),
+        pretriggerJob(job, "warmup", Number(offsets.warmup ?? 30)),
+      ];
+    });
 }
 
 export const pretriggerJobs = buildPretriggerJobs(baseJobs);
