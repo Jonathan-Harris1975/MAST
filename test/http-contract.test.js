@@ -26,6 +26,10 @@ test("MAST exposes hardened health and readiness contracts", async (t) => {
       CRON_ADMIN_TOKEN: "test-admin-token",
       AIMS_API_KEY: "test-aims-token",
       RMS_API_KEY: "test-rams-token",
+      KOYEB_POWER_MANAGEMENT_ENABLED: "true",
+      KOYEB_TOKEN: "test-koyeb-token",
+      KOYEB_SERVICE_ID_AIMS: "test-aims-service",
+      KOYEB_SERVICE_ID_RAMS: "test-rams-service",
       SCHEDULER_ENABLED: "true",
       SCHEDULER_STARTUP_TICK_ENABLED: "false",
       MAST_STATE_BACKEND: "local",
@@ -41,7 +45,7 @@ test("MAST exposes hardened health and readiness contracts", async (t) => {
   assert.equal(health.headers.get("x-content-type-options"), "nosniff");
   const healthBody = await health.json();
   assert.equal(healthBody.status, "healthy");
-  assert.equal(healthBody.version, "1.1.0");
+  assert.equal(healthBody.version, "1.2.3");
 
   const ready = await fetch(`http://127.0.0.1:${port}/readyz`);
   assert.equal(ready.status, 200);

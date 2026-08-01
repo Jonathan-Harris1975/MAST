@@ -25,7 +25,7 @@ test("MAST exposes five AM windows plus the Friday podcast window", () => {
     assert.equal(job.method, "POST");
     assert.equal(job.authEnv, "AIMS_API_KEY");
     assert.match(job.url, /^https:\/\/app\.jonathan-harris\.online\/ops\/run\//);
-    assert.equal(job.hookEnv, null);
+    assert.equal(job.urlEnv, null);
   }
 });
 
@@ -44,7 +44,7 @@ test("legacy task-level content jobs remain manual fallbacks and cannot double-f
     const job = baseJobs.find((item) => item.id === id);
     assert.ok(job, `${id} should remain available for manual recovery`);
     assert.equal(job.schedule.type, "manual", `${id} must not retain an independent schedule`);
-    assert.equal(job.hookEnv, null, `${id} must use the direct app endpoint`);
+    assert.equal(job.urlEnv, null, `${id} must use the direct app endpoint`);
   }
 });
 
@@ -58,11 +58,11 @@ test("Friday PM wakes at 14:30 and starts podcast at 15:00", () => {
   assert.match(job.description, /podcast-only/i);
 });
 
-test("website and AIMS audits use first and second Saturday only", () => {
+test("website audit uses the first Sunday while the AIMS audit remains second Saturday", () => {
   const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
   const aims = baseJobs.find((job) => job.id === "aims-audit-pipeline");
   assert.deepEqual(website.schedule, {
-    type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "15:30", timezone: "Europe/London", catchUpMinutes: 180,
+    type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: "09:00", timezone: "Europe/London", catchUpMinutes: 180,
   });
   assert.deepEqual(aims.schedule, {
     type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "09:15", timezone: "Europe/London",
@@ -72,26 +72,32 @@ test("website and AIMS audits use first and second Saturday only", () => {
   assert.equal(aims.asyncStatus.statusPath, "/audits/content-master/jobs/{id}");
   assert.equal(website.asyncStatus.statusPath, "/audits/website/jobs/{id}");
 
-  assert.equal(isTimedJobDue(website, new Date("2026-08-01T14:30:00.000Z")), true);
-  assert.equal(isTimedJobDue(website, new Date("2026-08-01T15:15:00.000Z")), true);
-  assert.equal(isTimedJobDue(website, new Date("2026-08-01T17:29:00.000Z")), true);
-  assert.equal(isTimedJobDue(website, new Date("2026-08-01T17:31:00.000Z")), false);
-  assert.equal(isTimedJobDue(website, new Date("2026-08-08T14:30:00.000Z")), false);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-02T08:00:00.000Z")), true);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-02T10:59:00.000Z")), true);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-02T11:01:00.000Z")), false);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-09T08:00:00.000Z")), false);
   assert.equal(isTimedJobDue(aims, new Date("2026-08-08T08:15:00.000Z")), true);
 });
 
 
-test("first-Saturday website audit wakes AIMS and RAMS at 15:00", () => {
+test("first-Sunday website audit wakes AIMS and RAMS at 08:30", () => {
   for (const id of ["aims-power-resume-website-audit", "rams-power-resume-website-audit"]) {
     const wake = baseJobs.find((job) => job.id === id);
     assert.deepEqual(wake.schedule, {
-      type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "15:00", timezone: "Europe/London", catchUpMinutes: 120,
+      type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: "08:30", timezone: "Europe/London", catchUpMinutes: 120,
     });
-    assert.equal(isTimedJobDue(wake, new Date("2026-08-01T14:00:00.000Z")), true);
-    assert.equal(isTimedJobDue(wake, new Date("2026-08-01T14:25:00.000Z")), true);
-    assert.equal(isTimedJobDue(wake, new Date("2026-08-01T15:59:00.000Z")), true);
-    assert.equal(isTimedJobDue(wake, new Date("2026-08-01T16:01:00.000Z")), false);
+    assert.equal(isTimedJobDue(wake, new Date("2026-08-02T07:30:00.000Z")), true);
+    assert.equal(isTimedJobDue(wake, new Date("2026-08-02T09:29:00.000Z")), true);
+    assert.equal(isTimedJobDue(wake, new Date("2026-08-02T09:31:00.000Z")), false);
   }
+});
+
+
+test("website audit pretriggers run after the 08:30 wake", () => {
+  const stages = Object.fromEntries(pretriggerJobs
+    .filter((job) => job.sourceJobId === "website-audit-pipeline")
+    .map((job) => [job.pretriggerStage, job.pretriggerOffsetMinutes]));
+  assert.deepEqual(stages, { health: 20, preflight: 15, warmup: 10 });
 });
 
 test("audit jobs wait until both AIMS and RAMS are online", () => {
