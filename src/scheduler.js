@@ -248,7 +248,32 @@ export function buildRunKey(job, at) {
   }
 
   const parts = localParts(at, schedule.timezone || LOCAL_TIME_ZONE);
-  return `${job.id}:${parts.timezone}:${parts.date}:${parts.time}`;
+  const scheduledTime = ["weekly", "monthly", "nth-weekday-monthly"].includes(schedule.type)
+    ? schedule.time
+    : parts.time;
+  return `${job.id}:${parts.timezone}:${parts.date}:${scheduledTime}`;
+}
+
+function minuteOfDay(value = "") {
+  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ""));
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
+function timeIsDue(parts, schedule) {
+  const nowMinute = minuteOfDay(parts.time);
+  const scheduledMinute = minuteOfDay(schedule.time);
+  if (nowMinute === null || scheduledMinute === null) return false;
+  const catchUpMinutes = Math.max(0, Number(schedule.catchUpMinutes || 0));
+  const elapsed = nowMinute - scheduledMinute;
+  return elapsed >= 0 && elapsed <= catchUpMinutes;
+}
+
+function nthWeekdayOccurrence(dayOfMonth) {
+  return Math.ceil(Number(dayOfMonth) / 7);
 }
 
 export function isTimedJobDue(job, at = new Date()) {
@@ -272,12 +297,18 @@ export function isTimedJobDue(job, at = new Date()) {
   if (schedule.type === "weekly") {
     return Array.isArray(schedule.days)
       && schedule.days.includes(parts.weekday)
-      && parts.time === schedule.time;
+      && timeIsDue(parts, schedule);
   }
 
   if (schedule.type === "monthly") {
     return parts.dayOfMonth === Number(schedule.dayOfMonth)
-      && parts.time === schedule.time;
+      && timeIsDue(parts, schedule);
+  }
+
+  if (schedule.type === "nth-weekday-monthly") {
+    return parts.weekday === String(schedule.weekday || "").toLowerCase()
+      && nthWeekdayOccurrence(parts.dayOfMonth) === Number(schedule.occurrence)
+      && timeIsDue(parts, schedule);
   }
 
   return false;
@@ -297,8 +328,18 @@ export function isIntervalJobDue(job, at = new Date(), currentState = state) {
   return !Number.isFinite(last) || at.getTime() - last >= everyMs;
 }
 
+export function requiredServicesReady(job, currentState = state) {
+  const required = Array.isArray(job?.requiredServices) ? job.requiredServices : [];
+  if (!required.length) return true;
+  return required.every((service) => {
+    const lifecycle = currentState?.services?.[service];
+    return lifecycle && ["online", "busy"].includes(lifecycle.state);
+  });
+}
+
 export function dueJobsAt(at = new Date(), currentState = state) {
   return jobs.filter((job) => {
+    if (!requiredServicesReady(job, currentState)) return false;
     if (job.schedule?.type === "interval") {
       return isIntervalJobDue(job, at, currentState);
     }
@@ -647,6 +688,8 @@ function resultSummary(result) {
     sourceJobId: result.sourceJobId || null,
     operationStatus: result.operationJob?.status || result.operationFailure?.status || null,
     operationFailures: Number(result.operationJob?.failures ?? result.operationFailure?.failures ?? 0),
+    asyncStatus: result.asyncJob?.status || result.asyncFailure?.status || null,
+    asyncId: result.asyncJob?.asyncId || result.asyncFailure?.asyncId || null,
   };
 }
 
@@ -751,6 +794,54 @@ async function fetchWithRetry(url, options, config) {
   }
 
   throw lastError || new Error("Request failed before response was created");
+}
+
+function valueAtPath(value, path = "") {
+  return String(path || "").split(".").filter(Boolean).reduce((current, key) => current?.[key], value);
+}
+
+async function waitForConfiguredAsyncStatus(job, responseText) {
+  const config = job.asyncStatus;
+  if (!config) return null;
+
+  let payload;
+  try {
+    payload = JSON.parse(responseText);
+  } catch {
+    throw new Error(`${job.id} async response was not valid JSON`);
+  }
+
+  const asyncId = valueAtPath(payload, config.responseIdField || "sessionId");
+  if (!asyncId) throw new Error(`${job.id} async response omitted ${config.responseIdField || "sessionId"}`);
+
+  const statusPath = String(config.statusPath || "").replace("{id}", encodeURIComponent(String(asyncId)));
+  if (!statusPath) throw new Error(`${job.id} async status path is not configured`);
+  const statusUrl = new URL(statusPath, job.url).toString();
+  const successStatuses = new Set(config.successStatuses || ["completed"]);
+  const failureStatuses = new Set(config.failureStatuses || ["failed"]);
+  const pendingStatuses = new Set(config.pendingStatuses || ["queued", "accepted", "running"]);
+  const deadline = Date.now() + CONFIG.aimsOperationTimeoutMs;
+
+  while (Date.now() < deadline) {
+    const response = await fetchWithRetry(statusUrl, {
+      method: "GET",
+      headers: buildRequestHeaders(job, `poll:${asyncId}`),
+      redirect: "follow",
+    }, CONFIG);
+    const text = await response.text();
+    if (!response.ok) throw new Error(`${job.id} async status returned HTTP ${response.status}: ${text.slice(0, 300)}`);
+    const statusPayload = JSON.parse(text);
+    const currentStatus = valueAtPath(statusPayload, config.statusField || "status");
+    if (!currentStatus) throw new Error(`${job.id} async status response omitted ${config.statusField || "status"}`);
+    const current = statusPayload?.job || statusPayload;
+    if (successStatuses.has(currentStatus) || failureStatuses.has(currentStatus)) {
+      return { ...current, status: currentStatus, asyncId, statusUrl };
+    }
+    if (!pendingStatuses.has(currentStatus)) throw new Error(`Unexpected ${job.id} async status: ${currentStatus}`);
+    await sleep(CONFIG.aimsOperationPollIntervalMs);
+  }
+
+  throw new Error(`${job.id} async job ${asyncId} exceeded ${CONFIG.aimsOperationTimeoutMs}ms timeout`);
 }
 
 async function waitForAimsOperation(job, responseText) {
@@ -880,8 +971,10 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
 
     const responseText = await response.text();
     const operationJob = response.ok ? await waitForAimsOperation(job, responseText) : null;
+    const asyncJob = response.ok ? await waitForConfiguredAsyncStatus(job, responseText) : null;
     const operationOk = !operationJob || (operationJob.status === "completed" && Number(operationJob.failures || 0) === 0);
-    const jobOk = response.ok && operationOk;
+    const asyncOk = !asyncJob || (job.asyncStatus?.successStatuses || ["completed"]).includes(asyncJob.status);
+    const jobOk = response.ok && operationOk && asyncOk;
     const finishedAt = new Date();
 
     const result = {
@@ -896,6 +989,12 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
         status: operationJob.status,
         failures: Number(operationJob.failures || 0),
         results: operationJob.results || [],
+      } : null,
+      asyncJob,
+      asyncFailure: asyncJob && !asyncOk ? {
+        status: asyncJob.status,
+        asyncId: asyncJob.asyncId || null,
+        error: asyncJob.error || null,
       } : null,
       payload: payload || null,
       startedAt: startedAt.toISOString(),
@@ -976,6 +1075,12 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
   }
 }
 
+export function dueJobPriority(job) {
+  if (job?.lifecycle?.action === "resume") return 0;
+  if (job?.lifecycle?.action === "pause") return 2;
+  return 1;
+}
+
 export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" } = {}) {
   await loadState();
   const previousTick = Date.parse(state.lastTickAt || "");
@@ -1002,7 +1107,8 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
     };
   }
 
-  const due = dueJobsAt(at, state);
+  const due = dueJobsAt(at, state)
+    .sort((left, right) => dueJobPriority(left) - dueJobPriority(right));
   const results = [];
 
   if (!due.length) {

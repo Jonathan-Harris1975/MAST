@@ -4,6 +4,10 @@ export const USER_AGENT = "Jonathan-Harris-MAST/1.2.2 (+https://jonathan-harris.
 
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const WEEKDAYS_MON_TO_FRI = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+const WEBSITE_AUDIT_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME || "15:00");
+const WEBSITE_AUDIT_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "15:30");
+const WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
+const WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES || 180));
 
 function endpoint(envName, fallbackUrl) {
   const configured = process.env[envName];
@@ -24,7 +28,7 @@ export function koyebServiceUrl(serviceIdEnvName, action) {
   return `https://app.koyeb.com/v1/services/${serviceId}/${action}`;
 }
 
-function postJob({ id, group, description, schedule, hookEnv, fallbackUrl, targetUrl, targetPath, body, addLocalDateAsWeekStartDate = false, authEnv = null }) {
+function postJob({ id, group, description, schedule, hookEnv, fallbackUrl, targetUrl, targetPath, body, addLocalDateAsWeekStartDate = false, authEnv = null, asyncStatus = null, requiredServices = [] }) {
   return {
     id,
     group,
@@ -38,6 +42,8 @@ function postJob({ id, group, description, schedule, hookEnv, fallbackUrl, targe
     body: body || {},
     addLocalDateAsWeekStartDate,
     authEnv,
+    asyncStatus,
+    requiredServices,
   };
 }
 
@@ -239,13 +245,22 @@ const monthlyAuditJobs = [
   postJob({
     id: "website-audit-pipeline",
     group: "audits",
-    description: "Run the complete website audit on the first Saturday of each month. AIMS owns the full council/report/RAMS sequence.",
-    schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "14:00", timezone: LOCAL_TIME_ZONE },
+    description: "Run the complete website audit at 15:30 on the first Saturday of each month. AIMS owns the full council/report/RAMS sequence and MAST waits for terminal completion.",
+    schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: WEBSITE_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES },
     hookEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/audits/website/run`,
     targetUrl: `${aimsBaseUrl()}/audits/website/run`,
     targetPath: "/audits/website/run",
     authEnv: "AIMS_API_KEY",
+    requiredServices: koyebPowerManagementEnabled() ? ["aims", "rams"] : [],
+    asyncStatus: {
+      responseIdField: "sessionId",
+      statusPath: "/audits/website/jobs/{id}",
+      statusField: "job.status",
+      successStatuses: ["completed"],
+      pendingStatuses: ["queued", "accepted", "running"],
+      failureStatuses: ["failed"],
+    },
     body: {
       requestedBy: SERVICE_NAME,
       notes: "First-Saturday website audit. AIMS owns sequencing, final PDF/HTML/JSON publication and RAMS remediation handoff.",
@@ -257,10 +272,19 @@ const monthlyAuditJobs = [
     description: "Run the complete AIMS audit on the second Saturday of each month. AIMS owns the full council/report/RAMS sequence.",
     schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "09:15", timezone: LOCAL_TIME_ZONE },
     hookEnv: null,
-    fallbackUrl: `${aimsBaseUrl()}/audits/aims/run`,
-    targetUrl: `${aimsBaseUrl()}/audits/aims/run`,
-    targetPath: "/audits/aims/run",
+    fallbackUrl: `${aimsBaseUrl()}/audits/monthly/aims`,
+    targetUrl: `${aimsBaseUrl()}/audits/monthly/aims`,
+    targetPath: "/audits/monthly/aims",
     authEnv: "AIMS_API_KEY",
+    requiredServices: koyebPowerManagementEnabled() ? ["aims", "rams"] : [],
+    asyncStatus: {
+      responseIdField: "sessionId",
+      statusPath: "/audits/content-master/jobs/{id}",
+      statusField: "status",
+      successStatuses: ["completed"],
+      pendingStatuses: ["queued", "accepted", "running"],
+      failureStatuses: ["failed"],
+    },
     body: {
       requestedBy: SERVICE_NAME,
       notes: "Second-Saturday AIMS audit. AIMS owns sequencing, final PDF/HTML/JSON publication and RAMS remediation handoff.",
@@ -470,8 +494,8 @@ const aimsPowerResumeFridayPodcast = koyebPowerJob({
 const aimsPowerResumeWebsiteAudit = koyebPowerJob({
   id: "aims-power-resume-website-audit",
   group: "power-aims",
-  description: "Resume AIMS at 09:00 for the first-Saturday website audit.",
-  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "09:00", timezone: LOCAL_TIME_ZONE },
+  description: "Resume AIMS at 15:00 for the first-Saturday website audit.",
+  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: WEBSITE_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES },
   serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   action: "resume",
 });
@@ -488,8 +512,8 @@ const aimsPowerResumeAimsAudit = koyebPowerJob({
 const ramsPowerResumeWebsiteAudit = koyebPowerJob({
   id: "rams-power-resume-website-audit",
   group: "power-rams",
-  description: "Resume RAMS for the first-Saturday website audit remediation sequence controlled by AIMS.",
-  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "09:00", timezone: LOCAL_TIME_ZONE },
+  description: "Resume RAMS at 15:00 for the first-Saturday website audit remediation sequence controlled by AIMS.",
+  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: WEBSITE_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES },
   serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   action: "resume",
 });
