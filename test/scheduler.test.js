@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { baseJobs, jobs, pretriggerJobs } from "../src/jobs.js";
-import { isTimedJobDue } from "../src/scheduler.js";
+import { dueJobPriority, isTimedJobDue, requiredServicesReady } from "../src/scheduler.js";
 
 const operationIds = [
   "operation-monday-am", "operation-tuesday-am", "operation-wednesday-am",
@@ -62,17 +62,49 @@ test("website and AIMS audits use first and second Saturday only", () => {
   const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
   const aims = baseJobs.find((job) => job.id === "aims-audit-pipeline");
   assert.deepEqual(website.schedule, {
-    type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "09:15", timezone: "Europe/London",
+    type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "15:30", timezone: "Europe/London", catchUpMinutes: 180,
   });
   assert.deepEqual(aims.schedule, {
     type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "09:15", timezone: "Europe/London",
   });
   assert.equal(website.targetPath, "/audits/website/run");
-  assert.equal(aims.targetPath, "/audits/aims/run");
+  assert.equal(aims.targetPath, "/audits/monthly/aims");
+  assert.equal(aims.asyncStatus.statusPath, "/audits/content-master/jobs/{id}");
+  assert.equal(website.asyncStatus.statusPath, "/audits/website/jobs/{id}");
 
-  assert.equal(isTimedJobDue(website, new Date("2026-08-01T08:15:00.000Z")), true);
-  assert.equal(isTimedJobDue(website, new Date("2026-08-08T08:15:00.000Z")), false);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-01T14:30:00.000Z")), true);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-01T15:15:00.000Z")), true);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-01T17:29:00.000Z")), true);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-01T17:31:00.000Z")), false);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-08T14:30:00.000Z")), false);
   assert.equal(isTimedJobDue(aims, new Date("2026-08-08T08:15:00.000Z")), true);
+});
+
+
+test("first-Saturday website audit wakes AIMS and RAMS at 15:00", () => {
+  for (const id of ["aims-power-resume-website-audit", "rams-power-resume-website-audit"]) {
+    const wake = baseJobs.find((job) => job.id === id);
+    assert.deepEqual(wake.schedule, {
+      type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "15:00", timezone: "Europe/London", catchUpMinutes: 120,
+    });
+    assert.equal(isTimedJobDue(wake, new Date("2026-08-01T14:00:00.000Z")), true);
+    assert.equal(isTimedJobDue(wake, new Date("2026-08-01T14:25:00.000Z")), true);
+    assert.equal(isTimedJobDue(wake, new Date("2026-08-01T15:59:00.000Z")), true);
+    assert.equal(isTimedJobDue(wake, new Date("2026-08-01T16:01:00.000Z")), false);
+  }
+});
+
+test("audit jobs wait until both AIMS and RAMS are online", () => {
+  const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
+  assert.deepEqual(website.requiredServices, ["aims", "rams"]);
+  assert.equal(requiredServicesReady(website, { services: { aims: { state: "online" }, rams: { state: "starting" } } }), false);
+  assert.equal(requiredServicesReady(website, { services: { aims: { state: "online" }, rams: { state: "online" } } }), true);
+});
+
+test("resume jobs are prioritised before audit work and pause jobs", () => {
+  assert.equal(dueJobPriority({ lifecycle: { action: "resume" } }), 0);
+  assert.equal(dueJobPriority({ group: "audits" }), 1);
+  assert.equal(dueJobPriority({ lifecycle: { action: "pause" } }), 2);
 });
 
 test("audit RAMS rebuild routes are manual because AIMS owns sequencing", () => {
