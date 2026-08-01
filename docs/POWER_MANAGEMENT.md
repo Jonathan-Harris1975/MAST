@@ -25,7 +25,7 @@ the podcast pipeline.
 
 ## Governed audit windows
 
-The first-Saturday website audit and second-Saturday AIMS audit retain their governed
+The first-Sunday website audit and second-Saturday AIMS audit retain their governed
 wake sequence. AIMS and RAMS pause one hour after the relevant audit pipeline finishes,
 allowing final reports and remediation state to settle.
 
