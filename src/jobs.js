@@ -240,7 +240,7 @@ const monthlyAuditJobs = [
     id: "website-audit-pipeline",
     group: "audits",
     description: "Run the complete website audit on the first Saturday of each month. AIMS owns the full council/report/RAMS sequence.",
-    schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "09:15", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "14:00", timezone: LOCAL_TIME_ZONE },
     hookEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/audits/website/run`,
     targetUrl: `${aimsBaseUrl()}/audits/website/run`,
