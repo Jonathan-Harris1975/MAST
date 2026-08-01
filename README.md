@@ -49,10 +49,10 @@ MAST provides six normal weekday operation triggers. AIMS owns task sequencing i
 
 ## Monthly audit windows
 
-MAST has two scheduled audit entry points only:
+MAST has two scheduled audit entry points only. The website audit uses a 30-minute cold-start window and does not begin until both AIMS and RAMS are online:
 
-- **First Saturday, 09:15:** `POST /audits/website/run`
-- **Second Saturday, 09:15:** `POST /audits/aims/run`
+- **First Sunday, 09:00:** `POST /audits/website/run` after AIMS and RAMS wake at 08:30
+- **Second Saturday, 09:15:** `POST /audits/monthly/aims`
 
 AIMS owns every downstream audit stage, council, final report and RAMS remediation
 sequence. MAST does not independently schedule RAMS rebuild pipelines. This keeps
