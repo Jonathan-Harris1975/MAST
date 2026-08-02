@@ -19,8 +19,11 @@ test("production env patch keeps operation polling and canonical times", async (
   const patch = await readFile(new URL("../MAST-KOYEB-PRODUCTION-ENV-PATCH.txt", import.meta.url), "utf8");
   assert.match(patch, /^MAST_AM_OPERATION_TIME=09:00$/m);
   assert.match(patch, /^MAST_FRIDAY_PM_OPERATION_TIME=15:00$/m);
-  assert.match(patch, /^MAST_WEBSITE_AUDIT_WAKE_TIME=20:00$/m);
-  assert.match(patch, /^MAST_WEBSITE_AUDIT_RUN_TIME=20:30$/m);
+  assert.match(patch, /^MAST_WEBSITE_AUDIT_WAKE_TIME=22:00$/m);
+  assert.match(patch, /^MAST_WEBSITE_AUDIT_RUN_TIME=22:30$/m);
+  assert.match(patch, /^SERVICE_RESUME_POLL_MAX_ATTEMPTS=180$/m);
+  assert.match(patch, /^SERVICE_RESUME_POLL_INTERVAL_MS=5000$/m);
+  assert.match(patch, /^SERVICE_HEALTH_PROBE_TIMEOUT_MS=15000$/m);
   assert.match(patch, /^MAST_AIMS_OPERATION_POLL_INTERVAL_MS=15000$/m);
   assert.match(patch, /^MAST_AIMS_OPERATION_TIMEOUT_MS=28800000$/m);
   assert.match(patch, /^KOYEB_POWER_MANAGEMENT_ENABLED=true$/m);
@@ -42,4 +45,14 @@ test("operation triggers fail closed when AIMS omits a pollable job", async () =
   const scheduler = await readFile(new URL("../src/scheduler.js", import.meta.url), "utf8");
   assert.match(scheduler, /AIMS operation response was not valid JSON/);
   assert.match(scheduler, /AIMS operation response omitted job\.id/);
+});
+
+
+test("stale lifecycle records are re-probed before a due job is blocked", async () => {
+  const scheduler = await readFile(new URL("../src/scheduler.js", import.meta.url), "utf8");
+  assert.match(scheduler, /reconcileDueJobServiceReadiness/);
+  assert.match(scheduler, /scheduled-readiness-reprobe-succeeded/);
+  assert.match(scheduler, /job-blocked-required-services/);
+  assert.match(scheduler, /SERVICE_RESUME_POLL_MAX_ATTEMPTS", 180/);
+  assert.match(scheduler, /SERVICE_HEALTH_PROBE_TIMEOUT_MS", 15_000/);
 });
