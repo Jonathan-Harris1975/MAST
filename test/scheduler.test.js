@@ -62,7 +62,7 @@ test("website audit uses the first Sunday while the AIMS audit remains second Sa
   const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
   const aims = baseJobs.find((job) => job.id === "aims-audit-pipeline");
   assert.deepEqual(website.schedule, {
-    type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: "18:30", timezone: "Europe/London", catchUpMinutes: 180,
+    type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: "20:30", timezone: "Europe/London", catchUpMinutes: 180,
   });
   assert.deepEqual(aims.schedule, {
     type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "09:15", timezone: "Europe/London",
@@ -72,28 +72,28 @@ test("website audit uses the first Sunday while the AIMS audit remains second Sa
   assert.equal(aims.asyncStatus.statusPath, "/audits/content-master/jobs/{id}");
   assert.equal(website.asyncStatus.statusPath, "/audits/website/jobs/{id}");
 
-  assert.equal(isTimedJobDue(website, new Date("2026-08-02T17:30:00.000Z")), true);
-  assert.equal(isTimedJobDue(website, new Date("2026-08-02T20:29:00.000Z")), true);
-  assert.equal(isTimedJobDue(website, new Date("2026-08-02T20:31:00.000Z")), false);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-02T19:30:00.000Z")), true);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-02T22:29:00.000Z")), true);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-02T22:31:00.000Z")), false);
   assert.equal(isTimedJobDue(website, new Date("2026-08-09T08:00:00.000Z")), false);
   assert.equal(isTimedJobDue(aims, new Date("2026-08-08T08:15:00.000Z")), true);
 });
 
 
-test("first-Sunday website audit wakes AIMS and RAMS at 18:00", () => {
+test("first-Sunday website audit wakes AIMS and RAMS at 20:00", () => {
   for (const id of ["aims-power-resume-website-audit", "rams-power-resume-website-audit"]) {
     const wake = baseJobs.find((job) => job.id === id);
     assert.deepEqual(wake.schedule, {
-      type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: "18:00", timezone: "Europe/London", catchUpMinutes: 120,
+      type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: "20:00", timezone: "Europe/London", catchUpMinutes: 120,
     });
-    assert.equal(isTimedJobDue(wake, new Date("2026-08-02T17:00:00.000Z")), true);
-    assert.equal(isTimedJobDue(wake, new Date("2026-08-02T18:59:00.000Z")), true);
-    assert.equal(isTimedJobDue(wake, new Date("2026-08-02T19:01:00.000Z")), false);
+    assert.equal(isTimedJobDue(wake, new Date("2026-08-02T19:00:00.000Z")), true);
+    assert.equal(isTimedJobDue(wake, new Date("2026-08-02T20:59:00.000Z")), true);
+    assert.equal(isTimedJobDue(wake, new Date("2026-08-02T21:01:00.000Z")), false);
   }
 });
 
 
-test("website audit pretriggers run after the 18:00 wake", () => {
+test("website audit pretriggers run after the 20:00 wake", () => {
   const stages = Object.fromEntries(pretriggerJobs
     .filter((job) => job.sourceJobId === "website-audit-pipeline")
     .map((job) => [job.pretriggerStage, job.pretriggerOffsetMinutes]));
