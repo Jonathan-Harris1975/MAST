@@ -155,3 +155,29 @@ test("HIVE and RAMS governance controls remain present", () => {
   assert.ok(baseJobs.some((job) => job.id === "website-audit-pipeline"));
   assert.ok(baseJobs.some((job) => job.id === "aims-audit-pipeline"));
 });
+
+test("one-off recovery slot wakes at 00:30 and runs at 01:00 on 3 August 2026", () => {
+  const audit = baseJobs.find((job) => job.id === "website-audit-test-pipeline-2026-08-03");
+  assert.ok(audit);
+  assert.deepEqual(audit.schedule, {
+    type: "once", date: "2026-08-03", time: "01:00", timezone: "Europe/London", catchUpMinutes: 180,
+  });
+  assert.equal(audit.body.forceNewRun, true);
+  assert.deepEqual(audit.requiredServices, ["aims"]);
+  assert.equal(isTimedJobDue(audit, new Date("2026-08-03T00:00:00.000Z")), true);
+  assert.equal(isTimedJobDue(audit, new Date("2026-08-04T00:00:00.000Z")), false);
+
+  for (const id of ["aims-power-resume-website-audit-test-2026-08-03", "rams-power-resume-website-audit-test-2026-08-03"]) {
+    const wake = baseJobs.find((job) => job.id === id);
+    assert.ok(wake);
+    assert.deepEqual(wake.schedule, {
+      type: "once", date: "2026-08-03", time: "00:30", timezone: "Europe/London", catchUpMinutes: 180,
+    });
+    assert.equal(isTimedJobDue(wake, new Date("2026-08-02T23:30:00.000Z")), true);
+  }
+
+  const stages = Object.fromEntries(pretriggerJobs
+    .filter((job) => job.sourceJobId === audit.id)
+    .map((job) => [job.pretriggerStage, job.pretriggerOffsetMinutes]));
+  assert.deepEqual(stages, { health: 20, preflight: 15, warmup: 10 });
+});
