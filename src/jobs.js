@@ -8,6 +8,12 @@ const WEBSITE_AUDIT_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME 
 const WEBSITE_AUDIT_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "22:30");
 const WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 const WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES || 180));
+// One-off recovery slot. The date makes this self-expiring after the test night,
+// while the catch-up window lets a late deployment still execute safely.
+const WEBSITE_AUDIT_TEST_DATE = String(process.env.MAST_WEBSITE_AUDIT_TEST_DATE || "2026-08-03");
+const WEBSITE_AUDIT_TEST_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_WAKE_TIME || "00:30");
+const WEBSITE_AUDIT_TEST_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_RUN_TIME || "01:00");
+const WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES || 180));
 
 function endpoint(envName, fallbackUrl) {
   const configured = process.env[envName];
@@ -294,6 +300,35 @@ const monthlyAuditJobs = [
   }),
 ];
 
+const websiteAuditTestJobs = [
+  postJob({
+    id: "website-audit-test-pipeline-2026-08-03",
+    group: "audits",
+    description: `One-off recovery test: run the complete website audit at ${WEBSITE_AUDIT_TEST_RUN_TIME} on ${WEBSITE_AUDIT_TEST_DATE}.`,
+    schedule: { type: "once", date: WEBSITE_AUDIT_TEST_DATE, time: WEBSITE_AUDIT_TEST_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES },
+    urlEnv: null,
+    fallbackUrl: `${aimsBaseUrl()}/audits/website/run`,
+    targetUrl: `${aimsBaseUrl()}/audits/website/run`,
+    targetPath: "/audits/website/run",
+    authEnv: "AIMS_API_KEY",
+    requiredServices: koyebPowerManagementEnabled() ? ["aims"] : [],
+    pretriggerOffsets: { health: 20, preflight: 15, warmup: 10 },
+    asyncStatus: {
+      responseIdField: "sessionId",
+      statusPath: "/audits/website/jobs/{id}",
+      statusField: "job.status",
+      successStatuses: ["completed"],
+      pendingStatuses: ["queued", "accepted", "running"],
+      failureStatuses: ["failed"],
+    },
+    body: {
+      requestedBy: SERVICE_NAME,
+      forceNewRun: true,
+      notes: "One-off 2026-08-03 recovery test after audit evidence-contract repairs. AIMS owns sequencing, final publication and the downstream RAMS handoff.",
+    },
+  }),
+];
+
 const zernioEbooksWeekly = postJob({
   id: "zernio-ebooks-weekly",
   group: "zernio-ebooks",
@@ -520,6 +555,24 @@ const ramsPowerResumeWebsiteAudit = koyebPowerJob({
   action: "resume",
 });
 
+const aimsPowerResumeWebsiteAuditTest = koyebPowerJob({
+  id: "aims-power-resume-website-audit-test-2026-08-03",
+  group: "power-aims",
+  description: `Resume AIMS at ${WEBSITE_AUDIT_TEST_WAKE_TIME} on ${WEBSITE_AUDIT_TEST_DATE} for the one-off website audit recovery test.`,
+  schedule: { type: "once", date: WEBSITE_AUDIT_TEST_DATE, time: WEBSITE_AUDIT_TEST_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES },
+  serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
+  action: "resume",
+});
+
+const ramsPowerResumeWebsiteAuditTest = koyebPowerJob({
+  id: "rams-power-resume-website-audit-test-2026-08-03",
+  group: "power-rams",
+  description: `Resume RAMS at ${WEBSITE_AUDIT_TEST_WAKE_TIME} on ${WEBSITE_AUDIT_TEST_DATE} for the one-off downstream remediation handoff.`,
+  schedule: { type: "once", date: WEBSITE_AUDIT_TEST_DATE, time: WEBSITE_AUDIT_TEST_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES },
+  serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
+  action: "resume",
+});
+
 const ramsPowerResumeAimsAudit = koyebPowerJob({
   id: "rams-power-resume-aims-audit",
   group: "power-rams",
@@ -568,6 +621,14 @@ const aimsAuditPauseJobs = [
     serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   }),
   posttriggerPauseJob({
+    id: "aims-power-pause-after-website-audit-test-2026-08-03",
+    group: "power-aims",
+    description: "Pause AIMS one hour after the one-off website audit recovery test finishes.",
+    sourceJobId: "website-audit-test-pipeline-2026-08-03",
+    delayMinutes: 60,
+    serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
+  }),
+  posttriggerPauseJob({
     id: "aims-power-pause-after-aims-audit",
     group: "power-aims",
     description: "Pause AIMS one hour after the second-Saturday AIMS audit pipeline finishes.",
@@ -583,6 +644,14 @@ const ramsAuditPauseJobs = [
     group: "power-rams",
     description: "Pause RAMS one hour after AIMS completes the first-Sunday website audit/remediation sequence.",
     sourceJobId: "website-audit-pipeline",
+    delayMinutes: 60,
+    serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
+  }),
+  posttriggerPauseJob({
+    id: "rams-power-pause-after-website-audit-test-2026-08-03",
+    group: "power-rams",
+    description: "Pause RAMS one hour after the one-off website audit recovery test finishes.",
+    sourceJobId: "website-audit-test-pipeline-2026-08-03",
     delayMinutes: 60,
     serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   }),
@@ -603,6 +672,8 @@ const koyebPowerJobs = koyebPowerManagementEnabled()
     aimsPowerResumeWebsiteAudit,
     aimsPowerResumeAimsAudit,
     ramsPowerResumeWebsiteAudit,
+    aimsPowerResumeWebsiteAuditTest,
+    ramsPowerResumeWebsiteAuditTest,
     ramsPowerResumeAimsAudit,
     ...aimsWeekdayPauseJobs,
     ...aimsAuditPauseJobs,
@@ -828,6 +899,7 @@ export const baseJobs = [
   ...zernioDailyJobs,
   zernioWeeklyQuiz,
   ...monthlyAuditJobs,
+  ...websiteAuditTestJobs,
   zernioEbooksWeekly,
   ...blotatoVideoJobs,
   healthPing,
@@ -892,7 +964,7 @@ function pretriggerJob(sourceJob, stage, offsetMinutes) {
 
 function shouldHavePretriggers(job) {
   return job?.authEnv === "AIMS_API_KEY"
-    && ["weekly", "monthly", "nth-weekday-monthly"].includes(job.schedule?.type)
+    && ["weekly", "monthly", "nth-weekday-monthly", "once"].includes(job.schedule?.type)
     && !job.managedPretrigger
     && job.group !== "operations";
 }

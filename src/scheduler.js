@@ -249,7 +249,7 @@ export function buildRunKey(job, at) {
   }
 
   const parts = localParts(at, schedule.timezone || LOCAL_TIME_ZONE);
-  const scheduledTime = ["weekly", "monthly", "nth-weekday-monthly"].includes(schedule.type)
+  const scheduledTime = ["weekly", "monthly", "nth-weekday-monthly", "once"].includes(schedule.type)
     ? schedule.time
     : parts.time;
   return `${job.id}:${parts.timezone}:${parts.date}:${scheduledTime}`;
@@ -294,6 +294,11 @@ export function isTimedJobDue(job, at = new Date()) {
   }
 
   const parts = localParts(at, schedule.timezone || LOCAL_TIME_ZONE);
+
+  if (schedule.type === "once") {
+    return parts.date === String(schedule.date || "")
+      && timeIsDue(parts, schedule);
+  }
 
   if (schedule.type === "weekly") {
     return Array.isArray(schedule.days)
