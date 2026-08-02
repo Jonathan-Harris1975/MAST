@@ -4,8 +4,8 @@ export const USER_AGENT = "Jonathan-Harris-MAST/1.2.3 (+https://jonathan-harris.
 
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const WEEKDAYS_MON_TO_FRI = ["monday", "tuesday", "wednesday", "thursday", "friday"];
-const WEBSITE_AUDIT_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME || "20:00");
-const WEBSITE_AUDIT_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "20:30");
+const WEBSITE_AUDIT_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME || "22:00");
+const WEBSITE_AUDIT_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "22:30");
 const WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 const WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES || 180));
 
@@ -253,7 +253,7 @@ const monthlyAuditJobs = [
     targetUrl: `${aimsBaseUrl()}/audits/website/run`,
     targetPath: "/audits/website/run",
     authEnv: "AIMS_API_KEY",
-    requiredServices: koyebPowerManagementEnabled() ? ["aims", "rams"] : [],
+    requiredServices: koyebPowerManagementEnabled() ? ["aims"] : [],
     pretriggerOffsets: { health: 20, preflight: 15, warmup: 10 },
     asyncStatus: {
       responseIdField: "sessionId",
@@ -265,7 +265,7 @@ const monthlyAuditJobs = [
     },
     body: {
       requestedBy: SERVICE_NAME,
-      notes: "First-Sunday website audit. AIMS owns sequencing, final PDF/HTML/JSON publication and RAMS remediation handoff.",
+      notes: "First-Sunday website audit. AIMS owns sequencing and final publication. RAMS is a downstream remediation handoff and must not block audit dispatch.",
     },
   }),
   postJob({

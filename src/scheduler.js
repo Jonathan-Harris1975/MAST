@@ -100,6 +100,7 @@ export const CONFIG = {
   requestTimeoutMs: numberEnv("REQUEST_TIMEOUT_MS", 60_000),
   requestRetries: numberEnv("REQUEST_RETRIES", 2),
   requestRetryBaseMs: numberEnv("REQUEST_RETRY_BASE_MS", 2_500),
+  serviceHealthProbeTimeoutMs: numberEnv("SERVICE_HEALTH_PROBE_TIMEOUT_MS", 15_000),
   betweenJobsMs: numberEnv("BETWEEN_JOBS_MS", 1_500),
   stateFile: process.env.STATE_FILE || "/tmp/mast-state.json",
   stateBackend: resolvedStateBackend,
@@ -328,27 +329,34 @@ export function isIntervalJobDue(job, at = new Date(), currentState = state) {
   return !Number.isFinite(last) || at.getTime() - last >= everyMs;
 }
 
-export function requiredServicesReady(job, currentState = state) {
+export function requiredServiceStates(job, currentState = state) {
   const required = Array.isArray(job?.requiredServices) ? job.requiredServices : [];
-  if (!required.length) return true;
-  return required.every((service) => {
-    const lifecycle = currentState?.services?.[service];
-    return lifecycle && ["online", "busy"].includes(lifecycle.state);
-  });
+  return required.map((service) => ({
+    service,
+    state: currentState?.services?.[service]?.state || "missing",
+    reason: currentState?.services?.[service]?.reason || null,
+    lastError: currentState?.services?.[service]?.lastError || null,
+  }));
+}
+
+export function requiredServicesReady(job, currentState = state) {
+  const services = requiredServiceStates(job, currentState);
+  return services.length === 0 || services.every(({ state: serviceState }) => ["online", "busy"].includes(serviceState));
+}
+
+export function jobScheduleDue(job, at = new Date(), currentState = state) {
+  if (job.schedule?.type === "interval") {
+    return isIntervalJobDue(job, at, currentState);
+  }
+
+  if (!isTimedJobDue(job, at)) return false;
+
+  const runKey = buildRunKey(job, at);
+  return currentState.lastRunKeys?.[job.id] !== runKey;
 }
 
 export function dueJobsAt(at = new Date(), currentState = state) {
-  return jobs.filter((job) => {
-    if (!requiredServicesReady(job, currentState)) return false;
-    if (job.schedule?.type === "interval") {
-      return isIntervalJobDue(job, at, currentState);
-    }
-
-    if (!isTimedJobDue(job, at)) return false;
-
-    const runKey = buildRunKey(job, at);
-    return currentState.lastRunKeys?.[job.id] !== runKey;
-  });
+  return jobs.filter((job) => jobScheduleDue(job, at, currentState) && requiredServicesReady(job, currentState));
 }
 
 export function buildPayload(job, at = new Date()) {
@@ -527,11 +535,51 @@ async function pingServiceHealth(serviceKey) {
   const url = serviceHealthUrl(serviceKey);
   if (!url) return { ok: false, reason: "health-url-not-configured" };
   try {
-    const response = await fetchWithTimeout(url, { method: "GET", headers: { "user-agent": USER_AGENT } }, CONFIG.requestTimeoutMs);
+    const response = await fetchWithTimeout(url, { method: "GET", headers: { "user-agent": USER_AGENT } }, CONFIG.serviceHealthProbeTimeoutMs);
     return { ok: response.ok, httpStatus: response.status };
   } catch (error) {
     return { ok: false, reason: error?.name || "fetch-error" };
   }
+}
+
+
+async function reconcileDueJobServiceReadiness(at = new Date()) {
+  const blocked = jobs.filter((job) => jobScheduleDue(job, at, state) && !requiredServicesReady(job, state));
+  if (!blocked.length) return { changed: false, blocked: [] };
+
+  const required = [...new Set(blocked.flatMap((job) => job.requiredServices || []))];
+  const probes = {};
+  let changed = false;
+
+  for (const serviceKey of required) {
+    const before = getServiceLifecycle(serviceKey);
+    const probe = await pingServiceHealth(serviceKey);
+    probes[serviceKey] = probe;
+    if (probe.ok && !["online", "busy"].includes(before?.state)) {
+      setServiceLifecycle(serviceKey, "online", {
+        reason: "scheduled-readiness-reprobe-succeeded",
+        lastError: null,
+      });
+      changed = true;
+    }
+  }
+
+  const stillBlocked = blocked.filter((job) => !requiredServicesReady(job, state));
+  for (const job of stillBlocked) {
+    console.warn(JSON.stringify({
+      service: SERVICE_NAME,
+      event: "job-blocked-required-services",
+      job: job.id,
+      group: job.group,
+      scheduledFor: at.toISOString(),
+      runKey: buildRunKey(job, at),
+      requiredServices: requiredServiceStates(job, state),
+      probes: Object.fromEntries((job.requiredServices || []).map((serviceKey) => [serviceKey, probes[serviceKey] || null])),
+    }));
+  }
+
+  if (changed) await saveState();
+  return { changed, blocked: stillBlocked.map((job) => job.id), probes };
 }
 
 // Fire-and-forget background poll after a resume action. Bounded attempts so a
@@ -539,7 +587,7 @@ async function pingServiceHealth(serviceKey) {
 // exhaustion the ledger records "offline" with a clear reason so HIVE/MAST/operator
 // can retry deliberately rather than silently believing the service is "starting".
 async function pollServiceUntilOnline(serviceKey, {
-  maxAttempts = numberEnv("SERVICE_RESUME_POLL_MAX_ATTEMPTS", 40),
+  maxAttempts = numberEnv("SERVICE_RESUME_POLL_MAX_ATTEMPTS", 180),
   intervalMs = numberEnv("SERVICE_RESUME_POLL_INTERVAL_MS", 5_000),
 } = {}) {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -1139,6 +1187,8 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
       results: [],
     };
   }
+
+  await reconcileDueJobServiceReadiness(at);
 
   const due = dueJobsAt(at, state)
     .sort((left, right) => dueJobPriority(left) - dueJobPriority(right));
