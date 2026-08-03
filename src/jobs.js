@@ -4,16 +4,22 @@ export const USER_AGENT = "Jonathan-Harris-MAST/1.2.3 (+https://jonathan-harris.
 
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const WEEKDAYS_MON_TO_FRI = ["monday", "tuesday", "wednesday", "thursday", "friday"];
-const WEBSITE_AUDIT_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME || "22:00");
-const WEBSITE_AUDIT_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "22:30");
+const AM_WAKE_TIME = String(process.env.MAST_AM_WAKE_TIME || "09:30");
+const AM_OPERATION_TIME = String(process.env.MAST_AM_OPERATION_TIME || "10:00");
+const AM_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AM_WAKE_CATCH_UP_MINUTES || 120));
+const AM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
+const FRIDAY_PM_WAKE_TIME = String(process.env.MAST_FRIDAY_PM_WAKE_TIME || "14:30");
+const FRIDAY_PM_OPERATION_TIME = String(process.env.MAST_FRIDAY_PM_OPERATION_TIME || "15:00");
+const FRIDAY_PM_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_FRIDAY_PM_WAKE_CATCH_UP_MINUTES || 120));
+const FRIDAY_PM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
+const WEBSITE_AUDIT_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME || "10:00");
+const WEBSITE_AUDIT_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "10:30");
 const WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 const WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES || 180));
-// One-off recovery slot. The date makes this self-expiring after the test night,
-// while the catch-up window lets a late deployment still execute safely.
-const WEBSITE_AUDIT_TEST_DATE = String(process.env.MAST_WEBSITE_AUDIT_TEST_DATE || "2026-08-03");
-const WEBSITE_AUDIT_TEST_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_WAKE_TIME || "10:30");
-const WEBSITE_AUDIT_TEST_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_RUN_TIME || "11:00");
-const WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES || 180));
+const AIMS_AUDIT_WAKE_TIME = String(process.env.MAST_AIMS_AUDIT_WAKE_TIME || "09:00");
+const AIMS_AUDIT_RUN_TIME = String(process.env.MAST_AIMS_AUDIT_RUN_TIME || "09:15");
+const AIMS_AUDIT_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
+const AIMS_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS_AUDIT_RUN_CATCH_UP_MINUTES || 180));
 
 function endpoint(envName, fallbackUrl) {
   const configured = process.env[envName];
@@ -277,8 +283,8 @@ const monthlyAuditJobs = [
   postJob({
     id: "aims-audit-pipeline",
     group: "audits",
-    description: "Run the complete AIMS audit on the second Saturday of each month. AIMS owns the full council/report/RAMS sequence.",
-    schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "09:15", timezone: LOCAL_TIME_ZONE },
+    description: `Run the complete AIMS audit at ${AIMS_AUDIT_RUN_TIME} on the second Saturday of each month. AIMS owns the full council/report/RAMS sequence.`,
+    schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: AIMS_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AIMS_AUDIT_RUN_CATCH_UP_MINUTES },
     urlEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/audits/monthly/aims`,
     targetUrl: `${aimsBaseUrl()}/audits/monthly/aims`,
@@ -296,35 +302,6 @@ const monthlyAuditJobs = [
     body: {
       requestedBy: SERVICE_NAME,
       notes: "Second-Saturday AIMS audit. AIMS owns sequencing, final PDF/HTML/JSON publication and RAMS remediation handoff.",
-    },
-  }),
-];
-
-const websiteAuditTestJobs = [
-  postJob({
-    id: "website-audit-recovery-pipeline-2026-08-03-0400",
-    group: "audits",
-    description: `One-off recovery test: run the complete website audit at ${WEBSITE_AUDIT_TEST_RUN_TIME} on ${WEBSITE_AUDIT_TEST_DATE}.`,
-    schedule: { type: "once", date: WEBSITE_AUDIT_TEST_DATE, time: WEBSITE_AUDIT_TEST_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES },
-    urlEnv: null,
-    fallbackUrl: `${aimsBaseUrl()}/audits/website/run`,
-    targetUrl: `${aimsBaseUrl()}/audits/website/run`,
-    targetPath: "/audits/website/run",
-    authEnv: "AIMS_API_KEY",
-    requiredServices: koyebPowerManagementEnabled() ? ["aims"] : [],
-    pretriggerOffsets: { health: 20, preflight: 15, warmup: 10 },
-    asyncStatus: {
-      responseIdField: "sessionId",
-      statusPath: "/audits/website/jobs/{id}",
-      statusField: "job.status",
-      successStatuses: ["completed"],
-      pendingStatuses: ["queued", "accepted", "running"],
-      failureStatuses: ["failed"],
-    },
-    body: {
-      requestedBy: SERVICE_NAME,
-      forceNewRun: true,
-      notes: "One-off 2026-08-03 recovery test after audit evidence-contract repairs. AIMS owns sequencing, final publication and the downstream RAMS handoff.",
     },
   }),
 ];
@@ -477,7 +454,9 @@ const ramsJobs = [
 
 // --- Koyeb power management -------------------------------------------------------
 //
-// AIMS wakes at 08:30 for weekday operations, then the AM window starts at 09:00.
+// AIMS wakes at the configured weekday wake time, then the AM window starts
+// after a deliberate warm-up gap. Both schedules have bounded catch-up windows
+// so a delayed scheduler tick or cold deployment does not silently lose the day.
 // On Friday it wakes again at 14:30 for the podcast-only window. Normal weekday standby
 // is completion-driven: AIMS pauses as soon as the relevant operation endpoint returns.
 
@@ -513,8 +492,8 @@ function koyebPowerJob({ id, group, description, schedule, serviceIdEnv, action 
 const aimsPowerResumeDaily = koyebPowerJob({
   id: "aims-power-resume-daily",
   group: "power-aims",
-  description: "Resume AIMS at 08:30 before weekday morning operations.",
-  schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "08:30", timezone: LOCAL_TIME_ZONE },
+  description: `Resume AIMS at ${AM_WAKE_TIME} before weekday morning operations.`,
+  schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: AM_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AM_WAKE_CATCH_UP_MINUTES },
   serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   action: "resume",
 });
@@ -522,8 +501,8 @@ const aimsPowerResumeDaily = koyebPowerJob({
 const aimsPowerResumeFridayPodcast = koyebPowerJob({
   id: "aims-power-resume-friday-podcast",
   group: "power-aims",
-  description: "Resume AIMS at 14:30 for the Friday podcast-only window.",
-  schedule: { type: "weekly", days: ["friday"], time: "14:30", timezone: LOCAL_TIME_ZONE },
+  description: `Resume AIMS at ${FRIDAY_PM_WAKE_TIME} for the Friday podcast-only window.`,
+  schedule: { type: "weekly", days: ["friday"], time: FRIDAY_PM_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: FRIDAY_PM_WAKE_CATCH_UP_MINUTES },
   serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   action: "resume",
 });
@@ -540,8 +519,8 @@ const aimsPowerResumeWebsiteAudit = koyebPowerJob({
 const aimsPowerResumeAimsAudit = koyebPowerJob({
   id: "aims-power-resume-aims-audit",
   group: "power-aims",
-  description: "Resume AIMS at 09:00 for the second-Saturday AIMS audit.",
-  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "09:00", timezone: LOCAL_TIME_ZONE },
+  description: `Resume AIMS at ${AIMS_AUDIT_WAKE_TIME} for the second-Saturday AIMS audit.`,
+  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: AIMS_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AIMS_AUDIT_WAKE_CATCH_UP_MINUTES },
   serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   action: "resume",
 });
@@ -555,29 +534,11 @@ const ramsPowerResumeWebsiteAudit = koyebPowerJob({
   action: "resume",
 });
 
-const aimsPowerResumeWebsiteAuditTest = koyebPowerJob({
-  id: "aims-power-resume-website-audit-recovery-2026-08-03-0330",
-  group: "power-aims",
-  description: `Resume AIMS at ${WEBSITE_AUDIT_TEST_WAKE_TIME} on ${WEBSITE_AUDIT_TEST_DATE} for the one-off website audit recovery test.`,
-  schedule: { type: "once", date: WEBSITE_AUDIT_TEST_DATE, time: WEBSITE_AUDIT_TEST_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES },
-  serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
-  action: "resume",
-});
-
-const ramsPowerResumeWebsiteAuditTest = koyebPowerJob({
-  id: "rams-power-resume-website-audit-recovery-2026-08-03-0330",
-  group: "power-rams",
-  description: `Resume RAMS at ${WEBSITE_AUDIT_TEST_WAKE_TIME} on ${WEBSITE_AUDIT_TEST_DATE} for the one-off downstream remediation handoff.`,
-  schedule: { type: "once", date: WEBSITE_AUDIT_TEST_DATE, time: WEBSITE_AUDIT_TEST_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES },
-  serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
-  action: "resume",
-});
-
 const ramsPowerResumeAimsAudit = koyebPowerJob({
   id: "rams-power-resume-aims-audit",
   group: "power-rams",
-  description: "Resume RAMS for the second-Saturday AIMS audit remediation sequence controlled by AIMS.",
-  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "09:00", timezone: LOCAL_TIME_ZONE },
+  description: `Resume RAMS at ${AIMS_AUDIT_WAKE_TIME} for the second-Saturday AIMS audit remediation sequence controlled by AIMS.`,
+  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: AIMS_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AIMS_AUDIT_WAKE_CATCH_UP_MINUTES },
   serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   action: "resume",
 });
@@ -621,14 +582,6 @@ const aimsAuditPauseJobs = [
     serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   }),
   posttriggerPauseJob({
-    id: "aims-power-pause-after-website-audit-recovery-2026-08-03-0400",
-    group: "power-aims",
-    description: "Pause AIMS one hour after the one-off website audit recovery test finishes.",
-    sourceJobId: "website-audit-recovery-pipeline-2026-08-03-0400",
-    delayMinutes: 60,
-    serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
-  }),
-  posttriggerPauseJob({
     id: "aims-power-pause-after-aims-audit",
     group: "power-aims",
     description: "Pause AIMS one hour after the second-Saturday AIMS audit pipeline finishes.",
@@ -648,14 +601,6 @@ const ramsAuditPauseJobs = [
     serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   }),
   posttriggerPauseJob({
-    id: "rams-power-pause-after-website-audit-recovery-2026-08-03-0400",
-    group: "power-rams",
-    description: "Pause RAMS one hour after the one-off website audit recovery test finishes.",
-    sourceJobId: "website-audit-recovery-pipeline-2026-08-03-0400",
-    delayMinutes: 60,
-    serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
-  }),
-  posttriggerPauseJob({
     id: "rams-power-pause-after-aims-audit",
     group: "power-rams",
     description: "Pause RAMS one hour after AIMS completes the second-Saturday AIMS audit/remediation sequence.",
@@ -668,12 +613,10 @@ const ramsAuditPauseJobs = [
 const koyebPowerJobs = koyebPowerManagementEnabled()
   ? [
     aimsPowerResumeDaily,
-  aimsPowerResumeFridayPodcast,
+    aimsPowerResumeFridayPodcast,
     aimsPowerResumeWebsiteAudit,
     aimsPowerResumeAimsAudit,
     ramsPowerResumeWebsiteAudit,
-    aimsPowerResumeWebsiteAuditTest,
-    ramsPowerResumeWebsiteAuditTest,
     ramsPowerResumeAimsAudit,
     ...aimsWeekdayPauseJobs,
     ...aimsAuditPauseJobs,
@@ -867,23 +810,25 @@ const operationWindowJobs = [
     id: `operation-${day}-am`,
     group: "operations",
     description: `${day} AM AIMS operating window: all weekday content preparation, including both scheduled Blotato posts; Monday also owns weekly blog, ebooks, quiz and the mini-series through its Zernio lane, while Friday also prepares weekend Zernio content.`,
-    schedule: { type: "weekly", days: [day], time: String(process.env.MAST_AM_OPERATION_TIME || "14:00"), timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: [day], time: AM_OPERATION_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AM_OPERATION_CATCH_UP_MINUTES },
     urlEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
     targetUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
     targetPath: `/ops/run/${day}-am`,
     authEnv: "AIMS_API_KEY",
+    requiredServices: koyebPowerManagementEnabled() ? ["aims"] : [],
   })),
   postJob({
     id: "operation-friday-pm",
     group: "operations",
     description: "Friday podcast-only AIMS operating window.",
-    schedule: { type: "weekly", days: ["friday"], time: String(process.env.MAST_FRIDAY_PM_OPERATION_TIME || "15:00"), timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["friday"], time: FRIDAY_PM_OPERATION_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: FRIDAY_PM_OPERATION_CATCH_UP_MINUTES },
     urlEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/ops/run/friday-pm`,
     targetUrl: `${aimsBaseUrl()}/ops/run/friday-pm`,
     targetPath: "/ops/run/friday-pm",
     authEnv: "AIMS_API_KEY",
+    requiredServices: koyebPowerManagementEnabled() ? ["aims"] : [],
   }),
 ];
 
@@ -899,7 +844,6 @@ export const baseJobs = [
   ...zernioDailyJobs,
   zernioWeeklyQuiz,
   ...monthlyAuditJobs,
-  ...websiteAuditTestJobs,
   zernioEbooksWeekly,
   ...blotatoVideoJobs,
   healthPing,
