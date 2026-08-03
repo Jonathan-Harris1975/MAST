@@ -32,9 +32,9 @@ Deploy as the intended paid production Worker with one active scheduler instance
 
 ## Koyeb power management
 
-MAST resumes AIMS at **08:30 Europe/London** on Monday-Friday. Weekday AM operations begin at **09:00**. After the full morning window returns, MAST pauses AIMS immediately back to standby.
+MAST resumes AIMS at **09:30 Europe/London** on Monday-Friday. Weekday AM operations begin at **10:00**. Bounded catch-up windows prevent a short scheduler restart or Koyeb cold start from silently losing the day. After the full morning window returns, MAST pauses AIMS immediately back to standby.
 
-On Friday, MAST resumes AIMS again at **14:30** and starts the podcast-only window at **15:00**. MAST polls the AIMS operation until the podcast job is genuinely terminal, then pauses AIMS one hour later. RAMS is resumed only for governed audit windows. Future Comms Hub activity will request additional AIMS wake periods through its own controlled flow.
+On Friday, MAST resumes AIMS again at **14:30** and starts the podcast-only window at **15:00**. Both Friday stages have the same bounded catch-up protection as the weekday morning run. MAST polls the AIMS operation until the podcast job is genuinely terminal, then pauses AIMS one hour later. RAMS is resumed only for governed audit windows. Future Comms Hub activity will request additional AIMS wake periods through its own controlled flow.
 
 See [`docs/POWER_MANAGEMENT.md`](docs/POWER_MANAGEMENT.md).
 
@@ -42,16 +42,16 @@ See [`docs/POWER_MANAGEMENT.md`](docs/POWER_MANAGEMENT.md).
 
 MAST provides six normal weekday operation triggers. AIMS owns task sequencing inside each window.
 
-- Monday-Friday AM: authenticated `/ops/run/<day>-am` at 09:00. Each morning window prepares all daily content, including both scheduled Blotato posts. Monday generates the mini-series through the Monday Zernio lane, and Friday AM also prepares Saturday and Sunday Zernio content.
+- Monday-Friday AM: authenticated `/ops/run/<day>-am` at 10:00. Each morning window prepares all daily content, including both scheduled Blotato posts. Monday generates the mini-series through the Monday Zernio lane, and Friday AM also prepares Saturday and Sunday Zernio content.
 - Friday PM: authenticated `/ops/run/friday-pm` at 15:00. This window runs only the podcast pipeline.
 - Task-level content routes remain manual recovery controls and do not carry their own schedules.
 - MAST does not treat HTTP `202 Accepted` as completion: it polls the AIMS operation job until all accepted async child jobs, including both Blotato renders and the podcast pipeline, are terminal. An operation ending as `failed` or `completed-with-failures` is recorded as a MAST failure and cannot trigger automatic standby.
 
 ## Monthly audit windows
 
-MAST has two scheduled audit entry points only. The website audit uses a 30-minute cold-start window and does not begin until both AIMS and RAMS are online:
+MAST has two scheduled audit entry points only. The website audit uses a 30-minute cold-start window. AIMS must be online for dispatch; RAMS remains the downstream hand-off owned by AIMS and is woken in the same governed window:
 
-- **First Sunday, 09:00:** `POST /audits/website/run` after AIMS and RAMS wake at 08:30
+- **First Sunday, 10:30:** `POST /audits/website/run` after AIMS and RAMS wake at 10:00
 - **Second Saturday, 09:15:** `POST /audits/monthly/aims`
 
 AIMS owns every downstream audit stage, council, final report and RAMS remediation
