@@ -11,8 +11,8 @@ const WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_W
 // One-off recovery slot. The date makes this self-expiring after the test night,
 // while the catch-up window lets a late deployment still execute safely.
 const WEBSITE_AUDIT_TEST_DATE = String(process.env.MAST_WEBSITE_AUDIT_TEST_DATE || "2026-08-03");
-const WEBSITE_AUDIT_TEST_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_WAKE_TIME || "03:30");
-const WEBSITE_AUDIT_TEST_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_RUN_TIME || "04:00");
+const WEBSITE_AUDIT_TEST_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_WAKE_TIME || "11:30");
+const WEBSITE_AUDIT_TEST_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_RUN_TIME || "12:00");
 const WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES || 180));
 
 function endpoint(envName, fallbackUrl) {
@@ -867,7 +867,7 @@ const operationWindowJobs = [
     id: `operation-${day}-am`,
     group: "operations",
     description: `${day} AM AIMS operating window: all weekday content preparation, including both scheduled Blotato posts; Monday also owns weekly blog, ebooks, quiz and the mini-series through its Zernio lane, while Friday also prepares weekend Zernio content.`,
-    schedule: { type: "weekly", days: [day], time: String(process.env.MAST_AM_OPERATION_TIME || "09:00"), timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: [day], time: String(process.env.MAST_AM_OPERATION_TIME || "10:15"), timezone: LOCAL_TIME_ZONE },
     urlEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
     targetUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
