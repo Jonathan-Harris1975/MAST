@@ -11,8 +11,8 @@ const WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_W
 // One-off recovery slot. The date makes this self-expiring after the test night,
 // while the catch-up window lets a late deployment still execute safely.
 const WEBSITE_AUDIT_TEST_DATE = String(process.env.MAST_WEBSITE_AUDIT_TEST_DATE || "2026-08-03");
-const WEBSITE_AUDIT_TEST_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_WAKE_TIME || "00:30");
-const WEBSITE_AUDIT_TEST_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_RUN_TIME || "01:00");
+const WEBSITE_AUDIT_TEST_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_WAKE_TIME || "03:30");
+const WEBSITE_AUDIT_TEST_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_RUN_TIME || "04:00");
 const WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES || 180));
 
 function endpoint(envName, fallbackUrl) {
@@ -302,7 +302,7 @@ const monthlyAuditJobs = [
 
 const websiteAuditTestJobs = [
   postJob({
-    id: "website-audit-test-pipeline-2026-08-03",
+    id: "website-audit-recovery-pipeline-2026-08-03-0400",
     group: "audits",
     description: `One-off recovery test: run the complete website audit at ${WEBSITE_AUDIT_TEST_RUN_TIME} on ${WEBSITE_AUDIT_TEST_DATE}.`,
     schedule: { type: "once", date: WEBSITE_AUDIT_TEST_DATE, time: WEBSITE_AUDIT_TEST_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES },
@@ -556,7 +556,7 @@ const ramsPowerResumeWebsiteAudit = koyebPowerJob({
 });
 
 const aimsPowerResumeWebsiteAuditTest = koyebPowerJob({
-  id: "aims-power-resume-website-audit-test-2026-08-03",
+  id: "aims-power-resume-website-audit-recovery-2026-08-03-0330",
   group: "power-aims",
   description: `Resume AIMS at ${WEBSITE_AUDIT_TEST_WAKE_TIME} on ${WEBSITE_AUDIT_TEST_DATE} for the one-off website audit recovery test.`,
   schedule: { type: "once", date: WEBSITE_AUDIT_TEST_DATE, time: WEBSITE_AUDIT_TEST_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES },
@@ -565,7 +565,7 @@ const aimsPowerResumeWebsiteAuditTest = koyebPowerJob({
 });
 
 const ramsPowerResumeWebsiteAuditTest = koyebPowerJob({
-  id: "rams-power-resume-website-audit-test-2026-08-03",
+  id: "rams-power-resume-website-audit-recovery-2026-08-03-0330",
   group: "power-rams",
   description: `Resume RAMS at ${WEBSITE_AUDIT_TEST_WAKE_TIME} on ${WEBSITE_AUDIT_TEST_DATE} for the one-off downstream remediation handoff.`,
   schedule: { type: "once", date: WEBSITE_AUDIT_TEST_DATE, time: WEBSITE_AUDIT_TEST_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES },
@@ -621,10 +621,10 @@ const aimsAuditPauseJobs = [
     serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   }),
   posttriggerPauseJob({
-    id: "aims-power-pause-after-website-audit-test-2026-08-03",
+    id: "aims-power-pause-after-website-audit-recovery-2026-08-03-0400",
     group: "power-aims",
     description: "Pause AIMS one hour after the one-off website audit recovery test finishes.",
-    sourceJobId: "website-audit-test-pipeline-2026-08-03",
+    sourceJobId: "website-audit-recovery-pipeline-2026-08-03-0400",
     delayMinutes: 60,
     serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
   }),
@@ -648,10 +648,10 @@ const ramsAuditPauseJobs = [
     serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   }),
   posttriggerPauseJob({
-    id: "rams-power-pause-after-website-audit-test-2026-08-03",
+    id: "rams-power-pause-after-website-audit-recovery-2026-08-03-0400",
     group: "power-rams",
     description: "Pause RAMS one hour after the one-off website audit recovery test finishes.",
-    sourceJobId: "website-audit-test-pipeline-2026-08-03",
+    sourceJobId: "website-audit-recovery-pipeline-2026-08-03-0400",
     delayMinutes: 60,
     serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   }),
