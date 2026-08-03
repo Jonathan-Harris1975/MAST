@@ -11,8 +11,8 @@ const WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_W
 // One-off recovery slot. The date makes this self-expiring after the test night,
 // while the catch-up window lets a late deployment still execute safely.
 const WEBSITE_AUDIT_TEST_DATE = String(process.env.MAST_WEBSITE_AUDIT_TEST_DATE || "2026-08-03");
-const WEBSITE_AUDIT_TEST_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_WAKE_TIME || "12:30");
-const WEBSITE_AUDIT_TEST_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_RUN_TIME || "13:00");
+const WEBSITE_AUDIT_TEST_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_WAKE_TIME || "15:30");
+const WEBSITE_AUDIT_TEST_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_TEST_RUN_TIME || "16:00");
 const WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_TEST_CATCH_UP_MINUTES || 180));
 
 function endpoint(envName, fallbackUrl) {
