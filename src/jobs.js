@@ -529,7 +529,7 @@ const ramsPowerResumeWebsiteAudit = koyebPowerJob({
   id: "rams-power-resume-website-audit",
   group: "power-rams",
   description: `Resume RAMS at ${WEBSITE_AUDIT_WAKE_TIME} for the first-Sunday website audit remediation sequence controlled by AIMS.`,
-  schedule: { type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: WEBSITE_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES },
+  schedule: { type: "nth-weekday-monthly", weekday: "sunday", occurrence: 2, time: WEBSITE_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES },
   serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   action: "resume",
 });
@@ -576,7 +576,7 @@ const aimsAuditPauseJobs = [
   posttriggerPauseJob({
     id: "aims-power-pause-after-website-audit",
     group: "power-aims",
-    description: "Pause AIMS one hour after the first-Sunday website audit pipeline finishes.",
+    description: "Pause AIMS one hour after the second-Sunday website audit pipeline finishes.",
     sourceJobId: "website-audit-pipeline",
     delayMinutes: 60,
     serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
