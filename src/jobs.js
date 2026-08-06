@@ -4,8 +4,8 @@ export const USER_AGENT = "Jonathan-Harris-MAST/1.2.3 (+https://jonathan-harris.
 
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const WEEKDAYS_MON_TO_FRI = ["monday", "tuesday", "wednesday", "thursday", "friday"];
-const AM_WAKE_TIME = String(process.env.MAST_AM_WAKE_TIME || "01:30");
-const AM_OPERATION_TIME = String(process.env.MAST_AM_OPERATION_TIME || "02:00");
+const AM_WAKE_TIME = String(process.env.MAST_AM_WAKE_TIME || "07:30");
+const AM_OPERATION_TIME = String(process.env.MAST_AM_OPERATION_TIME || "08:00");
 const AM_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AM_WAKE_CATCH_UP_MINUTES || 120));
 const AM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
 const FRIDAY_PM_WAKE_TIME = String(process.env.MAST_FRIDAY_PM_WAKE_TIME || "14:30");
