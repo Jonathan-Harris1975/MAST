@@ -4,8 +4,8 @@ export const USER_AGENT = "Jonathan-Harris-MAST/1.2.3 (+https://jonathan-harris.
 
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const WEEKDAYS_MON_TO_FRI = ["monday", "tuesday", "wednesday", "thursday", "friday"];
-const AM_WAKE_TIME = String(process.env.MAST_AM_WAKE_TIME || "07:45");
-const AM_OPERATION_TIME = String(process.env.MAST_AM_OPERATION_TIME || "08:15");
+const AM_WAKE_TIME = String(process.env.MAST_AM_WAKE_TIME || "09:30");
+const AM_OPERATION_TIME = String(process.env.MAST_AM_OPERATION_TIME || "10:00");
 const AM_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AM_WAKE_CATCH_UP_MINUTES || 120));
 const AM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
 const FRIDAY_PM_WAKE_TIME = String(process.env.MAST_FRIDAY_PM_WAKE_TIME || "14:30");
@@ -631,23 +631,15 @@ const koyebPowerJobs = koyebPowerManagementEnabled()
 // vectorize.py, buckets.py, connectors.py, model_registry.py, optimisation_engine.py)
 // that were previously never called by anything except a human opening HIVE-UI.
 // hive-keepawake (below) only pings /healthz - it does not exercise any of these.
-// Everything here is intentionally read-only or self-contained (no repository upload
-// is required), because the repository-scoped endpoints (POST /repositories/{id}/council,
-// /qa, /reindex, memory writes) depend on a repository having been uploaded into HIVE's
-// in-memory repository registry in the same process lifetime - that registry is not
-// database-backed yet (see repository_manager.py), so scheduling those from MAST would
-// silently no-op or 404 against an empty registry after every Koyeb restart/idle cycle.
-// They are deliberately left unscheduled until that persistence gap is closed; scheduling
-// them now would be a correctness regression dressed up as automation.
+// Everything here is intentionally read-only or self-contained. Repository manifests are
+// rehydrated from R2 after HIVE restarts, but repository-scoped QA/council/reindex actions
+// still require an active local working copy. MAST therefore does not schedule those routes:
+// they remain explicit repository-workflow actions inside HIVE rather than background jobs.
 //
-// POST /ai-council/run is the one mutating exception here: it is already a fully
-// self-contained, unconditionally-automatic action (no approval gate in the route) that
-// discovers providers, refreshes model catalogues and can auto-promote models into the
-// Model Registry. The Model Registry is also currently in-memory (a second, separate
-// persistence gap flagged in HIVE's own release notes) so a promotion made by a scheduled
-// run can be lost on the next restart - that's a known limitation to close, not a reason
-// to leave AI Council unscheduled, since the D1-backed run history (lane="ai_council")
-// still gives an audit trail either way.
+// POST /ai-council/run is the deliberate mutating exception. It refreshes provider
+// catalogues, benchmarks/ranks eligible models and may promote sufficiently high-confidence
+// defaults. The Model Registry is persisted to D1 and restored at HIVE startup, while the
+// AI Council run history provides the audit trail.
 function hiveBaseUrl() {
   return String(process.env.HIVE_BASE_URL || "https://hive.jonathan-harris.online").replace(/\/+$/, "");
 }
@@ -745,7 +737,7 @@ const hiveGovernanceWeeklyJobs = [
   hiveJob({
     id: "hive-model-registry-snapshot",
     group: "hive-governance-weekly",
-    description: "Snapshot the current Model Registry state (detects unexpected resets given it is not yet DB-backed).",
+    description: "Check the current D1-backed Model Registry state and ranked defaults for unexpected resets or drift.",
     schedule: { type: "weekly", days: ["monday"], time: "06:55", timezone: LOCAL_TIME_ZONE },
     targetPath: "/v1/model-registry",
   }),
