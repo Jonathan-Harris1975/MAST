@@ -443,7 +443,7 @@ async function readR2State() {
 
 export async function loadOperatorControl() {
   const envEnabled = booleanEnv("SCHEDULER_ENABLED", true);
-  const fallback = { schedulerEnabled: envEnabled, maintenanceMode: false, reason: null, updatedAt: null };
+  const fallback = { schedulerEnabled: envEnabled, maintenanceMode: false, reason: null, updatedAt: null, commands: [], commandResults: [] };
   if (CONFIG.stateBackend !== "r2") return fallback;
   const control = await readR2Json(CONFIG.operatorControlObjectKey);
   if (!control || typeof control !== "object" || Array.isArray(control)) return fallback;
@@ -452,7 +452,65 @@ export async function loadOperatorControl() {
     maintenanceMode: control.maintenanceMode === true,
     reason: typeof control.reason === "string" ? control.reason.slice(0, 240) : null,
     updatedAt: typeof control.updatedAt === "string" ? control.updatedAt : null,
+    commands: Array.isArray(control.commands) ? control.commands.filter((item) => item && typeof item === "object").slice(-50) : [],
+    commandResults: Array.isArray(control.commandResults) ? control.commandResults.filter((item) => item && typeof item === "object").slice(-50) : [],
   };
+}
+
+async function saveOperatorControl(control) {
+  if (CONFIG.stateBackend !== "r2") return;
+  if (!r2StateConfigured) throw new Error("MAST R2 state backend is not fully configured");
+  const payload = {
+    schedulerEnabled: control.schedulerEnabled !== false,
+    maintenanceMode: control.maintenanceMode === true,
+    reason: typeof control.reason === "string" ? control.reason.slice(0, 240) : null,
+    updatedAt: new Date().toISOString(),
+    commands: Array.isArray(control.commands) ? control.commands.slice(-50) : [],
+    commandResults: Array.isArray(control.commandResults) ? control.commandResults.slice(-50) : [],
+  };
+  await stateClient().send(new PutObjectCommand({
+    Bucket: r2StateConfig.bucket,
+    Key: CONFIG.operatorControlObjectKey,
+    Body: JSON.stringify(payload, null, 2),
+    ContentType: "application/json",
+    CacheControl: "no-store",
+  }));
+}
+
+async function processOperatorCommands(control) {
+  const commands = Array.isArray(control.commands) ? control.commands : [];
+  if (!commands.length) return { processed: 0, results: [] };
+  if (control.maintenanceMode) return { processed: 0, results: [], deferred: commands.length };
+
+  const results = [];
+  for (const command of commands) {
+    const id = String(command?.id || "").trim();
+    const type = String(command?.type || "").trim().toLowerCase();
+    const service = String(command?.service || "").trim().toLowerCase();
+    let result;
+    if (type === "service.resume" && MANAGED_SERVICES.includes(service)) {
+      result = await requestServiceResume(service, { reason: String(command?.reason || "hive-worker-command") });
+    } else if (type === "service.pause" && MANAGED_SERVICES.includes(service)) {
+      result = await requestServicePause(service, { reason: String(command?.reason || "operator-worker-command") });
+    } else {
+      result = { ok: false, error: "unsupported-command", service, type };
+    }
+    results.push({
+      id: id || null,
+      type,
+      service,
+      source: String(command?.source || "operator").slice(0, 80),
+      requestedAt: command?.requestedAt || null,
+      processedAt: new Date().toISOString(),
+      ok: result?.ok === true,
+      error: result?.error || null,
+    });
+  }
+
+  control.commands = [];
+  control.commandResults = [...(control.commandResults || []), ...results].slice(-50);
+  await saveOperatorControl(control);
+  return { processed: results.length, results };
 }
 
 export async function loadState() {
@@ -1180,6 +1238,13 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
   state.lastTickAt = new Date(nowMs).toISOString();
   state.operator = await loadOperatorControl();
 
+  // HIVE cannot call a Koyeb Worker over public HTTP. On-demand AIMS/RAMS wake
+  // requests therefore arrive through the durable R2 operator-control object and
+  // are consumed here on the normal Worker tick. Operator commands are allowed
+  // while the scheduled timetable is paused, but maintenance mode deliberately
+  // defers them.
+  const operatorCommands = await processOperatorCommands(state.operator);
+
   if (!state.operator.schedulerEnabled || state.operator.maintenanceMode) {
     await saveState();
     return {
@@ -1190,6 +1255,7 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
       tickAt: at.toISOString(),
       ran: 0,
       results: [],
+      operatorCommands,
     };
   }
 
@@ -1207,6 +1273,7 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
       tickAt: at.toISOString(),
       ran: 0,
       results,
+      operatorCommands,
     };
   }
 
