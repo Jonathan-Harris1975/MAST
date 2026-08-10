@@ -57,3 +57,13 @@ MAST has two scheduled audit entry points only. The website audit uses a 30-minu
 AIMS owns every downstream audit stage, council, final report and RAMS remediation
 sequence. MAST does not independently schedule RAMS rebuild pipelines. This keeps
 monthly audit work away from Monday-Friday core operations.
+
+## Worker control channel
+
+MAST remains a Worker and does not require public HTTP ingress for HIVE. In the normal
+R2 state-backend deployment, HIVE can enqueue bounded `service.resume` or `service.pause`
+commands in `state/mast/operator-control.json`. MAST consumes those commands on its
+normal scheduler tick, executes Koyeb power management, records bounded command results,
+and keeps the service lifecycle ledger in `state/mast/scheduler-state.json` current.
+Maintenance mode deliberately defers operator commands.
+
