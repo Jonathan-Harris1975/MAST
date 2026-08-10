@@ -4,7 +4,7 @@
 
 # MAST
 
-## Release 1.2.2: fail-closed AIMS operation control
+## Release 1.2.3: governed operations and HIVE automation
 
 MAST now requires a valid pollable AIMS operation job, treats `completed-with-failures` as a failed trigger, records operation status in its durable state, and will not launch the automatic standby job after an incomplete morning or Friday podcast window. The production environment patch now contains the complete Koyeb wake/pause and durable-state contract.
 

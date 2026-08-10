@@ -1,0 +1,5 @@
+Delete this obsolete historical implementation report from the repository:
+
+docs/HIVE-ORCHESTRATION-REPORT.md
+
+Reason: it contains stale job counts, superseded schedule assumptions and obsolete statements about HIVE Repository/Model Registry persistence. Current production behaviour is documented by README.md, docs/OPERATIONS.md and the live jobs configuration.
