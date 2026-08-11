@@ -395,16 +395,7 @@ const healthPing = getJob({
   targetPath: "/health",
 });
 
-const hiveKeepAwake = getJob({
-  id: "hive-keepawake",
-  group: "hive",
-  description: "Ping HIVE /healthz gently so the Koyeb free web service is less likely to sleep before ops work.",
-  schedule: { type: "interval", everyMinutes: Number(process.env.HIVE_KEEPAWAKE_EVERY_MINUTES || 15) },
-  urlEnv: "HIVE_KEEPAWAKE_URL",
-  fallbackUrl: "https://liable-loreen-jonathanharris-57884580.koyeb.app/healthz",
-  targetUrl: "https://liable-loreen-jonathanharris-57884580.koyeb.app/healthz",
-  targetPath: "/healthz",
-});
+
 
 const ramsJobs = [
   getJob({
@@ -467,7 +458,7 @@ function koyebPowerManagementEnabled() {
 }
 
 function koyebPowerJob({ id, group, description, schedule, serviceIdEnv, action }) {
-  const lifecycleService = serviceIdEnv === "KOYEB_SERVICE_ID_AIMS" ? "aims" : serviceIdEnv === "KOYEB_SERVICE_ID_RAMS" ? "rams" : null;
+  const lifecycleService = serviceIdEnv === "KOYEB_SERVICE_ID_AIMS" ? "aims" : serviceIdEnv === "KOYEB_SERVICE_ID_RAMS" ? "rams" : serviceIdEnv === "KOYEB_SERVICE_ID_HIVE" ? "hive" : null;
   return {
     ...postJob({
       id,
@@ -488,6 +479,24 @@ function koyebPowerJob({ id, group, description, schedule, serviceIdEnv, action 
     lifecycle: lifecycleService ? { service: lifecycleService, action } : null,
   };
 }
+
+const hivePowerResumeGovernance = koyebPowerJob({
+  id: "hive-power-resume-governance",
+  group: "power-hive",
+  description: "Resume HIVE shortly before automated governance work.",
+  schedule: { type: "weekly", days: WEEKDAYS, time: "05:55", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
+  serviceIdEnv: "KOYEB_SERVICE_ID_HIVE",
+  action: "resume",
+});
+
+const hivePowerPauseGovernance = koyebPowerJob({
+  id: "hive-power-pause-governance",
+  group: "power-hive",
+  description: "Return HIVE to standby after the automated governance window.",
+  schedule: { type: "weekly", days: WEEKDAYS, time: "07:35", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
+  serviceIdEnv: "KOYEB_SERVICE_ID_HIVE",
+  action: "pause",
+});
 
 const aimsPowerResumeDaily = koyebPowerJob({
   id: "aims-power-resume-daily",
@@ -839,8 +848,9 @@ export const baseJobs = [
   zernioEbooksWeekly,
   ...blotatoVideoJobs,
   healthPing,
-  hiveKeepAwake,
+  hivePowerResumeGovernance,
   ...hiveGovernanceJobs,
+  hivePowerPauseGovernance,
   ...ramsJobs,
   ...koyebPowerJobs,
 ];

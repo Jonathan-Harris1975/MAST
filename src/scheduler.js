@@ -14,7 +14,7 @@ import { sendOperationalEvent } from "./alerts.js";
 //
 // Valid states: starting | online | busy | standby | offline | maintenance.
 export const LIFECYCLE_STATES = ["starting", "online", "busy", "standby", "offline", "maintenance"];
-export const MANAGED_SERVICES = ["aims", "rams"];
+export const MANAGED_SERVICES = ["aims", "rams", "hive"];
 
 const DEFAULT_SERVICE_LIFECYCLE = () => ({
   state: "offline",
@@ -36,6 +36,11 @@ const SERVICE_LIFECYCLE_CONFIG = {
     healthUrlEnv: "RAMS_HEALTH_URL",
     healthUrlFallback: "https://mod.jonathan-harris.online/livez",
   },
+  hive: {
+    serviceIdEnv: "KOYEB_SERVICE_ID_HIVE",
+    healthUrlEnv: "HIVE_HEALTH_URL",
+    healthUrlFallback: "https://hive.jonathan-harris.online/livez",
+  },
 };
 
 const DEFAULT_STATE = {
@@ -49,7 +54,7 @@ const DEFAULT_STATE = {
   reviewQueue: [],
   operator: { schedulerEnabled: true, maintenanceMode: false, reason: null, updatedAt: null },
   metrics: { ticks: 0, delayedTicks: 0, duplicatePreventions: 0, jobsSucceeded: 0, jobsFailed: 0, lastTickLagMs: 0 },
-  services: { aims: DEFAULT_SERVICE_LIFECYCLE(), rams: DEFAULT_SERVICE_LIFECYCLE() },
+  services: { aims: DEFAULT_SERVICE_LIFECYCLE(), rams: DEFAULT_SERVICE_LIFECYCLE(), hive: DEFAULT_SERVICE_LIFECYCLE() },
 };
 
 export function numberEnv(name, fallback) {
@@ -417,6 +422,7 @@ function hydrateState(existing) {
     services: {
       aims: { ...DEFAULT_SERVICE_LIFECYCLE(), ...(existing?.services?.aims || {}) },
       rams: { ...DEFAULT_SERVICE_LIFECYCLE(), ...(existing?.services?.rams || {}) },
+      hive: { ...DEFAULT_SERVICE_LIFECYCLE(), ...(existing?.services?.hive || {}) },
     },
     startedAt: existing?.startedAt || new Date().toISOString(),
   };
@@ -1238,9 +1244,9 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
   state.lastTickAt = new Date(nowMs).toISOString();
   state.operator = await loadOperatorControl();
 
-  // HIVE cannot call a Koyeb Worker over public HTTP. On-demand AIMS/RAMS wake
-  // requests therefore arrive through the durable R2 operator-control object and
-  // are consumed here on the normal Worker tick. Operator commands are allowed
+  // The R2 operator-control object is reserved for MAST's own maintenance/scheduler
+  // commands. HIVE performs user-requested AIMS/RAMS wake actions directly through
+  // Koyeb, so repository wake-up is not coupled to the Worker tick. Operator commands are allowed
   // while the scheduled timetable is paused, but maintenance mode deliberately
   // defers them.
   const operatorCommands = await processOperatorCommands(state.operator);
