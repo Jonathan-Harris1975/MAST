@@ -21,7 +21,7 @@ The current architecture has **six consolidated operation triggers**, not ten pe
 
 MAST resumes AIMS at **09:30** Monday-Friday and triggers the AM window at **10:00**. Friday also resumes AIMS at **14:30** and triggers the podcast-only PM window at **15:00**. Catch-up windows protect against short scheduler/cold-start interruptions.
 
-AIMS owns sequencing inside each window. Individual RSS, Zernio, Blotato, blog, newsletter and outreach routes remain manual recovery controls and do not have independent production schedules in MAST.
+AIMS owns sequencing inside each window. Individual RSS, Zernio, Blotato, blog, newsletter and outreach routes remain manual recovery controls and do not have independent production schedules in MAST. The five Blotato recovery controls use `/blotato/shorts/:lane/schedule`; production recovery never calls the disabled immediate-publish route.
 
 MAST polls AIMS operation status until accepted asynchronous work is terminal. `failed` and `completed-with-failures` prevent automatic standby from being treated as a successful cycle.
 
