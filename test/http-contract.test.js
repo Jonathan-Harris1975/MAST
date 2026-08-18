@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import test from "node:test";
+import { assertProductionSecurityConfig } from "../src/security.js";
 
 const port = 18765;
 let child;
@@ -22,7 +23,7 @@ test("MAST exposes hardened health and readiness contracts", async (t) => {
     env: {
       ...process.env,
       PORT: String(port),
-      APP_ENV: "production",
+      APP_ENV: "development",
       CRON_ADMIN_TOKEN: "test-admin-token",
       AIMS_API_KEY: "test-aims-token",
       RMS_API_KEY: "test-rams-token",
@@ -63,4 +64,27 @@ test("MAST exposes hardened health and readiness contracts", async (t) => {
 
   const unauthorised = await fetch(`http://127.0.0.1:${port}/tick`, { method: "POST" });
   assert.equal(unauthorised.status, 401);
+});
+
+
+test("MAST refuses public manual controls in production", () => {
+  assert.throws(
+    () => assertProductionSecurityConfig({
+      appEnv: "production",
+      allowPublicManualRuns: true,
+      stateStatus: { ready: true, durable: true, backend: "r2" },
+    }),
+    /ALLOW_PUBLIC_MANUAL_RUNS cannot be enabled in production/,
+  );
+});
+
+test("MAST refuses ephemeral scheduler state in production", () => {
+  assert.throws(
+    () => assertProductionSecurityConfig({
+      appEnv: "production",
+      allowPublicManualRuns: false,
+      stateStatus: { ready: false, durable: false, backend: "local" },
+    }),
+    /requires a configured, ready R2 state backend/,
+  );
 });
