@@ -140,7 +140,7 @@ export function stateBackendStatus() {
   const validBackend = ["auto", "r2", "local"].includes(requestedStateBackend);
   const ready = validBackend
     && !(requestedStateBackend === "r2" && !r2StateConfigured)
-    && (!production || resolvedStateBackend === "r2" || ephemeralAllowed);
+    && (!production || resolvedStateBackend === "r2");
   return {
     ready,
     backend: resolvedStateBackend,

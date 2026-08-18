@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { assertProductionSecurityConfig, isProductionEnvironment } from "./security.js";
 import http from "node:http";
 import { jobs, SERVICE_NAME } from "./jobs.js";
 import {
@@ -21,6 +22,7 @@ import {
 const PORT = Number(process.env.PORT || 8000);
 const APP_VERSION = process.env.APP_VERSION || "1.2.3";
 const APP_ENV = process.env.APP_ENV || process.env.NODE_ENV || "development";
+const IS_PRODUCTION = isProductionEnvironment(APP_ENV);
 const SCHEDULER_ENABLED = booleanEnv("SCHEDULER_ENABLED", true);
 const TICK_SECONDS = numberEnv("SCHEDULER_TICK_SECONDS", 20);
 const ADMIN_TOKEN = (process.env.CRON_ADMIN_TOKEN || "").trim();
@@ -116,7 +118,7 @@ function secureEqual(left, right) {
 }
 
 function isAuthorised(req) {
-  if (ALLOW_PUBLIC_MANUAL_RUNS) return true;
+  if (ALLOW_PUBLIC_MANUAL_RUNS && !IS_PRODUCTION) return true;
   if (!ADMIN_TOKEN) return false;
   const auth = String(req.headers.authorization || "");
   const bearer = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
@@ -130,7 +132,8 @@ function readiness() {
     { name: "job_registry", ok: jobs.length > 0, detail: `${jobs.length} jobs registered` },
     { name: "scheduler", ok: SCHEDULER_ENABLED, detail: SCHEDULER_ENABLED ? "enabled" : "disabled" },
     { name: "durable_state", ok: stateBackendStatus().ready, detail: stateBackendStatus().durable ? "R2" : "local/ephemeral" },
-    { name: "admin_token", ok: APP_ENV !== "production" || Boolean(ADMIN_TOKEN) || ALLOW_PUBLIC_MANUAL_RUNS, detail: ADMIN_TOKEN ? "configured" : "missing" },
+    { name: "admin_token", ok: !IS_PRODUCTION || Boolean(ADMIN_TOKEN), detail: ADMIN_TOKEN ? "configured" : "missing" },
+    { name: "public_manual_runs", ok: !IS_PRODUCTION || !ALLOW_PUBLIC_MANUAL_RUNS, detail: ALLOW_PUBLIC_MANUAL_RUNS ? "requested" : "disabled" },
     { name: "aims_token", ok: APP_ENV !== "production" || configuredEnv("AIMS_API_KEY"), detail: configuredEnv("AIMS_API_KEY") ? "configured" : "missing-or-placeholder" },
     { name: "rams_token", ok: APP_ENV !== "production" || configuredEnv("RMS_API_KEY"), detail: configuredEnv("RMS_API_KEY") ? "configured" : "missing-or-placeholder" },
     { name: "koyeb_token", ok: APP_ENV !== "production" || !booleanEnv("KOYEB_POWER_MANAGEMENT_ENABLED", true) || configuredEnv("KOYEB_TOKEN"), detail: configuredEnv("KOYEB_TOKEN") ? "configured" : "missing-or-placeholder" },
@@ -312,6 +315,13 @@ async function route(req, res) {
 
 await loadState();
 
+const startupState = stateBackendStatus();
+assertProductionSecurityConfig({
+  appEnv: APP_ENV,
+  allowPublicManualRuns: ALLOW_PUBLIC_MANUAL_RUNS,
+  stateStatus: startupState,
+});
+
 const server = http.createServer((req, res) => {
   route(req, res).catch((error) => {
     const id = requestId(req);
@@ -326,6 +336,11 @@ server.keepAliveTimeout = numberEnv("HTTP_KEEP_ALIVE_TIMEOUT_MS", 5_000);
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(JSON.stringify({ service: SERVICE_NAME, event: "server-listening", port: PORT, version: APP_VERSION, schedulerEnabled: SCHEDULER_ENABLED }));
+  const stateStatus = stateBackendStatus();
+  if (!stateStatus.ready) {
+    console.error(JSON.stringify({ service: SERVICE_NAME, event: "scheduler-blocked", reason: "state-backend-not-ready", stateBackend: stateStatus.backend }));
+    return;
+  }
   startScheduler();
 });
 
