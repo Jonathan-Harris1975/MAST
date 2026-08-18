@@ -1,7 +1,7 @@
 # MAST production operations
 
 **Status:** Paid Koyeb production Worker
-**Last reviewed:** 17 June 2026
+**Last reviewed:** 18 August 2026
 
 MAST is deployed as a Worker, not a Web Service. It has no public inbound probe. HIVE monitors `state/mast/scheduler-state.json` in the `metasystem` R2 bucket and classifies health from heartbeat age, failure streak and operator-control state.
 
@@ -15,4 +15,4 @@ MAST is deployed as a Worker, not a Web Service. It has no public inbound probe.
 
 ## Recovery
 
-Pause scheduling, inspect the failed downstream contract, run one selected job, then resume only after the heartbeat and result are healthy. Full alerting, operator-control and deployment-watcher instructions are in [`OPERATIONAL_ALERTING.md`](OPERATIONAL_ALERTING.md).
+Pause scheduling, inspect the failed downstream contract, run one selected job, then resume only after the heartbeat and result are healthy. For Blotato lane recovery, MAST calls the governed `/blotato/shorts/:lane/schedule` route; it does not use `/publish-now` in production. Full alerting, operator-control and deployment-watcher instructions are in [`OPERATIONAL_ALERTING.md`](OPERATIONAL_ALERTING.md).
