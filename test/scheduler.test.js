@@ -51,6 +51,39 @@ test("legacy task-level content jobs remain manual fallbacks and cannot double-f
   }
 });
 
+test("manual Blotato recovery uses governed schedule routes, never immediate publish", () => {
+  const blotatoIds = legacyContentIds.filter((id) => id.startsWith("blotato-") && id.endsWith("-publish"));
+  assert.equal(blotatoIds.length, 5);
+  for (const id of blotatoIds) {
+    const job = baseJobs.find((item) => item.id === id);
+    assert.ok(job, `${id} should exist`);
+    assert.match(job.targetPath, /^\/blotato\/shorts\/[^/]+\/schedule$/);
+    assert.match(job.targetUrl, /^https:\/\/app\.jonathan-harris\.online\/blotato\/shorts\/[^/]+\/schedule$/);
+    assert.doesNotMatch(job.targetPath, /publish-now/);
+  }
+});
+
+test("HIVE governance and optimisation schedules are fully wired", () => {
+  const expected = new Map([
+    ["hive-readiness-check", ["weekly", "06:00", "/v1/runtime/readiness"]],
+    ["hive-repo-health-check", ["weekly", "06:05", "/v1/system/repo-health"]],
+    ["hive-provider-health-check", ["weekly", "06:10", "/v1/providers/health"]],
+    ["hive-env-audit", ["weekly", "06:25", "/v1/environment/audit"]],
+    ["hive-model-registry-snapshot", ["weekly", "06:55", "/v1/model-registry"]],
+    ["hive-ai-council-run", ["monthly", "07:00", "/v1/ai-council/run"]],
+    ["hive-optimisation-stats-snapshot", ["monthly", "07:16", "/v1/optimisation/stats"]],
+    ["hive-monthly-review-generate", ["monthly", "07:25", "/v1/monthly-review/generate"]],
+  ]);
+  for (const [id, [type, time, path]] of expected) {
+    const job = baseJobs.find((item) => item.id === id);
+    assert.ok(job, `${id} should be scheduled`);
+    assert.equal(job.schedule.type, type);
+    assert.equal(job.schedule.time, time);
+    assert.equal(job.targetPath, path);
+    assert.equal(job.authEnv, "HIVE_ADMIN_BEARER_TOKEN");
+  }
+});
+
 test("Friday PM wakes at 14:30 and starts podcast at 15:00", () => {
   const wake = baseJobs.find((job) => job.id === "aims-power-resume-friday-podcast");
   assert.equal(wake.schedule.time, process.env.MAST_FRIDAY_PM_WAKE_TIME || "14:30");
