@@ -26,3 +26,20 @@ test("invalid JSON fails closed when a response policy is configured", () => {
   assert.equal(result.ok, false);
   assert.equal(result.failures[0].type, "invalid-json");
 });
+
+
+test("monthly review persistence checks fail closed", () => {
+  const policy = {
+    checks: [
+      { type: "fieldsEqual", leftPath: "sections_ok", rightPath: "sections_total" },
+      { type: "equals", path: "r2_object.ok", value: true },
+      { type: "equals", path: "d1_index.ok", value: true },
+    ],
+  };
+  const healthy = evaluateResponsePolicy(policy, '{"sections_ok":11,"sections_total":11,"r2_object":{"ok":true},"d1_index":{"ok":true}}');
+  const archiveFailed = evaluateResponsePolicy(policy, '{"sections_ok":11,"sections_total":11,"r2_object":{"ok":false},"d1_index":{"ok":true}}');
+  const indexFailed = evaluateResponsePolicy(policy, '{"sections_ok":11,"sections_total":11,"r2_object":{"ok":true},"d1_index":{"ok":false}}');
+  assert.equal(healthy.ok, true);
+  assert.equal(archiveFailed.ok, false);
+  assert.equal(indexFailed.ok, false);
+});
