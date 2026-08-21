@@ -29,11 +29,8 @@ test("MAST exposes five AM windows plus the Friday podcast window", () => {
   }
 });
 
-test("weekday AIMS wake is 09:30 and AM operations begin at 10:00 with catch-up protection", () => {
-  const wake = baseJobs.find((job) => job.id === "aims-power-resume-daily");
-  assert.deepEqual(wake.schedule.days, ["monday", "tuesday", "wednesday", "thursday", "friday"]);
-  assert.equal(wake.schedule.time, process.env.MAST_AM_WAKE_TIME || "09:30");
-  assert.equal(wake.schedule.catchUpMinutes, Number(process.env.MAST_AM_WAKE_CATCH_UP_MINUTES || 120));
+test("AIMS remains always-on and AM operations begin at 10:00 with catch-up protection", () => {
+  assert.equal(baseJobs.some((job) => job.id.startsWith("aims-power-")), false);
   for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"]) {
     const am = baseJobs.find((job) => job.id === `operation-${day}-am`);
     assert.equal(am.schedule.time, process.env.MAST_AM_OPERATION_TIME || "10:00");
@@ -48,6 +45,18 @@ test("legacy task-level content jobs remain manual fallbacks and cannot double-f
     assert.ok(job, `${id} should remain available for manual recovery`);
     assert.equal(job.schedule.type, "manual", `${id} must not retain an independent schedule`);
     assert.equal(job.urlEnv, null, `${id} must use the direct app endpoint`);
+  }
+});
+
+test("Outreach is fully automated twice each weekday under MAST", () => {
+  for (const [id, time] of [["outreach-weekday-am", "09:00"], ["outreach-weekday-pm", "16:00"]]) {
+    const job = baseJobs.find((item) => item.id === id);
+    assert.ok(job);
+    assert.deepEqual(job.schedule.days, ["monday", "tuesday", "wednesday", "thursday", "friday"]);
+    assert.equal(job.schedule.time, time);
+    assert.equal(job.schedule.timezone, "Europe/London");
+    assert.equal(job.targetPath, "/outreach/batch/next");
+    assert.deepEqual(job.requiredServices, ["aims"]);
   }
 });
 
@@ -81,13 +90,12 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
     assert.equal(job.schedule.time, time);
     assert.equal(job.targetPath, path);
     assert.equal(job.authEnv, "HIVE_ADMIN_BEARER_TOKEN");
+    assert.deepEqual(job.requiredServices, ["hive"]);
   }
 });
 
-test("Friday PM wakes at 14:30 and starts podcast at 15:00", () => {
-  const wake = baseJobs.find((job) => job.id === "aims-power-resume-friday-podcast");
-  assert.equal(wake.schedule.time, process.env.MAST_FRIDAY_PM_WAKE_TIME || "14:30");
-  assert.equal(wake.schedule.catchUpMinutes, Number(process.env.MAST_FRIDAY_PM_WAKE_CATCH_UP_MINUTES || 120));
+test("Friday PM starts the podcast at 15:00 while AIMS remains always-on", () => {
+  assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-friday-podcast"), false);
   const job = baseJobs.find((item) => item.id === "operation-friday-pm");
   assert.deepEqual(job.schedule.days, ["friday"]);
   assert.equal(job.schedule.time, process.env.MAST_FRIDAY_PM_OPERATION_TIME || "15:00");
@@ -120,16 +128,13 @@ test("website audit uses the first Sunday while the AIMS audit remains second Sa
 });
 
 
-test("first-Sunday website audit wakes AIMS and RAMS at 10:00", () => {
-  for (const id of ["aims-power-resume-website-audit", "rams-power-resume-website-audit"]) {
-    const wake = baseJobs.find((job) => job.id === id);
-    assert.deepEqual(wake.schedule, {
-      type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: "10:00", timezone: "Europe/London", catchUpMinutes: 120,
-    });
-    assert.equal(isTimedJobDue(wake, new Date("2026-08-02T09:00:00.000Z")), true);
-    assert.equal(isTimedJobDue(wake, new Date("2026-08-02T10:59:00.000Z")), true);
-    assert.equal(isTimedJobDue(wake, new Date("2026-08-02T11:01:00.000Z")), false);
-  }
+test("first-Sunday website audit wakes RAMS at 10:00 while AIMS stays online", () => {
+  assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-website-audit"), false);
+  const wake = baseJobs.find((job) => job.id === "rams-power-resume-website-audit");
+  assert.deepEqual(wake.schedule, {
+    type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: "10:00", timezone: "Europe/London", catchUpMinutes: 120,
+  });
+  assert.equal(isTimedJobDue(wake, new Date("2026-08-02T09:00:00.000Z")), true);
 });
 
 
@@ -137,11 +142,10 @@ test("second-Saturday AIMS audit wake and run have catch-up protection", () => {
   const audit = baseJobs.find((job) => job.id === "aims-audit-pipeline");
   assert.equal(audit.schedule.time, process.env.MAST_AIMS_AUDIT_RUN_TIME || "09:15");
   assert.equal(audit.schedule.catchUpMinutes, Number(process.env.MAST_AIMS_AUDIT_RUN_CATCH_UP_MINUTES || 180));
-  for (const id of ["aims-power-resume-aims-audit", "rams-power-resume-aims-audit"]) {
-    const wake = baseJobs.find((job) => job.id === id);
-    assert.equal(wake.schedule.time, process.env.MAST_AIMS_AUDIT_WAKE_TIME || "09:00");
-    assert.equal(wake.schedule.catchUpMinutes, Number(process.env.MAST_AIMS_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
-  }
+  assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-aims-audit"), false);
+  const wake = baseJobs.find((job) => job.id === "rams-power-resume-aims-audit");
+  assert.equal(wake.schedule.time, process.env.MAST_AIMS_AUDIT_WAKE_TIME || "09:00");
+  assert.equal(wake.schedule.catchUpMinutes, Number(process.env.MAST_AIMS_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 });
 
 test("website audit pretriggers run after the 10:00 wake", () => {
@@ -151,14 +155,12 @@ test("website audit pretriggers run after the 10:00 wake", () => {
   assert.deepEqual(stages, { health: 20, preflight: 15, warmup: 10 });
 });
 
-test("website audit dispatch requires AIMS only because RAMS is a downstream handoff", () => {
+test("website audit dispatch requires both AIMS and RAMS readiness", () => {
   const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
-  assert.deepEqual(website.requiredServices, ["aims"]);
+  assert.deepEqual(website.requiredServices, ["aims", "rams"]);
   assert.equal(requiredServicesReady(website, { services: { aims: { state: "starting" }, rams: { state: "online" } } }), false);
-  assert.equal(requiredServicesReady(website, { services: { aims: { state: "online" }, rams: { state: "offline" } } }), true);
-  assert.deepEqual(requiredServiceStates(website, { services: { aims: { state: "offline", reason: "stale-ledger" } } }), [
-    { service: "aims", state: "offline", reason: "stale-ledger", lastError: null },
-  ]);
+  assert.equal(requiredServicesReady(website, { services: { aims: { state: "online" }, rams: { state: "offline" } } }), false);
+  assert.equal(requiredServicesReady(website, { services: { aims: { state: "online" }, rams: { state: "online" } } }), true);
 });
 
 test("schedule eligibility remains visible even when the lifecycle ledger is stale", () => {
@@ -182,17 +184,9 @@ test("audit RAMS rebuild routes are manual because AIMS owns sequencing", () => 
   }
 });
 
-test("normal AIMS standby is completion-driven and immediate", () => {
-  for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"]) {
-    const pause = baseJobs.find((job) => job.id === `aims-power-pause-${day}-am`);
-    assert.deepEqual(pause.schedule, {
-      type: "posttrigger", sourceJobId: `operation-${day}-am`, delayMinutes: 0,
-    });
-  }
-  const podcastPause = baseJobs.find((job) => job.id === "aims-power-pause-friday-podcast");
-  assert.deepEqual(podcastPause.schedule, {
-    type: "posttrigger", sourceJobId: "operation-friday-pm", delayMinutes: 60,
-  });
+test("AIMS and HIVE have no scheduled standby jobs", () => {
+  assert.equal(baseJobs.some((job) => job.group === "power-aims"), false);
+  assert.equal(baseJobs.some((job) => job.group === "power-hive"), false);
 });
 
 test("operation windows do not multiply into per-task pretriggers", () => {
