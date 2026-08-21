@@ -16,6 +16,9 @@ const AIMS_AUDIT_WAKE_TIME = String(process.env.MAST_AIMS_AUDIT_WAKE_TIME || "09
 const AIMS_AUDIT_RUN_TIME = String(process.env.MAST_AIMS_AUDIT_RUN_TIME || "09:15");
 const AIMS_AUDIT_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 const AIMS_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS_AUDIT_RUN_CATCH_UP_MINUTES || 180));
+const HIVE_DAILY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_DAILY_CATCH_UP_MINUTES || 180));
+const HIVE_WEEKLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_WEEKLY_CATCH_UP_MINUTES || 360));
+const HIVE_MONTHLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_MONTHLY_CATCH_UP_MINUTES || 1020));
 
 function endpoint(envName, fallbackUrl) {
   const configured = process.env[envName];
@@ -36,7 +39,7 @@ export function koyebServiceUrl(serviceIdEnvName, action) {
   return `https://app.koyeb.com/v1/services/${serviceId}/${action}`;
 }
 
-function postJob({ id, group, description, schedule, urlEnv, fallbackUrl, targetUrl, targetPath, body, addLocalDateAsWeekStartDate = false, authEnv = null, asyncStatus = null, requiredServices = [], pretriggerOffsets = null }) {
+function postJob({ id, group, description, schedule, urlEnv, fallbackUrl, targetUrl, targetPath, body, addLocalDateAsWeekStartDate = false, authEnv = null, asyncStatus = null, requiredServices = [], pretriggerOffsets = null, responsePolicy = null }) {
   return {
     id,
     group,
@@ -53,10 +56,11 @@ function postJob({ id, group, description, schedule, urlEnv, fallbackUrl, target
     asyncStatus,
     requiredServices,
     pretriggerOffsets,
+    responsePolicy,
   };
 }
 
-function getJob({ id, group, description, schedule, urlEnv, fallbackUrl, targetUrl, targetPath, authEnv = null, requiredServices = [] }) {
+function getJob({ id, group, description, schedule, urlEnv, fallbackUrl, targetUrl, targetPath, authEnv = null, requiredServices = [], responsePolicy = null }) {
   return {
     id,
     group,
@@ -69,6 +73,7 @@ function getJob({ id, group, description, schedule, urlEnv, fallbackUrl, targetU
     targetPath,
     authEnv,
     requiredServices,
+    responsePolicy,
   };
 }
 
@@ -285,9 +290,9 @@ const monthlyAuditJobs = [
     description: `Run the complete website audit at ${WEBSITE_AUDIT_RUN_TIME} on the first Sunday of each month. AIMS owns the full council/report/RAMS sequence and MAST waits for terminal completion.`,
     schedule: { type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: WEBSITE_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES },
     urlEnv: null,
-    fallbackUrl: `${aimsBaseUrl()}/audits/website/run`,
-    targetUrl: `${aimsBaseUrl()}/audits/website/run`,
-    targetPath: "/audits/website/run",
+    fallbackUrl: `${aimsBaseUrl()}/audits/monthly/website`,
+    targetUrl: `${aimsBaseUrl()}/audits/monthly/website`,
+    targetPath: "/audits/monthly/website",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims", "rams"],
     pretriggerOffsets: { health: 20, preflight: 15, warmup: 10 },
@@ -301,7 +306,7 @@ const monthlyAuditJobs = [
     },
     body: {
       requestedBy: SERVICE_NAME,
-      notes: "First-Sunday website audit. AIMS owns sequencing and final publication. RAMS is a downstream remediation handoff and must not block audit dispatch.",
+      notes: "First-Sunday website audit. AIMS owns sequencing, monthly cadence enforcement, final publication and the required RAMS remediation handoff.",
     },
   }),
   postJob({
@@ -567,7 +572,7 @@ const koyebPowerJobs = koyebPowerManagementEnabled()
 // backend/app/api/system.py, env_audit.py, ai_council.py, providers.py, skills.py,
 // vectorize.py, buckets.py, connectors.py, model_registry.py, optimisation_engine.py)
 // that were previously never called by anything except a human opening HIVE-UI.
-// hive-keepawake (below) only pings /healthz - it does not exercise any of these.
+// HIVE remains always-on; its liveness probe is separate from these governance checks.
 // Everything here is intentionally read-only or self-contained. Repository manifests are
 // rehydrated from R2 after HIVE restarts, but repository-scoped QA/council/reindex actions
 // still require an active local working copy. MAST therefore does not schedule those routes:
@@ -581,7 +586,7 @@ function hiveBaseUrl() {
   return String(process.env.HIVE_BASE_URL || "https://hive.jonathan-harris.online").replace(/\/+$/, "");
 }
 
-function hiveJob({ id, group, description, schedule, targetPath, method = "GET", body, requiresAuth = true }) {
+function hiveJob({ id, group, description, schedule, targetPath, method = "GET", body, requiresAuth = true, responsePolicy = null }) {
   const url = `${hiveBaseUrl()}${targetPath}`;
   const shared = {
     id,
@@ -592,6 +597,7 @@ function hiveJob({ id, group, description, schedule, targetPath, method = "GET",
     targetPath,
     authEnv: requiresAuth ? "HIVE_ADMIN_BEARER_TOKEN" : null,
     requiredServices: ["hive"],
+    responsePolicy,
   };
   return method === "POST"
     ? postJob({ ...shared, urlEnv: null, fallbackUrl: url, body: body || {} })
@@ -603,28 +609,31 @@ const hiveGovernanceDailyJobs = [
     id: "hive-readiness-check",
     group: "hive-governance",
     description: "Check HIVE's full runtime readiness (providers, storage, config) once a day.",
-    schedule: { type: "weekly", days: EVERY_DAY, time: "06:00", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: EVERY_DAY, time: "06:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
     targetPath: "/v1/runtime/readiness",
+    responsePolicy: { checks: [{ type: "equals", path: "ready", value: true, message: "HIVE runtime readiness reported ready=false." }] },
   }),
   hiveJob({
     id: "hive-repo-health-check",
     group: "hive-governance",
     description: "Fetch HIVE's governed repo-ecosystem liveness/readiness report (Repository Health Review).",
-    schedule: { type: "weekly", days: EVERY_DAY, time: "06:05", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: EVERY_DAY, time: "06:05", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
     targetPath: "/v1/system/repo-health",
+    responsePolicy: { checks: [{ type: "oneOf", path: "overall_status", values: ["healthy"], message: "HIVE repository ecosystem is not healthy." }] },
   }),
   hiveJob({
     id: "hive-provider-health-check",
     group: "hive-governance",
     description: "Check the health of every configured AI provider (AI Provider Monitoring).",
-    schedule: { type: "weekly", days: EVERY_DAY, time: "06:10", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: EVERY_DAY, time: "06:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
     targetPath: "/v1/providers/health",
+    responsePolicy: { checks: [{ type: "arrayEveryEquals", path: "providers", key: "ok", value: true, message: "One or more configured HIVE providers reported unhealthy." }] },
   }),
   hiveJob({
     id: "hive-ops-events-digest",
     group: "hive-governance",
     description: "Pull the last day of redacted HIVE operational events for the executive/ops trail.",
-    schedule: { type: "weekly", days: EVERY_DAY, time: "06:15", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: EVERY_DAY, time: "06:15", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
     targetPath: "/v1/system/ops-events?limit=100",
   }),
 ];
@@ -634,49 +643,50 @@ const hiveGovernanceWeeklyJobs = [
     id: "hive-env-audit",
     group: "hive-governance-weekly",
     description: "Run HIVE's environment/config audit (Environment Validation).",
-    schedule: { type: "weekly", days: ["monday"], time: "06:25", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["monday"], time: "06:25", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
     targetPath: "/v1/environment/audit",
   }),
   hiveJob({
     id: "hive-repo-hygiene-check",
     group: "hive-governance-weekly",
     description: "Run HIVE's own repo-hygiene scan for duplicate/orphan/generated files.",
-    schedule: { type: "weekly", days: ["monday"], time: "06:30", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["monday"], time: "06:30", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
     targetPath: "/v1/system/repo-hygiene",
   }),
   hiveJob({
     id: "hive-skills-integrity-check",
     group: "hive-governance-weekly",
     description: "Check HIVE's skill catalogue (181-skill registry) for integrity issues (Knowledge Base Review).",
-    schedule: { type: "weekly", days: ["monday"], time: "06:35", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["monday"], time: "06:35", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
     targetPath: "/v1/skills/integrity",
   }),
   hiveJob({
     id: "hive-vectorize-diagnostics",
     group: "hive-governance-weekly",
     description: "Check Vectorize/embeddings diagnostics (R2 Storage Validation).",
-    schedule: { type: "weekly", days: ["monday"], time: "06:40", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["monday"], time: "06:40", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
     targetPath: "/v1/vectorize/diagnostics",
+    responsePolicy: { checks: [{ type: "equals", path: "ok", value: true, message: "HIVE Vectorize diagnostics reported ok=false." }] },
   }),
   hiveJob({
     id: "hive-buckets-check",
     group: "hive-governance-weekly",
     description: "Check configured R2 bucket lanes are reachable and correctly scoped.",
-    schedule: { type: "weekly", days: ["monday"], time: "06:45", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["monday"], time: "06:45", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
     targetPath: "/v1/buckets",
   }),
   hiveJob({
     id: "hive-connectors-check",
     group: "hive-governance-weekly",
     description: "Check the status of every registered HIVE connector (GitHub, R2, OpenRouter, AI-search).",
-    schedule: { type: "weekly", days: ["monday"], time: "06:50", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["monday"], time: "06:50", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
     targetPath: "/v1/connectors",
   }),
   hiveJob({
     id: "hive-model-registry-snapshot",
     group: "hive-governance-weekly",
     description: "Check the current D1-backed Model Registry state and ranked defaults for unexpected resets or drift.",
-    schedule: { type: "weekly", days: ["monday"], time: "06:55", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: ["monday"], time: "06:55", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
     targetPath: "/v1/model-registry",
   }),
 ];
@@ -686,7 +696,7 @@ const hiveGovernanceMonthlyJobs = [
     id: "hive-ai-council-run",
     group: "hive-ai-council",
     description: "Run the AI Models Council: refresh provider model catalogues, score and auto-promote into the Model Registry.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "07:00", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "07:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/ai-council/run",
     method: "POST",
   }),
@@ -694,37 +704,38 @@ const hiveGovernanceMonthlyJobs = [
     id: "hive-skills-duplicates-check",
     group: "hive-skills-catalogue",
     description: "Deep monthly check for duplicate skills across the catalogue.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "07:10", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "07:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/skills/duplicates",
   }),
   hiveJob({
     id: "hive-skills-orphans-check",
     group: "hive-skills-catalogue",
     description: "Deep monthly check for orphaned skills no longer referenced by any workflow.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "07:12", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "07:12", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/skills/orphans",
   }),
   hiveJob({
     id: "hive-skills-missing-check",
     group: "hive-skills-catalogue",
     description: "Deep monthly check for skills referenced but missing from the catalogue.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "07:14", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "07:14", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/skills/missing",
   }),
   hiveJob({
     id: "hive-optimisation-stats-snapshot",
     group: "hive-governance-monthly",
     description: "Pull optimisation-engine decision/experiment stats for the monthly executive governance report.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "07:16", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "07:16", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/optimisation/stats",
   }),
   hiveJob({
     id: "hive-monthly-review-generate",
     group: "hive-governance-monthly",
     description: "Generate, archive and index the consolidated Monthly Review report (system health, AI Council/model registry, skills catalogue health, optimisation stats, execution review posture, token usage and cost) for the month that just finished. Runs after the other hive-governance-monthly jobs so their data is fresh.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "07:25", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "monthly", dayOfMonth: 1, time: "07:25", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/monthly-review/generate",
     method: "POST",
+    responsePolicy: { checks: [{ type: "fieldsEqual", leftPath: "sections_ok", rightPath: "sections_total", message: "HIVE Monthly Review completed with one or more failed sections." }] },
   }),
 ];
 

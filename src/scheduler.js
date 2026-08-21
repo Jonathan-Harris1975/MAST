@@ -3,6 +3,7 @@ import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3
 import { dirname } from "node:path";
 import { jobs, LOCAL_TIME_ZONE, SERVICE_NAME, USER_AGENT, koyebServiceUrl } from "./jobs.js";
 import { sendOperationalEvent } from "./alerts.js";
+import { evaluateResponsePolicy } from "./response-policy.js";
 
 // --- Service lifecycle model -------------------------------------------------------
 //
@@ -1008,6 +1009,7 @@ async function emitJobFailureAlert(job, result) {
       event_type: "scheduled_job_failure",
       title: `MAST job ${job.id} failed`,
       summary: result.errorMessage
+        || result.responsePolicy?.failures?.[0]?.message
         || result.asyncFailure?.error
         || result.operationFailure?.status
         || `HTTP ${result.status || "failure"}`,
@@ -1022,6 +1024,7 @@ async function emitJobFailureAlert(job, result) {
         status: result.status || null,
         operationFailure: result.operationFailure || null,
         asyncFailure: result.asyncFailure || null,
+        responsePolicy: result.responsePolicy || null,
       },
     });
     if (!delivery?.ok) {
@@ -1174,7 +1177,11 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
     const asyncJob = response.ok ? await waitForConfiguredAsyncStatus(job, responseText) : null;
     const operationOk = !operationJob || (operationJob.status === "completed" && Number(operationJob.failures || 0) === 0);
     const asyncOk = !asyncJob || (job.asyncStatus?.successStatuses || ["completed"]).includes(asyncJob.status);
-    const jobOk = response.ok && operationOk && asyncOk;
+    const responsePolicy = response.ok && operationOk && asyncOk
+      ? evaluateResponsePolicy(job.responsePolicy, responseText)
+      : { ok: true, checked: false, failures: [] };
+    const jobOk = response.ok && operationOk && asyncOk && responsePolicy.ok;
+    const terminalSemanticFailure = response.ok && operationOk && asyncOk && !responsePolicy.ok;
     const finishedAt = new Date();
 
     const result = {
@@ -1196,22 +1203,26 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
         asyncId: asyncJob.asyncId || null,
         error: asyncJob.error || null,
       } : null,
+      responsePolicy,
       payload: payload || null,
       startedAt: startedAt.toISOString(),
       finishedAt: finishedAt.toISOString(),
       durationMs: finishedAt.getTime() - startedAt.getTime(),
     };
 
-    if (jobOk) {
+    if (jobOk || terminalSemanticFailure) {
+      // A semantic health failure is a completed diagnostic observation, not a transport
+      // failure. Consume the schedule window so MAST alerts once instead of retrying it
+      // every tick throughout the catch-up window.
       if (job.schedule?.type === "interval") {
         state.intervalLastRunAt[job.id] = finishedAt.toISOString();
       } else {
         state.lastRunKeys[job.id] = runKey;
       }
 
-      if (job.lifecycle?.action === "pause") {
+      if (jobOk && job.lifecycle?.action === "pause") {
         setServiceLifecycle(job.lifecycle.service, "standby", { reason: `scheduled-pause:${trigger}`, lastAction: "pause" });
-      } else if (job.lifecycle?.action === "resume") {
+      } else if (jobOk && job.lifecycle?.action === "resume") {
         setServiceLifecycle(job.lifecycle.service, "starting", { reason: `scheduled-resume:${trigger}`, lastAction: "resume" });
       }
     } else if (job.lifecycle) {

@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import { assertProductionSecurityConfig, isProductionEnvironment } from "./security.js";
 import http from "node:http";
 import { jobs, SERVICE_NAME } from "./jobs.js";
+import { validateJobRegistry } from "./schedule-validation.js";
+import { sendOperationalEvent } from "./alerts.js";
 import {
   booleanEnv,
   findJob,
@@ -30,6 +32,7 @@ const ALLOW_PUBLIC_MANUAL_RUNS = booleanEnv("ALLOW_PUBLIC_MANUAL_RUNS", false);
 const MAX_BODY_BYTES = numberEnv("MAX_REQUEST_BODY_BYTES", 1_048_576);
 const SHUTDOWN_GRACE_MS = numberEnv("SHUTDOWN_GRACE_MS", 10_000);
 const STARTED_AT = new Date().toISOString();
+const JOB_REGISTRY_ERRORS = validateJobRegistry(jobs);
 
 let tickInProgress = false;
 let lastTickResult = null;
@@ -129,7 +132,7 @@ function isAuthorised(req) {
 function readiness() {
   const checks = [
     { name: "state_loaded", ok: true },
-    { name: "job_registry", ok: jobs.length > 0, detail: `${jobs.length} jobs registered` },
+    { name: "job_registry", ok: jobs.length > 0 && JOB_REGISTRY_ERRORS.length === 0, detail: JOB_REGISTRY_ERRORS.length ? `${JOB_REGISTRY_ERRORS.length} invalid schedule configuration(s)` : `${jobs.length} jobs registered` },
     { name: "scheduler", ok: SCHEDULER_ENABLED, detail: SCHEDULER_ENABLED ? "enabled" : "disabled" },
     { name: "durable_state", ok: stateBackendStatus().ready, detail: stateBackendStatus().durable ? "R2" : "local/ephemeral" },
     { name: "admin_token", ok: !IS_PRODUCTION || Boolean(ADMIN_TOKEN), detail: ADMIN_TOKEN ? "configured" : "missing" },
@@ -174,6 +177,18 @@ async function schedulerTick(trigger = "scheduled-tick") {
 }
 
 function startScheduler() {
+  if (JOB_REGISTRY_ERRORS.length) {
+    console.error(JSON.stringify({ service: SERVICE_NAME, event: "scheduler-invalid-job-registry", errors: JOB_REGISTRY_ERRORS }));
+    void sendOperationalEvent({
+      event_id: `mast:job-registry:${APP_VERSION}:invalid`,
+      severity: "critical",
+      event_type: "scheduler_configuration_invalid",
+      title: "MAST scheduler configuration is invalid",
+      summary: `${JOB_REGISTRY_ERRORS.length} invalid schedule configuration(s); scheduler start was blocked.`,
+      details: { errors: JOB_REGISTRY_ERRORS },
+    });
+    return;
+  }
   if (!SCHEDULER_ENABLED) {
     console.log(JSON.stringify({ service: SERVICE_NAME, event: "scheduler-disabled" }));
     return;
