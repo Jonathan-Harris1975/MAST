@@ -659,6 +659,7 @@ const hiveGovernanceWeeklyJobs = [
     description: "Check HIVE's skill catalogue (181-skill registry) for integrity issues (Knowledge Base Review).",
     schedule: { type: "weekly", days: ["monday"], time: "06:35", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
     targetPath: "/v1/skills/integrity",
+    responsePolicy: { checks: [{ type: "equals", path: "ok", value: true, message: "HIVE skills integrity query did not complete successfully." }] },
   }),
   hiveJob({
     id: "hive-vectorize-diagnostics",
@@ -706,6 +707,7 @@ const hiveGovernanceMonthlyJobs = [
     description: "Deep monthly check for duplicate skills across the catalogue.",
     schedule: { type: "monthly", dayOfMonth: 1, time: "07:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/skills/duplicates",
+    responsePolicy: { checks: [{ type: "equals", path: "ok", value: true, message: "HIVE skills duplicate check could not read the skills catalogue." }] },
   }),
   hiveJob({
     id: "hive-skills-orphans-check",
@@ -713,6 +715,7 @@ const hiveGovernanceMonthlyJobs = [
     description: "Deep monthly check for orphaned skills no longer referenced by any workflow.",
     schedule: { type: "monthly", dayOfMonth: 1, time: "07:12", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/skills/orphans",
+    responsePolicy: { checks: [{ type: "equals", path: "ok", value: true, message: "HIVE skills orphan check could not read the skills catalogue." }] },
   }),
   hiveJob({
     id: "hive-skills-missing-check",
@@ -720,6 +723,7 @@ const hiveGovernanceMonthlyJobs = [
     description: "Deep monthly check for skills referenced but missing from the catalogue.",
     schedule: { type: "monthly", dayOfMonth: 1, time: "07:14", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/skills/missing",
+    responsePolicy: { checks: [{ type: "equals", path: "ok", value: true, message: "HIVE skills missing check could not read the skills catalogue." }] },
   }),
   hiveJob({
     id: "hive-optimisation-stats-snapshot",
@@ -735,7 +739,13 @@ const hiveGovernanceMonthlyJobs = [
     schedule: { type: "monthly", dayOfMonth: 1, time: "07:25", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/monthly-review/generate",
     method: "POST",
-    responsePolicy: { checks: [{ type: "fieldsEqual", leftPath: "sections_ok", rightPath: "sections_total", message: "HIVE Monthly Review completed with one or more failed sections." }] },
+    responsePolicy: {
+      checks: [
+        { type: "fieldsEqual", leftPath: "sections_ok", rightPath: "sections_total", message: "HIVE Monthly Review completed with one or more failed sections." },
+        { type: "equals", path: "r2_object.ok", value: true, message: "HIVE Monthly Review was generated but its R2 archive was not confirmed." },
+        { type: "equals", path: "d1_index.ok", value: true, message: "HIVE Monthly Review was generated but its D1 index write was not confirmed." },
+      ],
+    },
   }),
 ];
 

@@ -44,7 +44,8 @@ export function validateJobRegistry(jobs = []) {
     if (TIMED_TYPES.has(schedule.type)) {
       if (!validTime(schedule.time)) errors.push({ job: id, field: "schedule.time", message: `Invalid HH:MM time: ${schedule.time || "<missing>"}.` });
       if (!validTimezone(schedule.timezone)) errors.push({ job: id, field: "schedule.timezone", message: `Invalid IANA timezone: ${schedule.timezone || "<missing>"}.` });
-      if (!nonNegativeFinite(schedule.catchUpMinutes || 0)) errors.push({ job: id, field: "schedule.catchUpMinutes", message: "Catch-up minutes must be a non-negative finite number." });
+      const catchUpMinutes = schedule.catchUpMinutes ?? 0;
+      if (!nonNegativeFinite(catchUpMinutes)) errors.push({ job: id, field: "schedule.catchUpMinutes", message: "Catch-up minutes must be a non-negative finite number." });
     }
 
     if (schedule.type === "weekly") {
@@ -75,6 +76,12 @@ export function validateJobRegistry(jobs = []) {
     if (["pretrigger", "posttrigger"].includes(schedule.type)) {
       const sourceJobId = String(schedule.sourceJobId || job.sourceJobId || "").trim();
       if (!sourceJobId || !availableIds.has(sourceJobId)) errors.push({ job: id, field: "schedule.sourceJobId", message: `Source job does not exist: ${sourceJobId || "<missing>"}.` });
+      if (schedule.type === "pretrigger" && (!Number.isFinite(Number(schedule.offsetMinutes)) || Number(schedule.offsetMinutes) <= 0)) {
+        errors.push({ job: id, field: "schedule.offsetMinutes", message: "Pretrigger offsetMinutes must be a positive finite number." });
+      }
+      if (schedule.type === "posttrigger" && !nonNegativeFinite(schedule.delayMinutes)) {
+        errors.push({ job: id, field: "schedule.delayMinutes", message: "Posttrigger delayMinutes must be a non-negative finite number." });
+      }
     }
   }
 
