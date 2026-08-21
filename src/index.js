@@ -136,9 +136,13 @@ function readiness() {
     { name: "public_manual_runs", ok: !IS_PRODUCTION || !ALLOW_PUBLIC_MANUAL_RUNS, detail: ALLOW_PUBLIC_MANUAL_RUNS ? "requested" : "disabled" },
     { name: "aims_token", ok: APP_ENV !== "production" || configuredEnv("AIMS_API_KEY"), detail: configuredEnv("AIMS_API_KEY") ? "configured" : "missing-or-placeholder" },
     { name: "rams_token", ok: APP_ENV !== "production" || configuredEnv("RMS_API_KEY"), detail: configuredEnv("RMS_API_KEY") ? "configured" : "missing-or-placeholder" },
+    { name: "hive_token", ok: APP_ENV !== "production" || configuredEnv("HIVE_ADMIN_BEARER_TOKEN"), detail: configuredEnv("HIVE_ADMIN_BEARER_TOKEN") ? "configured" : "missing-or-placeholder" },
+    { name: "ops_alert_url", ok: APP_ENV !== "production" || configuredEnv("OPS_ALERT_WEBHOOK_URL"), detail: configuredEnv("OPS_ALERT_WEBHOOK_URL") ? "configured" : "missing-or-placeholder" },
+    { name: "ops_alert_token", ok: APP_ENV !== "production" || configuredEnv("OPS_ALERT_WEBHOOK_TOKEN"), detail: configuredEnv("OPS_ALERT_WEBHOOK_TOKEN") ? "configured" : "missing-or-placeholder" },
     { name: "koyeb_token", ok: APP_ENV !== "production" || !booleanEnv("KOYEB_POWER_MANAGEMENT_ENABLED", true) || configuredEnv("KOYEB_TOKEN"), detail: configuredEnv("KOYEB_TOKEN") ? "configured" : "missing-or-placeholder" },
-    { name: "koyeb_aims_service", ok: APP_ENV !== "production" || !booleanEnv("KOYEB_POWER_MANAGEMENT_ENABLED", true) || configuredEnv("KOYEB_SERVICE_ID_AIMS"), detail: configuredEnv("KOYEB_SERVICE_ID_AIMS") ? "configured" : "missing-or-placeholder" },
+    { name: "koyeb_aims_service", ok: APP_ENV !== "production" || configuredEnv("KOYEB_SERVICE_ID_AIMS"), detail: configuredEnv("KOYEB_SERVICE_ID_AIMS") ? "configured" : "missing-or-placeholder" },
     { name: "koyeb_rams_service", ok: APP_ENV !== "production" || !booleanEnv("KOYEB_POWER_MANAGEMENT_ENABLED", true) || configuredEnv("KOYEB_SERVICE_ID_RAMS"), detail: configuredEnv("KOYEB_SERVICE_ID_RAMS") ? "configured" : "missing-or-placeholder" },
+    { name: "koyeb_hive_service", ok: APP_ENV !== "production" || configuredEnv("KOYEB_SERVICE_ID_HIVE"), detail: configuredEnv("KOYEB_SERVICE_ID_HIVE") ? "configured" : "missing-or-placeholder" },
   ];
   const ready = !shuttingDown && checks.every((check) => check.ok);
   return { ready, status: ready ? "ready" : "degraded", checks };

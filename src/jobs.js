@@ -2,15 +2,11 @@ export const SERVICE_NAME = "MAST";
 export const LOCAL_TIME_ZONE = "Europe/London";
 export const USER_AGENT = "Jonathan-Harris-MAST/1.2.3 (+https://jonathan-harris.online)";
 
-const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+const EVERY_DAY = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const WEEKDAYS_MON_TO_FRI = ["monday", "tuesday", "wednesday", "thursday", "friday"];
-const AM_WAKE_TIME = String(process.env.MAST_AM_WAKE_TIME || "09:30");
 const AM_OPERATION_TIME = String(process.env.MAST_AM_OPERATION_TIME || "10:00");
-const AM_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AM_WAKE_CATCH_UP_MINUTES || 120));
 const AM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
-const FRIDAY_PM_WAKE_TIME = String(process.env.MAST_FRIDAY_PM_WAKE_TIME || "14:30");
 const FRIDAY_PM_OPERATION_TIME = String(process.env.MAST_FRIDAY_PM_OPERATION_TIME || "15:00");
-const FRIDAY_PM_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_FRIDAY_PM_WAKE_CATCH_UP_MINUTES || 120));
 const FRIDAY_PM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
 const WEBSITE_AUDIT_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME || "10:00");
 const WEBSITE_AUDIT_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "10:30");
@@ -60,7 +56,7 @@ function postJob({ id, group, description, schedule, urlEnv, fallbackUrl, target
   };
 }
 
-function getJob({ id, group, description, schedule, urlEnv, fallbackUrl, targetUrl, targetPath, authEnv = null }) {
+function getJob({ id, group, description, schedule, urlEnv, fallbackUrl, targetUrl, targetPath, authEnv = null, requiredServices = [] }) {
   return {
     id,
     group,
@@ -72,6 +68,7 @@ function getJob({ id, group, description, schedule, urlEnv, fallbackUrl, targetU
     targetUrl,
     targetPath,
     authEnv,
+    requiredServices,
   };
 }
 
@@ -99,6 +96,33 @@ const outreachBatchNext = postJob({
   targetPath: "/outreach/batch/next",
   authEnv: "AIMS_API_KEY",
 });
+
+const outreachScheduledJobs = [
+  postJob({
+    id: "outreach-weekday-am",
+    group: "outreach",
+    description: "Automatically process the morning Outreach batch on weekdays.",
+    schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "09:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
+    urlEnv: null,
+    fallbackUrl: "https://app.jonathan-harris.online/outreach/batch/next",
+    targetUrl: "https://app.jonathan-harris.online/outreach/batch/next",
+    targetPath: "/outreach/batch/next",
+    authEnv: "AIMS_API_KEY",
+    requiredServices: ["aims"],
+  }),
+  postJob({
+    id: "outreach-weekday-pm",
+    group: "outreach",
+    description: "Automatically process the afternoon Outreach batch on weekdays.",
+    schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "16:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
+    urlEnv: null,
+    fallbackUrl: "https://app.jonathan-harris.online/outreach/batch/next",
+    targetUrl: "https://app.jonathan-harris.online/outreach/batch/next",
+    targetPath: "/outreach/batch/next",
+    authEnv: "AIMS_API_KEY",
+    requiredServices: ["aims"],
+  }),
+];
 
 const podcastRun = postJob({
   id: "podcast-run",
@@ -265,7 +289,7 @@ const monthlyAuditJobs = [
     targetUrl: `${aimsBaseUrl()}/audits/website/run`,
     targetPath: "/audits/website/run",
     authEnv: "AIMS_API_KEY",
-    requiredServices: koyebPowerManagementEnabled() ? ["aims"] : [],
+    requiredServices: ["aims", "rams"],
     pretriggerOffsets: { health: 20, preflight: 15, warmup: 10 },
     asyncStatus: {
       responseIdField: "sessionId",
@@ -290,7 +314,7 @@ const monthlyAuditJobs = [
     targetUrl: `${aimsBaseUrl()}/audits/monthly/aims`,
     targetPath: "/audits/monthly/aims",
     authEnv: "AIMS_API_KEY",
-    requiredServices: koyebPowerManagementEnabled() ? ["aims", "rams"] : [],
+    requiredServices: ["aims", "rams"],
     asyncStatus: {
       responseIdField: "sessionId",
       statusPath: "/audits/content-master/jobs/{id}",
@@ -445,11 +469,9 @@ const ramsJobs = [
 
 // --- Koyeb power management -------------------------------------------------------
 //
-// AIMS wakes at the configured weekday wake time, then the AM window starts
-// after a deliberate warm-up gap. Both schedules have bounded catch-up windows
-// so a delayed scheduler tick or cold deployment does not silently lose the day.
-// On Friday it wakes again at 14:30 for the podcast-only window. Normal weekday standby
-// is completion-driven: AIMS pauses as soon as the relevant operation endpoint returns.
+// AIMS and HIVE stay online continuously. AIMS owns Comms Hub workers and HIVE
+// owns operational-event ingestion, so suspending either would break unattended
+// automation. RAMS remains demand-woken for monthly remediation/audit work.
 
 function koyebPowerManagementEnabled() {
   const raw = process.env.KOYEB_POWER_MANAGEMENT_ENABLED;
@@ -480,60 +502,6 @@ function koyebPowerJob({ id, group, description, schedule, serviceIdEnv, action 
   };
 }
 
-const hivePowerResumeGovernance = koyebPowerJob({
-  id: "hive-power-resume-governance",
-  group: "power-hive",
-  description: "Resume HIVE shortly before automated governance work.",
-  schedule: { type: "weekly", days: WEEKDAYS, time: "05:55", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
-  serviceIdEnv: "KOYEB_SERVICE_ID_HIVE",
-  action: "resume",
-});
-
-const hivePowerPauseGovernance = koyebPowerJob({
-  id: "hive-power-pause-governance",
-  group: "power-hive",
-  description: "Return HIVE to standby after the automated governance window.",
-  schedule: { type: "weekly", days: WEEKDAYS, time: "07:35", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
-  serviceIdEnv: "KOYEB_SERVICE_ID_HIVE",
-  action: "pause",
-});
-
-const aimsPowerResumeDaily = koyebPowerJob({
-  id: "aims-power-resume-daily",
-  group: "power-aims",
-  description: `Resume AIMS at ${AM_WAKE_TIME} before weekday morning operations.`,
-  schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: AM_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AM_WAKE_CATCH_UP_MINUTES },
-  serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
-  action: "resume",
-});
-
-const aimsPowerResumeFridayPodcast = koyebPowerJob({
-  id: "aims-power-resume-friday-podcast",
-  group: "power-aims",
-  description: `Resume AIMS at ${FRIDAY_PM_WAKE_TIME} for the Friday podcast-only window.`,
-  schedule: { type: "weekly", days: ["friday"], time: FRIDAY_PM_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: FRIDAY_PM_WAKE_CATCH_UP_MINUTES },
-  serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
-  action: "resume",
-});
-
-const aimsPowerResumeWebsiteAudit = koyebPowerJob({
-  id: "aims-power-resume-website-audit",
-  group: "power-aims",
-  description: `Resume AIMS at ${WEBSITE_AUDIT_WAKE_TIME} for the first-Sunday website audit.`,
-  schedule: { type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: WEBSITE_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES },
-  serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
-  action: "resume",
-});
-
-const aimsPowerResumeAimsAudit = koyebPowerJob({
-  id: "aims-power-resume-aims-audit",
-  group: "power-aims",
-  description: `Resume AIMS at ${AIMS_AUDIT_WAKE_TIME} for the second-Saturday AIMS audit.`,
-  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: AIMS_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AIMS_AUDIT_WAKE_CATCH_UP_MINUTES },
-  serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
-  action: "resume",
-});
-
 const ramsPowerResumeWebsiteAudit = koyebPowerJob({
   id: "rams-power-resume-website-audit",
   group: "power-rams",
@@ -563,43 +531,6 @@ function posttriggerPauseJob({ id, group, description, sourceJobId, serviceIdEnv
   });
 }
 
-const aimsWeekdayPauseJobs = [
-  ...["monday", "tuesday", "wednesday", "thursday", "friday"].map((day) => posttriggerPauseJob({
-    id: `aims-power-pause-${day}-am`,
-    group: "power-aims",
-    description: `Pause AIMS immediately after ${day} AM operations finish.`,
-    sourceJobId: `operation-${day}-am`,
-    serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
-  })),
-  posttriggerPauseJob({
-    id: "aims-power-pause-friday-podcast",
-    group: "power-aims",
-    description: "Pause AIMS one hour after the Friday podcast window finishes.",
-    sourceJobId: "operation-friday-pm",
-    serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
-    delayMinutes: 60,
-  }),
-];
-
-const aimsAuditPauseJobs = [
-  posttriggerPauseJob({
-    id: "aims-power-pause-after-website-audit",
-    group: "power-aims",
-    description: "Pause AIMS one hour after the second-Sunday website audit pipeline finishes.",
-    sourceJobId: "website-audit-pipeline",
-    delayMinutes: 60,
-    serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
-  }),
-  posttriggerPauseJob({
-    id: "aims-power-pause-after-aims-audit",
-    group: "power-aims",
-    description: "Pause AIMS one hour after the second-Saturday AIMS audit pipeline finishes.",
-    sourceJobId: "aims-audit-pipeline",
-    delayMinutes: 60,
-    serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
-  }),
-];
-
 const ramsAuditPauseJobs = [
   posttriggerPauseJob({
     id: "rams-power-pause-after-website-audit",
@@ -619,16 +550,13 @@ const ramsAuditPauseJobs = [
   }),
 ];
 
+// AIMS and HIVE are intentionally always-on production services. AIMS hosts
+// Comms Hub continuous workers; HIVE receives operational events and governance
+// requests. Scheduled Koyeb power management therefore applies only to RAMS.
 const koyebPowerJobs = koyebPowerManagementEnabled()
   ? [
-    aimsPowerResumeDaily,
-    aimsPowerResumeFridayPodcast,
-    aimsPowerResumeWebsiteAudit,
-    aimsPowerResumeAimsAudit,
     ramsPowerResumeWebsiteAudit,
     ramsPowerResumeAimsAudit,
-    ...aimsWeekdayPauseJobs,
-    ...aimsAuditPauseJobs,
     ...ramsAuditPauseJobs,
   ]
   : [];
@@ -663,6 +591,7 @@ function hiveJob({ id, group, description, schedule, targetPath, method = "GET",
     targetUrl: url,
     targetPath,
     authEnv: requiresAuth ? "HIVE_ADMIN_BEARER_TOKEN" : null,
+    requiredServices: ["hive"],
   };
   return method === "POST"
     ? postJob({ ...shared, urlEnv: null, fallbackUrl: url, body: body || {} })
@@ -674,28 +603,28 @@ const hiveGovernanceDailyJobs = [
     id: "hive-readiness-check",
     group: "hive-governance",
     description: "Check HIVE's full runtime readiness (providers, storage, config) once a day.",
-    schedule: { type: "weekly", days: WEEKDAYS, time: "06:00", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: EVERY_DAY, time: "06:00", timezone: LOCAL_TIME_ZONE },
     targetPath: "/v1/runtime/readiness",
   }),
   hiveJob({
     id: "hive-repo-health-check",
     group: "hive-governance",
     description: "Fetch HIVE's governed repo-ecosystem liveness/readiness report (Repository Health Review).",
-    schedule: { type: "weekly", days: WEEKDAYS, time: "06:05", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: EVERY_DAY, time: "06:05", timezone: LOCAL_TIME_ZONE },
     targetPath: "/v1/system/repo-health",
   }),
   hiveJob({
     id: "hive-provider-health-check",
     group: "hive-governance",
     description: "Check the health of every configured AI provider (AI Provider Monitoring).",
-    schedule: { type: "weekly", days: WEEKDAYS, time: "06:10", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: EVERY_DAY, time: "06:10", timezone: LOCAL_TIME_ZONE },
     targetPath: "/v1/providers/health",
   }),
   hiveJob({
     id: "hive-ops-events-digest",
     group: "hive-governance",
     description: "Pull the last day of redacted HIVE operational events for the executive/ops trail.",
-    schedule: { type: "weekly", days: WEEKDAYS, time: "06:15", timezone: LOCAL_TIME_ZONE },
+    schedule: { type: "weekly", days: EVERY_DAY, time: "06:15", timezone: LOCAL_TIME_ZONE },
     targetPath: "/v1/system/ops-events?limit=100",
   }),
 ];
@@ -817,7 +746,7 @@ const operationWindowJobs = [
     targetUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
     targetPath: `/ops/run/${day}-am`,
     authEnv: "AIMS_API_KEY",
-    requiredServices: koyebPowerManagementEnabled() ? ["aims"] : [],
+    requiredServices: ["aims"],
   })),
   postJob({
     id: "operation-friday-pm",
@@ -829,7 +758,7 @@ const operationWindowJobs = [
     targetUrl: `${aimsBaseUrl()}/ops/run/friday-pm`,
     targetPath: "/ops/run/friday-pm",
     authEnv: "AIMS_API_KEY",
-    requiredServices: koyebPowerManagementEnabled() ? ["aims"] : [],
+    requiredServices: ["aims"],
   }),
 ];
 
@@ -837,6 +766,7 @@ export const baseJobs = [
   ...operationWindowJobs,
   rssRewrite,
   outreachBatchNext,
+  ...outreachScheduledJobs,
   podcastRun,
   blogWeeklyBuild,
   blogDailySocialBuild,
@@ -848,9 +778,7 @@ export const baseJobs = [
   zernioEbooksWeekly,
   ...blotatoVideoJobs,
   healthPing,
-  hivePowerResumeGovernance,
   ...hiveGovernanceJobs,
-  hivePowerPauseGovernance,
   ...ramsJobs,
   ...koyebPowerJobs,
 ];

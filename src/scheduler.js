@@ -810,6 +810,14 @@ function resultSummary(result) {
   };
 }
 
+function failureReviewThresholdForJob(jobOrResult) {
+  const jobId = typeof jobOrResult === "string" ? jobOrResult : (jobOrResult?.id || jobOrResult?.job);
+  const job = jobs.find((item) => item.id === jobId);
+  if (!job) return CONFIG.failureReviewThreshold;
+  if (job.group === "audits" || ["monthly", "nth-weekday-monthly"].includes(job.schedule?.type)) return 1;
+  return CONFIG.failureReviewThreshold;
+}
+
 function rememberResult(result) {
   state.recentResults = [resultSummary(result), ...(state.recentResults || [])].slice(0, CONFIG.recentResultLimit);
   state.metrics = { ...DEFAULT_STATE.metrics, ...(state.metrics || {}) };
@@ -827,7 +835,7 @@ function rememberResult(result) {
   state.metrics.jobsFailed += 1;
   const streak = Number(state.failureStreaks[result.job] || 0) + 1;
   state.failureStreaks[result.job] = streak;
-  if (streak >= CONFIG.failureReviewThreshold) {
+  if (streak >= failureReviewThresholdForJob(result)) {
     const review = {
       id: `${result.job}:${result.runKey}`,
       job: result.job,
@@ -987,6 +995,48 @@ async function waitForAimsOperation(job, responseText) {
     await sleep(CONFIG.aimsOperationPollIntervalMs);
   }
   throw new Error(`AIMS operation ${operation.id} exceeded ${CONFIG.aimsOperationTimeoutMs}ms timeout`);
+}
+
+async function emitJobFailureAlert(job, result) {
+  const threshold = failureReviewThresholdForJob(job);
+  const streak = Number(state.failureStreaks?.[job.id] || 0);
+  const monthlyOrAudit = job.group === "audits" || ["monthly", "nth-weekday-monthly"].includes(job.schedule?.type);
+  try {
+    const delivery = await sendOperationalEvent({
+      event_id: `mast:${job.id}:${result.runKey || "unknown"}:failed`,
+      severity: monthlyOrAudit ? "critical" : "error",
+      event_type: "scheduled_job_failure",
+      title: `MAST job ${job.id} failed`,
+      summary: result.errorMessage
+        || result.asyncFailure?.error
+        || result.operationFailure?.status
+        || `HTTP ${result.status || "failure"}`,
+      release_id: process.env.APP_VERSION || null,
+      details: {
+        job: job.id,
+        group: job.group,
+        runKey: result.runKey || null,
+        failureStreak: streak,
+        reviewThreshold: threshold,
+        inReviewQueue: streak >= threshold,
+        status: result.status || null,
+        operationFailure: result.operationFailure || null,
+        asyncFailure: result.asyncFailure || null,
+      },
+    });
+    if (!delivery?.ok) {
+      throw new Error(`Operational alert was not accepted${delivery?.status ? ` (HTTP ${delivery.status})` : `: ${delivery?.reason || delivery?.error || "unknown delivery failure"}`}`);
+    }
+  } catch (alertError) {
+    console.error(JSON.stringify({
+      service: SERVICE_NAME,
+      event: "operational-alert-delivery-failed",
+      job: job.id,
+      runKey: result.runKey || null,
+      errorName: alertError?.name || "Error",
+      errorMessage: alertError?.message || String(alertError),
+    }));
+  }
 }
 
 export async function runJob(job, { at = new Date(), trigger = "scheduled", force = false } = {}) {
@@ -1174,6 +1224,7 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
 
     rememberResult(result);
     await saveState();
+    if (!jobOk) await emitJobFailureAlert(job, result);
     console.log(JSON.stringify(result));
 
     if (jobOk && job.lifecycle?.action === "resume") {
@@ -1207,17 +1258,7 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
 
     rememberResult(result);
     await saveState();
-    if (Number(state.failureStreaks?.[job.id] || 0) === CONFIG.failureReviewThreshold) {
-      await sendOperationalEvent({
-        event_id: `mast:${job.id}:${runKey}:failure-threshold`,
-        severity: "critical",
-        event_type: "repeated_job_failure",
-        title: `MAST job ${job.id} failed repeatedly`,
-        summary: `The job reached ${CONFIG.failureReviewThreshold} consecutive failures and was added to the review queue.`,
-        release_id: process.env.APP_VERSION || null,
-        details: { job: job.id, group: job.group, runKey, failureStreak: CONFIG.failureReviewThreshold },
-      });
-    }
+    await emitJobFailureAlert(job, result);
     console.log(JSON.stringify(result));
     return result;
   } finally {
