@@ -91,6 +91,12 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
     assert.equal(job.targetPath, path);
     assert.equal(job.authEnv, "HIVE_ADMIN_BEARER_TOKEN");
     assert.deepEqual(job.requiredServices, ["hive"]);
+    const expectedCatchUp = job.schedule.type === "monthly"
+      ? Number(process.env.MAST_HIVE_MONTHLY_CATCH_UP_MINUTES || 1020)
+      : (job.schedule.days?.length === 7
+        ? Number(process.env.MAST_HIVE_DAILY_CATCH_UP_MINUTES || 180)
+        : Number(process.env.MAST_HIVE_WEEKLY_CATCH_UP_MINUTES || 360));
+    assert.equal(job.schedule.catchUpMinutes, expectedCatchUp);
   }
 });
 
@@ -114,7 +120,7 @@ test("website audit uses the first Sunday while the AIMS audit remains second Sa
   assert.deepEqual(aims.schedule, {
     type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "09:15", timezone: "Europe/London", catchUpMinutes: 180,
   });
-  assert.equal(website.targetPath, "/audits/website/run");
+  assert.equal(website.targetPath, "/audits/monthly/website");
   assert.equal(aims.targetPath, "/audits/monthly/aims");
   assert.equal(aims.asyncStatus.statusPath, "/audits/content-master/jobs/{id}");
   assert.equal(website.asyncStatus.statusPath, "/audits/website/jobs/{id}");
