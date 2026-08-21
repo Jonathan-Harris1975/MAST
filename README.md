@@ -19,26 +19,26 @@ The current architecture has **six consolidated operation triggers**, not ten pe
 - Friday AM
 - Friday PM
 
-MAST resumes AIMS at **09:30** Monday-Friday and triggers the AM window at **10:00**. Friday also resumes AIMS at **14:30** and triggers the podcast-only PM window at **15:00**. Catch-up windows protect against short scheduler/cold-start interruptions.
+AIMS remains continuously available. MAST triggers the AM window at **10:00** Monday-Friday and the podcast-only Friday PM window at **15:00**. Catch-up windows protect against short scheduler interruptions.
 
-AIMS owns sequencing inside each window. Individual RSS, Zernio, Blotato, blog, newsletter and outreach routes remain manual recovery controls and do not have independent production schedules in MAST. The five Blotato recovery controls use `/blotato/shorts/:lane/schedule`; production recovery never calls the disabled immediate-publish route.
+AIMS owns sequencing inside each content window. Individual RSS, Zernio, Blotato, blog and newsletter routes remain manual recovery controls. Outreach is the deliberate exception: MAST owns two weekday triggers at **09:00** and **16:00 Europe/London**, while the manual route remains recovery-only. The five Blotato recovery controls use `/blotato/shorts/:lane/schedule`; production recovery never calls the disabled immediate-publish route.
 
 MAST polls AIMS operation status until accepted asynchronous work is terminal. `failed` and `completed-with-failures` prevent automatic standby from being treated as a successful cycle.
 
 ## Audit schedule
 
-- **First Sunday:** wake AIMS/RAMS at 10:00, run the website audit at 10:30.
-- **Second Saturday:** wake AIMS for the AIMS/content governance audit window and run the scheduled AIMS audit at 09:15.
+- **First Sunday:** wake RAMS at 10:00, run the website audit at 10:30; AIMS remains online.
+- **Second Saturday:** wake RAMS at 09:00 and run the AIMS/content governance audit at 09:15; AIMS remains online.
 
 AIMS owns downstream councils and RAMS hand-off. MAST does not separately schedule individual RAMS remediation pipelines.
 
 ## HIVE governance
 
-MAST also contains scheduled HIVE readiness, repository/provider health, environment/hygiene, skills/storage/connector/model governance and monthly AI Council/optimisation review tasks. These are separate from the six AIMS operating windows.
+MAST also contains seven-day HIVE readiness/repository/provider health checks plus weekly and monthly governance. HIVE stays online continuously, and every HIVE scheduled job is readiness-gated before execution.
 
 ## Service control
 
-Koyeb service IDs are supplied through environment variables. HIVE can enqueue bounded `service.resume`/`service.pause` commands through the R2 operator-control channel. MAST records the result and maintains the service lifecycle ledger. Maintenance mode defers operator commands.
+Koyeb service IDs are supplied through environment variables. AIMS and HIVE are always-on; scheduled Koyeb power management applies only to RAMS. Operator recovery controls remain available and MAST maintains the lifecycle ledger.
 
 ## Local verification
 
