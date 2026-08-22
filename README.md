@@ -47,6 +47,14 @@ npm ci --ignore-scripts
 npm run verify
 ```
 
+## Post-deployment launch smoke
+
+A successful production deployment is followed by the governed ecosystem smoke in `scripts/ecosystemSmoke.js`. It verifies AIMS and MAST readiness, executes MAST's real `suite-health-ping` job into AIMS, wakes RAMS and admits an `on-brand` dry-run, verifies HIVE dependency/provider/database readiness, exercises authenticated HIVE-UI → AIMS-UI hand-off, and sends one first-party CogniPal message/sync round trip.
+
+The GitHub Actions environment must provide `MAST_BASE_URL`, `HIVE_UI_BASE_URL` and `AIMS_UI_BASE_URL` as repository variables (or `MAST_BASE_URL` as a secret), plus `CRON_ADMIN_TOKEN`, `RMS_API_KEY`, `HIVE_ADMIN_BEARER_TOKEN` and `HIVE_UI_ACCESS_KEY` as Actions secrets. `AIMS_BASE_URL`, `RAMS_BASE_URL`, `HIVE_BASE_URL` and `WEBSITE_BASE_URL` have the governed production defaults shown in the workflow and may be overridden with repository variables. A missing required endpoint or credential fails the smoke rather than silently skipping a service.
+
+The same smoke can be run manually through the **Ecosystem smoke** workflow. IRS performs its 103-target live redirect audit in its own post-Pages deployment watcher.
+
 ## Production network model
 
 MAST intentionally uses authenticated public HTTPS endpoints for AIMS, RAMS and HIVE. NetBird and Hookdeck are not part of the production architecture. Service credentials remain in Koyeb Secrets, downstream requests use bearer authentication where required, public manual execution remains disabled by default, and operational status responses do not expose credentials or full downstream request details.
