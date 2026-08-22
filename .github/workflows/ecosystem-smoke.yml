@@ -17,9 +17,17 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: HIVE → AIMS communications smoke
+      - name: Production ecosystem smoke
         run: npm run ecosystem:smoke
         env:
+          MAST_BASE_URL: ${{ vars.MAST_BASE_URL || secrets.MAST_BASE_URL }}
+          AIMS_BASE_URL: ${{ vars.AIMS_BASE_URL || 'https://app.jonathan-harris.online' }}
+          RAMS_BASE_URL: ${{ vars.RAMS_BASE_URL || 'https://mod.jonathan-harris.online' }}
+          HIVE_BASE_URL: ${{ vars.HIVE_BASE_URL || 'https://hive.jonathan-harris.online' }}
+          WEBSITE_BASE_URL: ${{ vars.WEBSITE_BASE_URL || 'https://jonathan-harris.online' }}
           HIVE_UI_BASE_URL: ${{ vars.HIVE_UI_BASE_URL }}
           AIMS_UI_BASE_URL: ${{ vars.AIMS_UI_BASE_URL }}
+          CRON_ADMIN_TOKEN: ${{ secrets.CRON_ADMIN_TOKEN }}
+          RMS_API_KEY: ${{ secrets.RMS_API_KEY }}
+          HIVE_ADMIN_BEARER_TOKEN: ${{ secrets.HIVE_ADMIN_BEARER_TOKEN }}
           HIVE_UI_ACCESS_KEY: ${{ secrets.HIVE_UI_ACCESS_KEY }}
