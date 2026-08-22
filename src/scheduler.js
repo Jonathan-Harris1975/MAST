@@ -139,8 +139,12 @@ export function stateBackendStatus() {
   const production = ["production", "prod"].includes(String(process.env.APP_ENV || process.env.NODE_ENV || "").toLowerCase());
   const ephemeralAllowed = booleanEnv("ALLOW_EPHEMERAL_STATE", false);
   const validBackend = ["auto", "r2", "local"].includes(requestedStateBackend);
+  const durableBackendReady = resolvedStateBackend === "r2"
+    ? r2StateConfigured && (!production || (loaded && !stateLoadError))
+    : true;
   const ready = validBackend
     && !(requestedStateBackend === "r2" && !r2StateConfigured)
+    && durableBackendReady
     && (!production || resolvedStateBackend === "r2");
   return {
     ready,
@@ -148,12 +152,16 @@ export function stateBackendStatus() {
     requestedBackend: requestedStateBackend,
     durable: resolvedStateBackend === "r2",
     r2Configured: r2StateConfigured,
+    stateLoaded: loaded,
+    stateReadable: !stateLoadError,
+    stateLoadError: stateLoadError ? stateLoadError.name : null,
     ephemeralAllowed,
   };
 }
 
 let state = { ...DEFAULT_STATE, startedAt: new Date().toISOString() };
 let loaded = false;
+let stateLoadError = null;
 const runningJobs = new Set();
 
 export function localParts(at, timezone = LOCAL_TIME_ZONE) {
@@ -526,18 +534,30 @@ export async function loadState() {
   if (loaded) return state;
 
   try {
-    const existing = CONFIG.stateBackend === "r2"
-      ? await readR2State()
-      : JSON.parse(await readFile(CONFIG.stateFile, "utf8"));
-    state = hydrateState(existing || {});
+    if (CONFIG.stateBackend === "r2") {
+      if (!r2StateConfigured) throw new Error("MAST R2 state backend is not fully configured");
+      const existing = await readR2State();
+      // A genuine 404 is the only safe empty-ledger case. readR2Json converts
+      // NoSuchKey/404 to null; every transport/auth/parse failure is thrown.
+      state = hydrateState(existing || {});
+    } else {
+      try {
+        state = hydrateState(JSON.parse(await readFile(CONFIG.stateFile, "utf8")) || {});
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+        console.warn(JSON.stringify({ service: SERVICE_NAME, event: "state-file-missing", backend: CONFIG.stateBackend }));
+        state = hydrateState({});
+      }
+    }
+    stateLoadError = null;
+    loaded = true;
+    return state;
   } catch (error) {
-    if (requestedStateBackend === "r2" && !r2StateConfigured) throw error;
-    console.warn(JSON.stringify({ service: SERVICE_NAME, event: "state-load-fallback", backend: CONFIG.stateBackend, errorName: error?.name || "Error" }));
-    state = hydrateState({});
+    stateLoadError = { name: error?.name || "Error", at: new Date().toISOString() };
+    loaded = false;
+    console.error(JSON.stringify({ service: SERVICE_NAME, event: "state-load-failed", backend: CONFIG.stateBackend, errorName: stateLoadError.name }));
+    throw error;
   }
-
-  loaded = true;
-  return state;
 }
 
 export async function saveState() {
