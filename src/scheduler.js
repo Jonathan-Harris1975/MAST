@@ -218,8 +218,10 @@ function pretriggerSourceTime(job, at) {
 function latestSuccessfulSourceResult(job, currentState = state) {
   const sourceJobId = job?.schedule?.sourceJobId || job?.sourceJobId;
   if (!sourceJobId) return null;
-  return [...(currentState.recentResults || [])]
-    .reverse()
+  // rememberResult() stores recentResults newest-first. Select the first
+  // successful source result so post-trigger jobs are tied to the latest
+  // completed source run rather than an older retained history entry.
+  return (currentState.recentResults || [])
     .find((result) => (result?.job === sourceJobId || result?.jobId === sourceJobId) && result?.ok === true && result?.finishedAt);
 }
 
@@ -233,7 +235,7 @@ function posttriggerDueAt(job, currentState = state) {
   return new Date(finishedAt + delayMinutes * 60_000);
 }
 
-export function buildRunKey(job, at) {
+export function buildRunKey(job, at, currentState = state) {
   const schedule = job.schedule || {};
   if (schedule.type === "interval") {
     const everyMs = Number(schedule.everyMinutes) * 60_000;
@@ -241,7 +243,7 @@ export function buildRunKey(job, at) {
   }
 
   if (schedule.type === "posttrigger") {
-    const result = latestSuccessfulSourceResult(job);
+    const result = latestSuccessfulSourceResult(job, currentState);
     return `${job.id}:source-${schedule.sourceJobId}:${result?.finishedAt || "pending"}`;
   }
 
@@ -249,7 +251,7 @@ export function buildRunKey(job, at) {
     const sourceJob = sourceJobForPretrigger(job);
     const sourceAt = pretriggerSourceTime(job, at);
     const sourceKey = sourceJob && sourceAt
-      ? buildRunKey(sourceJob, sourceAt)
+      ? buildRunKey(sourceJob, sourceAt, currentState)
       : `${schedule.sourceJobId || job.sourceJobId || "unknown"}:${at.toISOString()}`;
     return `${job.id}:offset-${schedule.offsetMinutes}:${sourceKey}`;
   }
@@ -283,12 +285,12 @@ function nthWeekdayOccurrence(dayOfMonth) {
   return Math.ceil(Number(dayOfMonth) / 7);
 }
 
-export function isTimedJobDue(job, at = new Date()) {
+export function isTimedJobDue(job, at = new Date(), currentState = state) {
   const schedule = job.schedule || {};
   if (!schedule || schedule.type === "interval" || schedule.type === "manual") return false;
 
   if (schedule.type === "posttrigger") {
-    const dueAt = posttriggerDueAt(job);
+    const dueAt = posttriggerDueAt(job, currentState);
     if (!dueAt) return false;
     return at.getTime() >= dueAt.getTime();
   }
@@ -296,7 +298,7 @@ export function isTimedJobDue(job, at = new Date()) {
   if (schedule.type === "pretrigger") {
     const sourceJob = sourceJobForPretrigger(job);
     const sourceAt = pretriggerSourceTime(job, at);
-    return Boolean(sourceJob && sourceAt && isTimedJobDue(sourceJob, sourceAt));
+    return Boolean(sourceJob && sourceAt && isTimedJobDue(sourceJob, sourceAt, currentState));
   }
 
   const parts = localParts(at, schedule.timezone || LOCAL_TIME_ZONE);
@@ -360,9 +362,9 @@ export function jobScheduleDue(job, at = new Date(), currentState = state) {
     return isIntervalJobDue(job, at, currentState);
   }
 
-  if (!isTimedJobDue(job, at)) return false;
+  if (!isTimedJobDue(job, at, currentState)) return false;
 
-  const runKey = buildRunKey(job, at);
+  const runKey = buildRunKey(job, at, currentState);
   return currentState.lastRunKeys?.[job.id] !== runKey;
 }
 

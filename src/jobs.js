@@ -645,6 +645,12 @@ const hiveGovernanceWeeklyJobs = [
     description: "Run HIVE's environment/config audit (Environment Validation).",
     schedule: { type: "weekly", days: ["monday"], time: "06:25", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
     targetPath: "/v1/environment/audit",
+    responsePolicy: {
+      checks: [
+        { type: "equals", path: "env_example_found", value: true, message: "HIVE environment audit could not find .env.example." },
+        { type: "equals", path: "undocumented_field_count", value: 0, message: "HIVE environment audit found Settings fields missing from .env.example." },
+      ],
+    },
   }),
   hiveJob({
     id: "hive-repo-hygiene-check",
