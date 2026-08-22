@@ -1,0 +1,25 @@
+name: Ecosystem smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: HIVE → AIMS communications smoke
+        run: npm run ecosystem:smoke
+        env:
+          HIVE_UI_BASE_URL: ${{ vars.HIVE_UI_BASE_URL }}
+          AIMS_UI_BASE_URL: ${{ vars.AIMS_UI_BASE_URL }}
+          HIVE_UI_ACCESS_KEY: ${{ secrets.HIVE_UI_ACCESS_KEY }}

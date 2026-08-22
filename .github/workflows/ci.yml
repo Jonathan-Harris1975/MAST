@@ -33,7 +33,23 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: docker build -t mast:ci .
-      - run: docker run --rm mast:ci node --version
+      - name: Verify Node runtime and boot API inside production image
+        run: |
+          docker run --rm mast:ci node -e "const major=Number(process.versions.node.split('.')[0]); if (major !== 22) process.exit(1);"
+          docker run -d --name mast-ci-api -p 18000:8000 \
+            -e APP_ENV=development \
+            -e MAST_STATE_BACKEND=local \
+            -e ALLOW_EPHEMERAL_STATE=true \
+            -e STATE_FILE=/tmp/mast-ci-state.json \
+            -e SCHEDULER_ENABLED=false \
+            -e CRON_ADMIN_TOKEN=ci-admin-token \
+            mast:ci
+          trap 'docker logs mast-ci-api || true; docker rm -f mast-ci-api || true' EXIT
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:18000/health >/tmp/mast-health.json; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18000/health | grep -q '"status":"healthy"'
 
   notify_failure:
     name: Notify central operations on CI failure
