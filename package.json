@@ -15,6 +15,6 @@
     "verify": "npm run check && npm test"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1069.0"
+    "@aws-sdk/client-s3": "^3.1113.0"
   }
 }
