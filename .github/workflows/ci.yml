@@ -23,8 +23,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Reject committed literal secrets
+        run: python3 scripts/secret_scan.py
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run verify
+      - name: Enforce health endpoint performance SLO
+        run: npm run perf:gate
       - run: npm audit --omit=dev --audit-level=high
 
   docker:
