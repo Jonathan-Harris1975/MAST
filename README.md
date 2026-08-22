@@ -47,8 +47,10 @@ npm ci --ignore-scripts
 npm run verify
 ```
 
-## Outstanding infrastructure dependency
+## Production network model
 
-The roadmap's private-network hardening is not implemented in this repository: current defaults still reference public AIMS/RAMS/HIVE hostnames and no NetBird/Hookdeck private-routing configuration is present. That work must be completed at infrastructure level and then reflected in endpoint defaults/environment configuration.
+MAST intentionally uses authenticated public HTTPS endpoints for AIMS, RAMS and HIVE. NetBird and Hookdeck are not part of the production architecture. Service credentials remain in Koyeb Secrets, downstream requests use bearer authentication where required, public manual execution remains disabled by default, and operational status responses do not expose credentials or full downstream request details.
+
+Production endpoint overrides must use HTTPS. Restrict ingress at the hosting/CDN layer wherever a service does not need general public access, keep service tokens independently scoped and rotated, and retain HIVE operational alerting so failed or unauthorised scheduling attempts are observable.
 
 See `.env.example`, `docs/OPERATIONS.md`, `docs/POWER_MANAGEMENT.md`, `docs/OPERATIONAL_ALERTING.md` and `SECURITY.md`.
