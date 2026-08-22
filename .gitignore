@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Local environment and secret material
+.env
+.env.*
+!.env.example
+*.local.env
+
+# Runtime state and logs
+*.log
+*.pid
+*.pid.lock
+mast-state.json
+state/
+
+# Coverage/build/test artefacts
+coverage/
+dist/
+build/
+.nyc_output/
+test-results/
+
+# Editor/OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~

@@ -13,7 +13,10 @@
     "check": "node --check src/*.js test/*.test.js",
     "test": "node --test --test-concurrency=1 test/*.test.js",
     "verify": "npm run check && npm test",
-    "ecosystem:smoke": "node scripts/ecosystemSmoke.js"
+    "ecosystem:smoke": "node scripts/ecosystemSmoke.js",
+    "secret:scan": "python3 scripts/secret_scan.py",
+    "perf:gate": "node scripts/performanceGate.js",
+    "staging:gate": "node scripts/stagingGate.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1113.0"
