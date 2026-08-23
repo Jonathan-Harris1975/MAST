@@ -2,6 +2,15 @@ name: Ecosystem smoke
 
 on:
   workflow_dispatch:
+    inputs:
+      source_repository:
+        description: Repository that requested this ecosystem smoke
+        required: false
+        type: string
+      source_sha:
+        description: Exact source commit SHA that must be recorded with the smoke
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -18,7 +27,9 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Production ecosystem smoke
-        run: npm run ecosystem:smoke
+        run: |
+          set -o pipefail
+          npm run ecosystem:smoke | tee ecosystem-smoke.log
         env:
           MAST_BASE_URL: ${{ vars.MAST_BASE_URL || secrets.MAST_BASE_URL }}
           AIMS_BASE_URL: ${{ vars.AIMS_BASE_URL || 'https://app.jonathan-harris.online' }}
@@ -31,3 +42,22 @@ jobs:
           RMS_API_KEY: ${{ secrets.RMS_API_KEY }}
           HIVE_ADMIN_BEARER_TOKEN: ${{ secrets.HIVE_ADMIN_BEARER_TOKEN }}
           HIVE_UI_ACCESS_KEY: ${{ secrets.HIVE_UI_ACCESS_KEY }}
+      - name: Record ecosystem-smoke attestation
+        if: success()
+        env:
+          SOURCE_REPOSITORY: ${{ inputs.source_repository || github.repository }}
+          SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
+        run: |
+          printf '{"orchestrator_repository":"%s","orchestrator_sha":"%s","source_repository":"%s","source_sha":"%s","workflow_run":"%s","status":"ecosystem-smoke-green"}\n' \
+            "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$SOURCE_REPOSITORY" "$SOURCE_SHA" "$GITHUB_RUN_ID" > ecosystem-smoke-attestation.json
+      - name: Retain ecosystem-smoke launch evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ecosystem-smoke-${{ inputs.source_sha || github.sha }}
+          path: |
+            ecosystem-smoke.log
+            ecosystem-smoke-attestation.json
+          if-no-files-found: warn
+          retention-days: 90
+

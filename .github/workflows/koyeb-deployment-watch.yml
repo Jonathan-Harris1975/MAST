@@ -62,7 +62,9 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Run post-deployment ecosystem smoke
-        run: npm run ecosystem:smoke
+        run: |
+          set -o pipefail
+          npm run ecosystem:smoke | tee ecosystem-smoke.log
         env:
           MAST_BASE_URL: ${{ vars.MAST_BASE_URL || secrets.MAST_BASE_URL }}
           AIMS_BASE_URL: ${{ vars.AIMS_BASE_URL || 'https://app.jonathan-harris.online' }}
@@ -75,3 +77,20 @@ jobs:
           RMS_API_KEY: ${{ secrets.RMS_API_KEY }}
           HIVE_ADMIN_BEARER_TOKEN: ${{ secrets.HIVE_ADMIN_BEARER_TOKEN }}
           HIVE_UI_ACCESS_KEY: ${{ secrets.HIVE_UI_ACCESS_KEY }}
+      - name: Record post-deployment smoke attestation
+        if: success()
+        env:
+          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          printf '{"repository":"%s","sha":"%s","workflow_run":"%s","status":"post-deployment-ecosystem-smoke-green"}\n' \
+            "$GITHUB_REPOSITORY" "$DEPLOYED_SHA" "$GITHUB_RUN_ID" > ecosystem-smoke-attestation.json
+      - name: Retain post-deployment launch evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mast-post-deployment-smoke-${{ github.event.workflow_run.head_sha || github.sha }}
+          path: |
+            ecosystem-smoke.log
+            ecosystem-smoke-attestation.json
+          if-no-files-found: warn
+          retention-days: 90
