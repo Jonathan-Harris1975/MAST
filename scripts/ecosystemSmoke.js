@@ -90,8 +90,8 @@ function assertOk(condition, message) {
 
 async function main() {
   const mastBase = configuredBaseUrl('MAST_BASE_URL');
-  const aimsApiBase = configuredBaseUrl('AIMS_BASE_URL', 'https://app.jonathan-harris.online');
-  const ramsBase = configuredBaseUrl('RAMS_BASE_URL', 'https://mod.jonathan-harris.online');
+  const aimsApiBase = configuredBaseUrl('AIMS_BASE_URL', 'https://zeroth-kara-jonathanharris-3296ed37.koyeb.app');
+  const ramsBase = configuredBaseUrl('RAMS_BASE_URL', 'https://static-helaina-jonathanharris-6df5d241.koyeb.app');
   const hiveApiBase = configuredBaseUrl('HIVE_BASE_URL', 'https://hive.jonathan-harris.online');
   const websiteBase = configuredBaseUrl('WEBSITE_BASE_URL', 'https://jonathan-harris.online');
   const hiveUiBase = configuredBaseUrl('HIVE_UI_BASE_URL');
