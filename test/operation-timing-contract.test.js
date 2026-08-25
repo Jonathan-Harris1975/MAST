@@ -35,7 +35,7 @@ test("production env patch keeps operation polling and canonical times", async (
   assert.match(patch, /^KOYEB_POWER_MANAGEMENT_ENABLED=true$/m);
   assert.match(patch, /^KOYEB_TOKEN=\{\{ secret\.KOYEB_TOKEN \}\}$/m);
   assert.match(patch, /^KOYEB_SERVICE_ID_AIMS=\{\{ secret\.KOYEB_SERVICE_ID_AIMS \}\}$/m);
-  assert.match(patch, /^AIMS_BASE_URL=https:\/\/app\.jonathan-harris\.online$/m);
+  assert.match(patch, /^AIMS_BASE_URL=https:\/\/zeroth-kara-jonathanharris-3296ed37\.koyeb\.app$/m);
   assert.match(patch, /^MAST_STATE_BACKEND=r2$/m);
   assert.doesNotMatch(patch, /MAST_WEBSITE_AUDIT_TEST_/);
 });

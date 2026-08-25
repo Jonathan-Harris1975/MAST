@@ -24,7 +24,7 @@ test("MAST exposes five AM windows plus the Friday podcast window", () => {
   for (const job of operations) {
     assert.equal(job.method, "POST");
     assert.equal(job.authEnv, "AIMS_API_KEY");
-    assert.match(job.url, /^https:\/\/app\.jonathan-harris\.online\/ops\/run\//);
+    assert.match(job.url, /^https:\/\/zeroth-kara-jonathanharris-3296ed37\.koyeb\.app\/ops\/run\//);
     assert.equal(job.urlEnv, null);
   }
 });
@@ -67,7 +67,7 @@ test("manual Blotato recovery uses governed schedule routes, never immediate pub
     const job = baseJobs.find((item) => item.id === id);
     assert.ok(job, `${id} should exist`);
     assert.match(job.targetPath, /^\/blotato\/shorts\/[^/]+\/schedule$/);
-    assert.match(job.targetUrl, /^https:\/\/app\.jonathan-harris\.online\/blotato\/shorts\/[^/]+\/schedule$/);
+    assert.match(job.targetUrl, /^https:\/\/zeroth-kara-jonathanharris-3296ed37\.koyeb\.app\/blotato\/shorts\/[^/]+\/schedule$/);
     assert.doesNotMatch(job.targetPath, /publish-now/);
   }
 });
