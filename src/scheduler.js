@@ -30,12 +30,12 @@ const SERVICE_LIFECYCLE_CONFIG = {
   aims: {
     serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
     healthUrlEnv: "AIMS_HEALTH_URL",
-    healthUrlFallback: "https://app.jonathan-harris.online/livez",
+    healthUrlFallback: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/livez",
   },
   rams: {
     serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
     healthUrlEnv: "RAMS_HEALTH_URL",
-    healthUrlFallback: "https://mod.jonathan-harris.online/livez",
+    healthUrlFallback: "https://static-helaina-jonathanharris-6df5d241.koyeb.app/livez",
   },
   hive: {
     serviceIdEnv: "KOYEB_SERVICE_ID_HIVE",
