@@ -9,7 +9,7 @@ SCHEDULER_TICK_SECONDS=20
 ALLOW_PUBLIC_MANUAL_RUNS=false
 CRON_ADMIN_TOKEN={{ secret.CRON_ADMIN_TOKEN }}
 
-AIMS_BASE_URL=https://app.jonathan-harris.online
+AIMS_BASE_URL=https://zeroth-kara-jonathanharris-3296ed37.koyeb.app
 AIMS_API_KEY={{ secret.AIMS_API_KEY }}
 RMS_API_KEY={{ secret.RMS_API_KEY }}
 AIMS_PRETRIGGER_CHECKS_ENABLED=true
