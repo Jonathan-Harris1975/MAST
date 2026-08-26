@@ -226,3 +226,25 @@ test("no temporary or one-off audit fires remain in the production schedule", ()
   assert.equal(baseJobs.some((job) => /recovery|2026-08-03/.test(job.id)), false);
   assert.equal(pretriggerJobs.some((job) => /recovery|2026-08-03/.test(job.sourceJobId || job.id)), false);
 });
+
+test("monthly HIVE repository refresh follows the second RAMS/AIMS audit and waits for Intelligence", () => {
+  const job = baseJobs.find((item) => item.id === "hive-repositories-monthly-refresh");
+  assert.ok(job, "monthly repository refresh should be scheduled");
+  assert.deepEqual(job.schedule, {
+    type: "posttrigger",
+    sourceJobId: "aims-audit-pipeline",
+    delayMinutes: 15,
+  });
+  assert.equal(job.method, "POST");
+  assert.equal(job.targetPath, "/v1/repositories/refresh-all");
+  assert.equal(job.authEnv, "HIVE_ADMIN_BEARER_TOKEN");
+  assert.deepEqual(job.requiredServices, ["hive"]);
+  assert.deepEqual(job.asyncStatus, {
+    responseIdField: "job_id",
+    statusPath: "/v1/repositories/refresh-jobs/{id}",
+    statusField: "status",
+    successStatuses: ["completed"],
+    pendingStatuses: ["accepted", "running"],
+    failureStatuses: ["completed-with-failures", "failed"],
+  });
+});
