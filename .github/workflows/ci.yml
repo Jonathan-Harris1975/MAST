@@ -65,7 +65,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Send redacted HIVE operational event
         env:
-          OPS_ALERT_WEBHOOK_URL: ${{ vars.OPS_ALERT_WEBHOOK_URL || secrets.OPS_ALERT_WEBHOOK_URL || 'https://hive.jonathan-harris.online/v1/ops/events' }}
+          OPS_ALERT_WEBHOOK_URL: ${{ vars.OPS_ALERT_WEBHOOK_URL || secrets.OPS_ALERT_WEBHOOK_URL || 'https://liable-loreen-jonathanharris-57884580.koyeb.app/v1/ops/events' }}
           OPS_ALERT_WEBHOOK_TOKEN: ${{ secrets.OPS_ALERT_WEBHOOK_TOKEN || secrets.OPS_EVENT_INGEST_TOKEN }}
         run: >-
           python scripts/ops_notify.py

@@ -109,7 +109,7 @@ jobs:
           MAST_BASE_URL: ${{ vars.MAST_BASE_URL || secrets.MAST_BASE_URL }}
           AIMS_BASE_URL: ${{ vars.AIMS_BASE_URL || 'https://zeroth-kara-jonathanharris-3296ed37.koyeb.app' }}
           RAMS_BASE_URL: ${{ vars.RAMS_BASE_URL || 'https://static-helaina-jonathanharris-6df5d241.koyeb.app' }}
-          HIVE_BASE_URL: ${{ vars.HIVE_BASE_URL || 'https://hive.jonathan-harris.online' }}
+          HIVE_BASE_URL: ${{ vars.HIVE_BASE_URL || 'https://liable-loreen-jonathanharris-57884580.koyeb.app' }}
           WEBSITE_BASE_URL: ${{ vars.WEBSITE_BASE_URL || 'https://jonathan-harris.online' }}
           HIVE_UI_BASE_URL: ${{ vars.HIVE_UI_BASE_URL }}
           AIMS_UI_BASE_URL: ${{ vars.AIMS_UI_BASE_URL }}
