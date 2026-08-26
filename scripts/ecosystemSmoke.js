@@ -92,7 +92,7 @@ async function main() {
   const mastBase = configuredBaseUrl('MAST_BASE_URL');
   const aimsApiBase = configuredBaseUrl('AIMS_BASE_URL', 'https://zeroth-kara-jonathanharris-3296ed37.koyeb.app');
   const ramsBase = configuredBaseUrl('RAMS_BASE_URL', 'https://static-helaina-jonathanharris-6df5d241.koyeb.app');
-  const hiveApiBase = configuredBaseUrl('HIVE_BASE_URL', 'https://hive.jonathan-harris.online');
+  const hiveApiBase = configuredBaseUrl('HIVE_BASE_URL', 'https://liable-loreen-jonathanharris-57884580.koyeb.app');
   const websiteBase = configuredBaseUrl('WEBSITE_BASE_URL', 'https://jonathan-harris.online');
   const hiveUiBase = configuredBaseUrl('HIVE_UI_BASE_URL');
   const configuredAimsUiBase = process.env.AIMS_UI_BASE_URL?.trim()
