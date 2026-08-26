@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { baseJobs, jobs, pretriggerJobs } from "../src/jobs.js";
-import { dueJobPriority, isTimedJobDue, jobScheduleDue, requiredServiceStates, requiredServicesReady } from "../src/scheduler.js";
+import { dueJobPriority, isTimedJobDue, jobScheduleDue, requiredServiceStates, requiredServicesReady, serviceHealthUrl } from "../src/scheduler.js";
 
 const operationIds = [
   "operation-monday-am", "operation-tuesday-am", "operation-wednesday-am",
@@ -91,6 +91,7 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
     assert.equal(job.targetPath, path);
     assert.equal(job.authEnv, "HIVE_ADMIN_BEARER_TOKEN");
     assert.deepEqual(job.requiredServices, ["hive"]);
+    assert.match(job.targetUrl, /^https:\/\/liable-loreen-jonathanharris-57884580\.koyeb\.app\/v1\//);
     const expectedCatchUp = job.schedule.type === "monthly"
       ? Number(process.env.MAST_HIVE_MONTHLY_CATCH_UP_MINUTES || 1020)
       : (job.schedule.days?.length === 7
@@ -189,6 +190,18 @@ test("audit RAMS rebuild routes are manual because AIMS owns sequencing", () => 
     assert.equal(job.schedule.type, "manual");
   }
 });
+
+test("HIVE lifecycle health uses the direct backend rather than the UI origin", () => {
+  const previous = process.env.HIVE_HEALTH_URL;
+  delete process.env.HIVE_HEALTH_URL;
+  try {
+    assert.equal(serviceHealthUrl("hive"), "https://liable-loreen-jonathanharris-57884580.koyeb.app/livez");
+  } finally {
+    if (previous === undefined) delete process.env.HIVE_HEALTH_URL;
+    else process.env.HIVE_HEALTH_URL = previous;
+  }
+});
+
 
 test("AIMS and HIVE have no scheduled standby jobs", () => {
   assert.equal(baseJobs.some((job) => job.group === "power-aims"), false);
