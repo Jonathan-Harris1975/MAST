@@ -573,10 +573,10 @@ const koyebPowerJobs = koyebPowerManagementEnabled()
 // vectorize.py, buckets.py, connectors.py, model_registry.py, optimisation_engine.py)
 // that were previously never called by anything except a human opening HIVE-UI.
 // HIVE remains always-on; its liveness probe is separate from these governance checks.
-// Everything here is intentionally read-only or self-contained. Repository manifests are
-// rehydrated from R2 after HIVE restarts, but repository-scoped QA/council/reindex actions
-// still require an active local working copy. MAST therefore does not schedule those routes:
-// they remain explicit repository-workflow actions inside HIVE rather than background jobs.
+// Repository snapshots are rehydrated from R2 after HIVE restarts. After both monthly
+// RAMS/AIMS audit windows have completed, MAST also triggers HIVE's governed GitHub
+// repository refresh. HIVE downloads fresh snapshots and runs the combined Repository
+// Intelligence workflow, while MAST polls the asynchronous job to terminal completion.
 //
 // POST /ai-council/run is the deliberate mutating exception. It refreshes provider
 // catalogues, benchmarks/ranks eligible models and may promote sufficiently high-confidence
@@ -586,7 +586,7 @@ function hiveBaseUrl() {
   return String(process.env.HIVE_BASE_URL || "https://liable-loreen-jonathanharris-57884580.koyeb.app").replace(/\/+$/, "");
 }
 
-function hiveJob({ id, group, description, schedule, targetPath, method = "GET", body, requiresAuth = true, responsePolicy = null }) {
+function hiveJob({ id, group, description, schedule, targetPath, method = "GET", body, requiresAuth = true, responsePolicy = null, asyncStatus = null }) {
   const url = `${hiveBaseUrl()}${targetPath}`;
   const shared = {
     id,
@@ -598,6 +598,7 @@ function hiveJob({ id, group, description, schedule, targetPath, method = "GET",
     authEnv: requiresAuth ? "HIVE_ADMIN_BEARER_TOKEN" : null,
     requiredServices: ["hive"],
     responsePolicy,
+    asyncStatus,
   };
   return method === "POST"
     ? postJob({ ...shared, urlEnv: null, fallbackUrl: url, body: body || {} })
@@ -755,10 +756,28 @@ const hiveGovernanceMonthlyJobs = [
   }),
 ];
 
+const hiveRepositoryMonthlyRefresh = hiveJob({
+  id: "hive-repositories-monthly-refresh",
+  group: "hive-repositories",
+  description: "After the second-Saturday AIMS/RAMS audit sequence completes, download fresh governed GitHub snapshots and run HIVE Repository Intelligence for every repository.",
+  schedule: { type: "posttrigger", sourceJobId: "aims-audit-pipeline", delayMinutes: 15 },
+  targetPath: "/v1/repositories/refresh-all",
+  method: "POST",
+  asyncStatus: {
+    responseIdField: "job_id",
+    statusPath: "/v1/repositories/refresh-jobs/{id}",
+    statusField: "status",
+    successStatuses: ["completed"],
+    pendingStatuses: ["accepted", "running"],
+    failureStatuses: ["completed-with-failures", "failed"],
+  },
+});
+
 const hiveGovernanceJobs = [
   ...hiveGovernanceDailyJobs,
   ...hiveGovernanceWeeklyJobs,
   ...hiveGovernanceMonthlyJobs,
+  hiveRepositoryMonthlyRefresh,
 ];
 
 
