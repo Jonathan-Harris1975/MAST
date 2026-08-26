@@ -57,7 +57,7 @@ The same smoke can be run manually through the **Ecosystem smoke** workflow. IRS
 
 ## Production network model
 
-MAST intentionally uses authenticated public HTTPS endpoints for AIMS, RAMS and HIVE. NetBird and Hookdeck are not part of the production architecture. Service credentials remain in Koyeb Secrets, downstream requests use bearer authentication where required, public manual execution remains disabled by default, and operational status responses do not expose credentials or full downstream request details.
+MAST intentionally uses authenticated public HTTPS endpoints for AIMS, RAMS and HIVE. Service-to-service HIVE calls use the direct HIVE backend (`https://liable-loreen-jonathanharris-57884580.koyeb.app`); `https://hive.jonathan-harris.online` remains the operator-facing HIVE-UI origin. NetBird and Hookdeck are not part of the production architecture. Service credentials remain in Koyeb Secrets, downstream requests use bearer authentication where required, public manual execution remains disabled by default, and operational status responses do not expose credentials or full downstream request details.
 
 Production endpoint overrides must use HTTPS. Restrict ingress at the hosting/CDN layer wherever a service does not need general public access, keep service tokens independently scoped and rotated, and retain HIVE operational alerting so failed or unauthorised scheduling attempts are observable.
 

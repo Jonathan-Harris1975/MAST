@@ -35,9 +35,10 @@ R2_SECRET_ACCESS_KEY={{ secret.R2_SECRET_ACCESS_KEY }}
 R2_BUCKET_META_SYSTEM=metasystem
 R2_MAX_ATTEMPTS=2
 
-HIVE_BASE_URL=https://hive.jonathan-harris.online
+HIVE_BASE_URL=https://liable-loreen-jonathanharris-57884580.koyeb.app
+HIVE_HEALTH_URL=https://liable-loreen-jonathanharris-57884580.koyeb.app/livez
 HIVE_ADMIN_BEARER_TOKEN={{ secret.HIVE_ADMIN_BEARER_TOKEN }}
-OPS_ALERT_WEBHOOK_URL=https://hive.jonathan-harris.online/v1/ops/events
+OPS_ALERT_WEBHOOK_URL=https://liable-loreen-jonathanharris-57884580.koyeb.app/v1/ops/events
 OPS_ALERT_WEBHOOK_TOKEN={{ secret.OPS_EVENT_INGEST_TOKEN }}
 OPS_ALERT_TIMEOUT_MS=8000
 
