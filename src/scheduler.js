@@ -40,7 +40,7 @@ const SERVICE_LIFECYCLE_CONFIG = {
   hive: {
     serviceIdEnv: "KOYEB_SERVICE_ID_HIVE",
     healthUrlEnv: "HIVE_HEALTH_URL",
-    healthUrlFallback: "https://hive.jonathan-harris.online/livez",
+    healthUrlFallback: "https://liable-loreen-jonathanharris-57884580.koyeb.app/livez",
   },
 };
 

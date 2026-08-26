@@ -583,7 +583,7 @@ const koyebPowerJobs = koyebPowerManagementEnabled()
 // defaults. The Model Registry is persisted to D1 and restored at HIVE startup, while the
 // AI Council run history provides the audit trail.
 function hiveBaseUrl() {
-  return String(process.env.HIVE_BASE_URL || "https://hive.jonathan-harris.online").replace(/\/+$/, "");
+  return String(process.env.HIVE_BASE_URL || "https://liable-loreen-jonathanharris-57884580.koyeb.app").replace(/\/+$/, "");
 }
 
 function hiveJob({ id, group, description, schedule, targetPath, method = "GET", body, requiresAuth = true, responsePolicy = null }) {
