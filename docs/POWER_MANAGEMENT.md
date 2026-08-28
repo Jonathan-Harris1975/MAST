@@ -14,7 +14,7 @@ RAMS remains demand-managed because its work is bounded remediation/audit proces
 | --- | ---: | --- |
 | Outreach AM | 09:00 Monday-Friday | MAST calls `/outreach/batch/next` on always-on AIMS. |
 | AIMS morning operations | 10:00 Monday-Friday | MAST triggers `/ops/run/<day>-am`; AIMS runs the complete RSS/Blotato/Zernio/blog/newsletter sequence. |
-| Friday podcast | 15:00 Friday | MAST triggers `/ops/run/friday-pm`; AIMS performs readiness then `/podcast/run`. |
+| Friday podcast | 17:00 Friday | MAST triggers `/ops/run/friday-pm`; AIMS performs readiness then `/podcast/run`. |
 | Outreach PM | 16:00 Monday-Friday | MAST calls the second bounded Outreach batch. |
 
 There are no AIMS standby windows. Blotato provider publication times remain owned by AIMS/Blotato scheduling logic rather than additional MAST clocks.
