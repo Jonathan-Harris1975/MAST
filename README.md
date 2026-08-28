@@ -19,7 +19,7 @@ The current architecture has **six consolidated operation triggers**, not ten pe
 - Friday AM
 - Friday PM
 
-AIMS remains continuously available. MAST triggers the AM window at **10:00** Monday-Friday and the podcast-only Friday PM window at **15:00**. Catch-up windows protect against short scheduler interruptions.
+AIMS remains continuously available. MAST triggers the AM window at **10:00** Monday-Friday and the podcast-only Friday PM window at **17:00**. Catch-up windows protect against short scheduler interruptions.
 
 AIMS owns sequencing inside each content window. Individual RSS, Zernio, Blotato, blog and newsletter routes remain manual recovery controls. Outreach is the deliberate exception: MAST owns two weekday triggers at **09:00** and **16:00 Europe/London**, while the manual route remains recovery-only. The five Blotato recovery controls use `/blotato/shorts/:lane/schedule`; production recovery never calls the disabled immediate-publish route.
 
