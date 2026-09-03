@@ -39,7 +39,23 @@ export function koyebServiceUrl(serviceIdEnvName, action) {
   return `https://app.koyeb.com/v1/services/${serviceId}/${action}`;
 }
 
-function postJob({ id, group, description, schedule, urlEnv, fallbackUrl, targetUrl, targetPath, body, addLocalDateAsWeekStartDate = false, authEnv = null, asyncStatus = null, requiredServices = [], pretriggerOffsets = null, responsePolicy = null }) {
+function postJob({
+  id,
+  group,
+  description,
+  schedule,
+  urlEnv,
+  fallbackUrl,
+  targetUrl,
+  targetPath,
+  body,
+  addLocalDateAsWeekStartDate = false,
+  authEnv = null,
+  asyncStatus = null,
+  requiredServices = [],
+  pretriggerOffsets = null,
+  responsePolicy = null,
+}) {
   return {
     id,
     group,
@@ -287,7 +303,10 @@ const monthlyAuditJobs = [
   postJob({
     id: "website-audit-pipeline",
     group: "audits",
-    description: `Run the complete website audit at ${WEBSITE_AUDIT_RUN_TIME} on the first Sunday of each month. AIMS owns the full council/report/RAMS sequence and MAST waits for terminal completion.`,
+    description: [
+      `Run the complete website audit at ${WEBSITE_AUDIT_RUN_TIME} on the first Sunday of each month.`,
+      "AIMS owns the full council/report/RAMS sequence and MAST waits for terminal completion.",
+    ].join(" "),
     schedule: { type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: WEBSITE_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES },
     urlEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/audits/monthly/website`,
@@ -742,7 +761,11 @@ const hiveGovernanceMonthlyJobs = [
   hiveJob({
     id: "hive-monthly-review-generate",
     group: "hive-governance-monthly",
-    description: "Generate, archive and index the consolidated Monthly Review report (system health, AI Council/model registry, skills catalogue health, optimisation stats, execution review posture, token usage and cost) for the month that just finished. Runs after the other hive-governance-monthly jobs so their data is fresh.",
+    description: [
+      "Generate, archive and index the consolidated Monthly Review report (system health, AI Council/model registry,",
+      "skills catalogue health, optimisation stats, execution review posture, token usage and cost) for the month",
+      "that just finished. Runs after the other hive-governance-monthly jobs so their data is fresh.",
+    ].join(" "),
     schedule: { type: "monthly", dayOfMonth: 1, time: "07:25", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/monthly-review/generate",
     method: "POST",
@@ -785,7 +808,11 @@ const operationWindowJobs = [
   ...["monday", "tuesday", "wednesday", "thursday", "friday"].map((day) => postJob({
     id: `operation-${day}-am`,
     group: "operations",
-    description: `${day} AM AIMS operating window: all weekday content preparation, including both scheduled Blotato posts; Monday also owns weekly blog, ebooks, quiz and the mini-series through its Zernio lane, while Friday also prepares weekend Zernio content.`,
+    description: [
+      `${day} AM AIMS operating window: all weekday content preparation, including both scheduled Blotato posts;`,
+      "Monday also owns weekly blog, ebooks, quiz and the mini-series through its Zernio lane, while Friday also",
+      "prepares weekend Zernio content.",
+    ].join(" "),
     schedule: { type: "weekly", days: [day], time: AM_OPERATION_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AM_OPERATION_CATCH_UP_MINUTES },
     urlEnv: null,
     fallbackUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,

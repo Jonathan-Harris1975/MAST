@@ -132,7 +132,13 @@ function isAuthorised(req) {
 function readiness() {
   const checks = [
     { name: "state_loaded", ok: true },
-    { name: "job_registry", ok: jobs.length > 0 && JOB_REGISTRY_ERRORS.length === 0, detail: JOB_REGISTRY_ERRORS.length ? `${JOB_REGISTRY_ERRORS.length} invalid schedule configuration(s)` : `${jobs.length} jobs registered` },
+    {
+      name: "job_registry",
+      ok: jobs.length > 0 && JOB_REGISTRY_ERRORS.length === 0,
+      detail: JOB_REGISTRY_ERRORS.length
+        ? `${JOB_REGISTRY_ERRORS.length} invalid schedule configuration(s)`
+        : `${jobs.length} jobs registered`,
+    },
     { name: "scheduler", ok: SCHEDULER_ENABLED, detail: SCHEDULER_ENABLED ? "enabled" : "disabled" },
     { name: "durable_state", ok: stateBackendStatus().ready, detail: stateBackendStatus().durable ? "R2" : "local/ephemeral" },
     { name: "admin_token", ok: !IS_PRODUCTION || Boolean(ADMIN_TOKEN), detail: ADMIN_TOKEN ? "configured" : "missing" },
@@ -142,9 +148,21 @@ function readiness() {
     { name: "hive_token", ok: APP_ENV !== "production" || configuredEnv("HIVE_ADMIN_BEARER_TOKEN"), detail: configuredEnv("HIVE_ADMIN_BEARER_TOKEN") ? "configured" : "missing-or-placeholder" },
     { name: "ops_alert_url", ok: APP_ENV !== "production" || configuredEnv("OPS_ALERT_WEBHOOK_URL"), detail: configuredEnv("OPS_ALERT_WEBHOOK_URL") ? "configured" : "missing-or-placeholder" },
     { name: "ops_alert_token", ok: APP_ENV !== "production" || configuredEnv("OPS_ALERT_WEBHOOK_TOKEN"), detail: configuredEnv("OPS_ALERT_WEBHOOK_TOKEN") ? "configured" : "missing-or-placeholder" },
-    { name: "koyeb_token", ok: APP_ENV !== "production" || !booleanEnv("KOYEB_POWER_MANAGEMENT_ENABLED", true) || configuredEnv("KOYEB_TOKEN"), detail: configuredEnv("KOYEB_TOKEN") ? "configured" : "missing-or-placeholder" },
+    {
+      name: "koyeb_token",
+      ok: APP_ENV !== "production"
+        || !booleanEnv("KOYEB_POWER_MANAGEMENT_ENABLED", true)
+        || configuredEnv("KOYEB_TOKEN"),
+      detail: configuredEnv("KOYEB_TOKEN") ? "configured" : "missing-or-placeholder",
+    },
     { name: "koyeb_aims_service", ok: APP_ENV !== "production" || configuredEnv("KOYEB_SERVICE_ID_AIMS"), detail: configuredEnv("KOYEB_SERVICE_ID_AIMS") ? "configured" : "missing-or-placeholder" },
-    { name: "koyeb_rams_service", ok: APP_ENV !== "production" || !booleanEnv("KOYEB_POWER_MANAGEMENT_ENABLED", true) || configuredEnv("KOYEB_SERVICE_ID_RAMS"), detail: configuredEnv("KOYEB_SERVICE_ID_RAMS") ? "configured" : "missing-or-placeholder" },
+    {
+      name: "koyeb_rams_service",
+      ok: APP_ENV !== "production"
+        || !booleanEnv("KOYEB_POWER_MANAGEMENT_ENABLED", true)
+        || configuredEnv("KOYEB_SERVICE_ID_RAMS"),
+      detail: configuredEnv("KOYEB_SERVICE_ID_RAMS") ? "configured" : "missing-or-placeholder",
+    },
     { name: "koyeb_hive_service", ok: APP_ENV !== "production" || configuredEnv("KOYEB_SERVICE_ID_HIVE"), detail: configuredEnv("KOYEB_SERVICE_ID_HIVE") ? "configured" : "missing-or-placeholder" },
   ];
   const ready = !shuttingDown && checks.every((check) => check.ok);

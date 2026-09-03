@@ -62,7 +62,13 @@ export function validateJobRegistry(jobs = []) {
     if (schedule.type === "nth-weekday-monthly") {
       if (!WEEKDAYS.has(String(schedule.weekday || "").toLowerCase())) errors.push({ job: id, field: "schedule.weekday", message: "nth-weekday-monthly requires a valid weekday." });
       const occurrence = Number(schedule.occurrence);
-      if (!Number.isInteger(occurrence) || occurrence < 1 || occurrence > 5) errors.push({ job: id, field: "schedule.occurrence", message: "nth-weekday-monthly occurrence must be an integer from 1 to 5." });
+      if (!Number.isInteger(occurrence) || occurrence < 1 || occurrence > 5) {
+        errors.push({
+          job: id,
+          field: "schedule.occurrence",
+          message: "nth-weekday-monthly occurrence must be an integer from 1 to 5.",
+        });
+      }
     }
 
     if (schedule.type === "once" && !/^\d{4}-\d{2}-\d{2}$/.test(String(schedule.date || ""))) {
