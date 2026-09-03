@@ -1,4 +1,0 @@
-Delete these obsolete root-level files after copying the updated files into the repository:
-
-operation-timing-contract.test.js
-scheduler.test.js
