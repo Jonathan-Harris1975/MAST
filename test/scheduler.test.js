@@ -99,6 +99,16 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
         : Number(process.env.MAST_HIVE_WEEKLY_CATCH_UP_MINUTES || 360));
     assert.equal(job.schedule.catchUpMinutes, expectedCatchUp);
   }
+
+  const council = baseJobs.find((job) => job.id === "hive-ai-council-run");
+  const optimisation = baseJobs.find((job) => job.id === "hive-optimisation-stats-snapshot");
+  const monthlyReview = baseJobs.find((job) => job.id === "hive-monthly-review-generate");
+  assert.equal(council.requestRetries, 0, "AI Council POST must not be replayed by generic HTTP retry");
+  assert.equal(monthlyReview.requestRetries, 0, "Monthly Review POST must not be replayed by generic HTTP retry");
+  assert.equal(council.consumeFailureWindow, true);
+  assert.equal(monthlyReview.consumeFailureWindow, true);
+  assert.equal(council.responsePolicy.checks[0].path, "ok");
+  assert.equal(optimisation.responsePolicy.checks[0].path, "ok");
 });
 
 test("Friday PM starts the podcast at 17:00 while AIMS remains always-on", () => {
@@ -239,6 +249,8 @@ test("monthly HIVE repository refresh follows the second RAMS/AIMS audit and wai
   assert.equal(job.targetPath, "/v1/repositories/refresh-all");
   assert.equal(job.authEnv, "HIVE_ADMIN_BEARER_TOKEN");
   assert.deepEqual(job.requiredServices, ["hive"]);
+  assert.equal(job.requestRetries, 0);
+  assert.equal(job.consumeFailureWindow, true);
   assert.deepEqual(job.asyncStatus, {
     responseIdField: "job_id",
     statusPath: "/v1/repositories/refresh-jobs/{id}",
