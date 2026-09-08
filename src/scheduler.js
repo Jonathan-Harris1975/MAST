@@ -1187,12 +1187,15 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
   console.log(JSON.stringify({ ...logBase, event: "job-started", payload: payload || null }));
 
   try {
+    const requestConfig = Number.isInteger(job.requestRetries) && job.requestRetries >= 0
+      ? { ...CONFIG, requestRetries: job.requestRetries }
+      : CONFIG;
     const response = await fetchWithRetry(job.url, {
       method: job.method,
       headers,
       body,
       redirect: "follow",
-    }, CONFIG);
+    }, requestConfig);
 
     const responseText = await response.text();
     const operationJob = response.ok ? await waitForAimsOperation(job, responseText) : null;
@@ -1232,10 +1235,14 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
       durationMs: finishedAt.getTime() - startedAt.getTime(),
     };
 
-    if (jobOk || terminalSemanticFailure) {
+    const consumeFailureWindow = Boolean(job.consumeFailureWindow && !jobOk);
+    if (jobOk || terminalSemanticFailure || consumeFailureWindow) {
       // A semantic health failure is a completed diagnostic observation, not a transport
-      // failure. Consume the schedule window so MAST alerts once instead of retrying it
-      // every tick throughout the catch-up window.
+      // failure. Selected governance jobs also consume their window after a returned
+      // HTTP/async failure: these POSTs are expensive and not server-idempotent, so
+      // hammering them every 20 seconds throughout a monthly catch-up window is worse
+      // than emitting one critical alert and relying on the later Monthly Review
+      // fallback/operator retry.
       if (job.schedule?.type === "interval") {
         state.intervalLastRunAt[job.id] = finishedAt.toISOString();
       } else {

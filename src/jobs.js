@@ -55,6 +55,8 @@ function postJob({
   requiredServices = [],
   pretriggerOffsets = null,
   responsePolicy = null,
+  requestRetries = null,
+  consumeFailureWindow = false,
 }) {
   return {
     id,
@@ -73,10 +75,26 @@ function postJob({
     requiredServices,
     pretriggerOffsets,
     responsePolicy,
+    requestRetries,
+    consumeFailureWindow,
   };
 }
 
-function getJob({ id, group, description, schedule, urlEnv, fallbackUrl, targetUrl, targetPath, authEnv = null, requiredServices = [], responsePolicy = null }) {
+function getJob({
+  id,
+  group,
+  description,
+  schedule,
+  urlEnv,
+  fallbackUrl,
+  targetUrl,
+  targetPath,
+  authEnv = null,
+  requiredServices = [],
+  responsePolicy = null,
+  requestRetries = null,
+  consumeFailureWindow = false,
+}) {
   return {
     id,
     group,
@@ -90,6 +108,8 @@ function getJob({ id, group, description, schedule, urlEnv, fallbackUrl, targetU
     authEnv,
     requiredServices,
     responsePolicy,
+    requestRetries,
+    consumeFailureWindow,
   };
 }
 
@@ -605,7 +625,20 @@ function hiveBaseUrl() {
   return String(process.env.HIVE_BASE_URL || "https://liable-loreen-jonathanharris-57884580.koyeb.app").replace(/\/+$/, "");
 }
 
-function hiveJob({ id, group, description, schedule, targetPath, method = "GET", body, requiresAuth = true, responsePolicy = null, asyncStatus = null }) {
+function hiveJob({
+  id,
+  group,
+  description,
+  schedule,
+  targetPath,
+  method = "GET",
+  body,
+  requiresAuth = true,
+  responsePolicy = null,
+  asyncStatus = null,
+  requestRetries = null,
+  consumeFailureWindow = false,
+}) {
   const url = `${hiveBaseUrl()}${targetPath}`;
   const shared = {
     id,
@@ -618,6 +651,8 @@ function hiveJob({ id, group, description, schedule, targetPath, method = "GET",
     requiredServices: ["hive"],
     responsePolicy,
     asyncStatus,
+    requestRetries,
+    consumeFailureWindow,
   };
   return method === "POST"
     ? postJob({ ...shared, urlEnv: null, fallbackUrl: url, body: body || {} })
@@ -726,6 +761,9 @@ const hiveGovernanceMonthlyJobs = [
     schedule: { type: "monthly", dayOfMonth: 1, time: "07:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/ai-council/run",
     method: "POST",
+    requestRetries: 0,
+    consumeFailureWindow: true,
+    responsePolicy: { checks: [{ type: "equals", path: "ok", value: true, message: "HIVE AI Council did not complete a verified model-governance cycle." }] },
   }),
   hiveJob({
     id: "hive-skills-duplicates-check",
@@ -733,6 +771,7 @@ const hiveGovernanceMonthlyJobs = [
     description: "Deep monthly check for duplicate skills across the catalogue.",
     schedule: { type: "monthly", dayOfMonth: 1, time: "07:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/skills/duplicates",
+    consumeFailureWindow: true,
     responsePolicy: { checks: [{ type: "equals", path: "ok", value: true, message: "HIVE skills duplicate check could not read the skills catalogue." }] },
   }),
   hiveJob({
@@ -741,6 +780,7 @@ const hiveGovernanceMonthlyJobs = [
     description: "Deep monthly check for orphaned skills no longer referenced by any workflow.",
     schedule: { type: "monthly", dayOfMonth: 1, time: "07:12", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/skills/orphans",
+    consumeFailureWindow: true,
     responsePolicy: { checks: [{ type: "equals", path: "ok", value: true, message: "HIVE skills orphan check could not read the skills catalogue." }] },
   }),
   hiveJob({
@@ -749,6 +789,7 @@ const hiveGovernanceMonthlyJobs = [
     description: "Deep monthly check for skills referenced but missing from the catalogue.",
     schedule: { type: "monthly", dayOfMonth: 1, time: "07:14", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/skills/missing",
+    consumeFailureWindow: true,
     responsePolicy: { checks: [{ type: "equals", path: "ok", value: true, message: "HIVE skills missing check could not read the skills catalogue." }] },
   }),
   hiveJob({
@@ -757,6 +798,8 @@ const hiveGovernanceMonthlyJobs = [
     description: "Pull optimisation-engine decision/experiment stats for the monthly executive governance report.",
     schedule: { type: "monthly", dayOfMonth: 1, time: "07:16", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/optimisation/stats",
+    consumeFailureWindow: true,
+    responsePolicy: { checks: [{ type: "equals", path: "ok", value: true, message: "HIVE optimisation ledger could not be read for the monthly snapshot." }] },
   }),
   hiveJob({
     id: "hive-monthly-review-generate",
@@ -769,6 +812,8 @@ const hiveGovernanceMonthlyJobs = [
     schedule: { type: "monthly", dayOfMonth: 1, time: "07:25", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
     targetPath: "/v1/monthly-review/generate",
     method: "POST",
+    requestRetries: 0,
+    consumeFailureWindow: true,
     responsePolicy: {
       checks: [
         { type: "fieldsEqual", leftPath: "sections_ok", rightPath: "sections_total", message: "HIVE Monthly Review completed with one or more failed sections." },
@@ -786,6 +831,8 @@ const hiveRepositoryMonthlyRefresh = hiveJob({
   schedule: { type: "posttrigger", sourceJobId: "aims-audit-pipeline", delayMinutes: 15 },
   targetPath: "/v1/repositories/refresh-all",
   method: "POST",
+  requestRetries: 0,
+  consumeFailureWindow: true,
   asyncStatus: {
     responseIdField: "job_id",
     statusPath: "/v1/repositories/refresh-jobs/{id}",
