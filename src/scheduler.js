@@ -164,20 +164,29 @@ let loaded = false;
 let stateLoadError = null;
 const runningJobs = new Set();
 
-export function localParts(at, timezone = LOCAL_TIME_ZONE) {
-  const formatter = new Intl.DateTimeFormat("en-GB", {
-    timeZone: timezone,
-    weekday: "long",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
+const localPartFormatters = new Map();
 
+function localPartFormatter(timezone) {
+  let formatter = localPartFormatters.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone: timezone,
+      weekday: "long",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+    localPartFormatters.set(timezone, formatter);
+  }
+  return formatter;
+}
+
+export function localParts(at, timezone = LOCAL_TIME_ZONE) {
   const parts = Object.fromEntries(
-    formatter
+    localPartFormatter(timezone)
       .formatToParts(at)
       .filter((part) => part.type !== "literal")
       .map((part) => [part.type, part.value])
@@ -1387,6 +1396,93 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
   };
 }
 
+const WEEKDAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+const NEXT_RUN_HORIZON_MS = 70 * 24 * 60 * 60_000;
+
+function minuteCursorAfter(from) {
+  return Math.ceil((from.getTime() + 60_000) / 60_000) * 60_000;
+}
+
+function parseCalendarDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+  if (!match) return null;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (Number.isNaN(date.getTime())) return null;
+  const canonical = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+  return canonical === value ? date : null;
+}
+
+function calendarDateString(date) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+function addCalendarDays(dateString, days) {
+  const date = parseCalendarDate(dateString);
+  if (!date) return null;
+  date.setUTCDate(date.getUTCDate() + days);
+  return calendarDateString(date);
+}
+
+function calendarDateMatchesSchedule(dateString, schedule) {
+  const date = parseCalendarDate(dateString);
+  if (!date) return false;
+  const weekday = WEEKDAY_NAMES[date.getUTCDay()];
+  const dayOfMonth = date.getUTCDate();
+
+  if (schedule.type === "once") return dateString === String(schedule.date || "");
+  if (schedule.type === "weekly") return Array.isArray(schedule.days) && schedule.days.includes(weekday);
+  if (schedule.type === "monthly") return dayOfMonth === Number(schedule.dayOfMonth);
+  if (schedule.type === "nth-weekday-monthly") {
+    return weekday === String(schedule.weekday || "").toLowerCase()
+      && nthWeekdayOccurrence(dayOfMonth) === Number(schedule.occurrence);
+  }
+  return false;
+}
+
+function resolveLocalScheduledInstants(dateString, time, timezone) {
+  const date = parseCalendarDate(dateString);
+  const scheduledMinute = minuteOfDay(time);
+  if (!date || scheduledMinute === null) return [];
+
+  const hour = Math.floor(scheduledMinute / 60);
+  const minute = scheduledMinute % 60;
+  const naiveUtc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), hour, minute);
+  const start = naiveUtc - 18 * 60 * 60_000;
+  const end = naiveUtc + 18 * 60 * 60_000;
+  const matches = [];
+
+  // Modern IANA timezone offsets are quarter-hour aligned. Search only matching
+  // wall-clock minute candidates rather than every minute of the 70-day horizon.
+  for (let instant = start; instant <= end; instant += 15 * 60_000) {
+    const parts = localParts(new Date(instant), timezone);
+    if (parts.date === dateString && parts.time === time) matches.push(instant);
+  }
+
+  return matches;
+}
+
+function nextCalendarRunForJob(job, from) {
+  const schedule = job.schedule || {};
+  const timezone = schedule.timezone || LOCAL_TIME_ZONE;
+  const cursorMs = minuteCursorAfter(from);
+  const horizonMs = cursorMs + NEXT_RUN_HORIZON_MS;
+  const startDate = localParts(new Date(cursorMs), timezone).date;
+
+  for (let dayOffset = 0; dayOffset <= 70; dayOffset += 1) {
+    const dateString = addCalendarDays(startDate, dayOffset);
+    if (!dateString || !calendarDateMatchesSchedule(dateString, schedule)) continue;
+
+    for (const scheduledMs of resolveLocalScheduledInstants(dateString, schedule.time, timezone)) {
+      const candidateMs = Math.max(cursorMs, scheduledMs);
+      if (candidateMs > horizonMs) continue;
+      const candidate = new Date(candidateMs);
+      if (isTimedJobDue(job, candidate)) return candidate.toISOString();
+    }
+  }
+
+  return null;
+}
+
 export function nextRunForJob(job, from = new Date()) {
   const schedule = job.schedule || {};
 
@@ -1397,14 +1493,27 @@ export function nextRunForJob(job, from = new Date()) {
     return Number.isFinite(nextMs) ? new Date(nextMs).toISOString() : "as soon as scheduler starts";
   }
 
-  const cursor = new Date(Math.ceil((from.getTime() + 60_000) / 60_000) * 60_000);
-  const horizonMinutes = 70 * 24 * 60;
+  if (schedule.type === "manual") return null;
 
-  for (let i = 0; i < horizonMinutes; i += 1) {
-    if (isTimedJobDue(job, cursor)) {
-      return cursor.toISOString();
-    }
-    cursor.setUTCMinutes(cursor.getUTCMinutes() + 1);
+  if (["once", "weekly", "monthly", "nth-weekday-monthly"].includes(schedule.type)) {
+    return nextCalendarRunForJob(job, from);
+  }
+
+  if (schedule.type === "posttrigger") {
+    const dueAt = posttriggerDueAt(job, state);
+    if (!dueAt) return null;
+    const candidateMs = Math.max(minuteCursorAfter(from), Math.ceil(dueAt.getTime() / 60_000) * 60_000);
+    return new Date(candidateMs).toISOString();
+  }
+
+  if (schedule.type === "pretrigger") {
+    const sourceJob = sourceJobForPretrigger(job);
+    const offsetMinutes = Number(schedule.offsetMinutes || job.pretriggerOffsetMinutes);
+    if (!sourceJob || !Number.isFinite(offsetMinutes) || offsetMinutes <= 0) return null;
+    const offsetMs = offsetMinutes * 60_000;
+    const sourceNext = nextRunForJob(sourceJob, new Date(from.getTime() + offsetMs));
+    const sourceNextMs = Date.parse(sourceNext);
+    return Number.isFinite(sourceNextMs) ? new Date(sourceNextMs - offsetMs).toISOString() : null;
   }
 
   return null;

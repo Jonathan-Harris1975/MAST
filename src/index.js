@@ -350,6 +350,11 @@ async function route(req, res) {
   return textResponse(res, 404, "Not found", id);
 }
 
+const webConcurrency = Number(process.env.WEB_CONCURRENCY || 1);
+if (!Number.isInteger(webConcurrency) || webConcurrency !== 1) {
+  throw new Error("MAST requires WEB_CONCURRENCY=1 because scheduler state has a single authoritative owner");
+}
+
 await loadState();
 
 const startupState = stateBackendStatus();
