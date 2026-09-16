@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { baseJobs, jobs, pretriggerJobs } from "../src/jobs.js";
-import { dueJobPriority, isTimedJobDue, jobScheduleDue, requiredServiceStates, requiredServicesReady, serviceHealthUrl } from "../src/scheduler.js";
+import { dueJobPriority, isTimedJobDue, jobScheduleDue, nextRunForJob, requiredServiceStates, requiredServicesReady, serviceHealthUrl } from "../src/scheduler.js";
 
 const operationIds = [
   "operation-monday-am", "operation-tuesday-am", "operation-wednesday-am",
@@ -167,6 +167,25 @@ test("website audit uses the first Sunday while the AIMS audit remains second Sa
   assert.equal(isTimedJobDue(aims, new Date("2026-08-08T08:15:00.000Z")), true);
 });
 
+
+test("next-run calculation handles London DST without minute-by-minute horizon scanning", () => {
+  const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
+  assert.equal(nextRunForJob(website, new Date("2026-07-31T12:00:00.000Z")), "2026-08-02T09:30:00.000Z");
+
+  const weekly = {
+    id: "dst-weekly",
+    schedule: { type: "weekly", days: ["monday"], time: "06:00", timezone: "Europe/London", catchUpMinutes: 0 },
+  };
+  assert.equal(nextRunForJob(weekly, new Date("2026-10-24T12:00:00.000Z")), "2026-10-26T06:00:00.000Z");
+});
+
+test("next-run calculation returns the next catch-up minute when already inside a due window", () => {
+  const job = {
+    id: "catch-up",
+    schedule: { type: "weekly", days: ["monday"], time: "09:00", timezone: "Europe/London", catchUpMinutes: 120 },
+  };
+  assert.equal(nextRunForJob(job, new Date("2026-08-03T08:30:15.000Z")), "2026-08-03T08:32:00.000Z");
+});
 
 test("first-Sunday website audit wakes RAMS at 10:00 while AIMS stays online", () => {
   assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-website-audit"), false);
