@@ -2,6 +2,7 @@ FROM node:22-alpine AS runtime
 
 ENV NODE_ENV=production \
     APP_ENV=production \
+    WEB_CONCURRENCY=1 \
     PORT=8000
 WORKDIR /app
 
