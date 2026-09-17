@@ -11,7 +11,7 @@
   "scripts": {
     "start": "node src/index.js",
     "check": "node --check src/*.js scripts/ecosystemSmoke.js test/*.test.js",
-    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "test": "node --test --test-concurrency=1 --test-timeout=60000 test/*.test.js",
     "verify": "npm run check && npm test",
     "ecosystem:smoke": "node scripts/ecosystemSmoke.js",
     "secret:scan": "python3 scripts/secret_scan.py",
