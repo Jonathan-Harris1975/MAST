@@ -4,17 +4,29 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      aws-sdk-family:
+        patterns:
+          - "@aws-sdk/*"
+        update-types:
+          - "patch"
+          - "minor"
     commit-message:
       prefix: "deps"
+
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
     commit-message:
       prefix: "deps(docker)"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
     commit-message:
       prefix: "deps(ci)"
