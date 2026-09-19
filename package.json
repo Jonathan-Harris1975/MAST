@@ -19,7 +19,7 @@
     "staging:gate": "node scripts/stagingGate.js"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1119.0"
+    "@aws-sdk/client-s3": "^3.1134.0"
   },
   "packageManager": "npm@10.9.8"
 }
