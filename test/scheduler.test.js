@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { baseJobs, jobs, pretriggerJobs } from "../src/jobs.js";
+import { aimsBaseUrl } from "../src/service-origins.js";
 import { dueJobPriority, isTimedJobDue, jobScheduleDue, nextRunForJob, requiredServiceStates, requiredServicesReady, serviceHealthUrl } from "../src/scheduler.js";
 
 const operationIds = [
@@ -24,8 +25,9 @@ test("MAST exposes five AM windows plus the Friday podcast window", () => {
   for (const job of operations) {
     assert.equal(job.method, "POST");
     assert.equal(job.authEnv, "AIMS_API_KEY");
-    assert.match(job.url, /^https:\/\/zeroth-kara-jonathanharris-3296ed37\.koyeb\.app\/ops\/run\//);
-    assert.equal(job.urlEnv, null);
+    assert.equal(new URL(job.url).origin, aimsBaseUrl());
+    assert.match(new URL(job.url).pathname, /^\/ops\/run\//);
+    assert.equal("urlEnv" in job, false);
   }
 });
 
@@ -44,7 +46,7 @@ test("legacy task-level content jobs remain manual fallbacks and cannot double-f
     const job = baseJobs.find((item) => item.id === id);
     assert.ok(job, `${id} should remain available for manual recovery`);
     assert.equal(job.schedule.type, "manual", `${id} must not retain an independent schedule`);
-    assert.equal(job.urlEnv, null, `${id} must use the direct app endpoint`);
+    assert.equal("urlEnv" in job, false, `${id} must derive from the canonical AIMS origin`);
   }
 });
 
@@ -67,7 +69,7 @@ test("manual Blotato recovery uses governed schedule routes, never immediate pub
     const job = baseJobs.find((item) => item.id === id);
     assert.ok(job, `${id} should exist`);
     assert.match(job.targetPath, /^\/blotato\/shorts\/[^/]+\/schedule$/);
-    assert.match(job.targetUrl, /^https:\/\/zeroth-kara-jonathanharris-3296ed37\.koyeb\.app\/blotato\/shorts\/[^/]+\/schedule$/);
+    assert.equal(new URL(job.targetUrl).origin, aimsBaseUrl());
     assert.doesNotMatch(job.targetPath, /publish-now/);
   }
 });
@@ -240,6 +242,17 @@ test("audit RAMS rebuild routes are manual because AIMS owns sequencing", () => 
   for (const id of ["rams-rebuild-on-brand", "rams-report-on-brand-latest"]) {
     const job = baseJobs.find((item) => item.id === id);
     assert.equal(job.schedule.type, "manual");
+  }
+});
+
+test("AIMS lifecycle health derives from the canonical AIMS origin", () => {
+  const previous = process.env.AIMS_BASE_URL;
+  try {
+    process.env.AIMS_BASE_URL = "https://replacement.example///";
+    assert.equal(serviceHealthUrl("aims"), "https://replacement.example/livez");
+  } finally {
+    if (previous === undefined) delete process.env.AIMS_BASE_URL;
+    else process.env.AIMS_BASE_URL = previous;
   }
 });
 

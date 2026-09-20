@@ -88,3 +88,16 @@ test("MAST refuses ephemeral scheduler state in production", () => {
     /requires a configured, ready R2 state backend/,
   );
 });
+
+
+test("MAST requires HTTPS for the canonical AIMS origin in production", () => {
+  assert.throws(
+    () => assertProductionSecurityConfig({
+      appEnv: "production",
+      allowPublicManualRuns: false,
+      stateStatus: { ready: true, durable: true, backend: "r2" },
+      aimsOrigin: "http://aims.internal",
+    }),
+    /AIMS_BASE_URL must use HTTPS in production/,
+  );
+});
