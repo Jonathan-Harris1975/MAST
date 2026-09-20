@@ -106,6 +106,10 @@ export const CONFIG = {
   requestTimeoutMs: numberEnv("REQUEST_TIMEOUT_MS", 60_000),
   requestRetries: numberEnv("REQUEST_RETRIES", 2),
   requestRetryBaseMs: numberEnv("REQUEST_RETRY_BASE_MS", 2_500),
+  r2MaxAttempts: numberEnv("R2_MAX_ATTEMPTS", 2),
+  r2ConnectionTimeoutMs: numberEnv("R2_CONNECTION_TIMEOUT_MS", 5_000),
+  r2RequestTimeoutMs: numberEnv("R2_REQUEST_TIMEOUT_MS", 15_000),
+  r2SocketTimeoutMs: numberEnv("R2_SOCKET_TIMEOUT_MS", 15_000),
   serviceHealthProbeTimeoutMs: numberEnv("SERVICE_HEALTH_PROBE_TIMEOUT_MS", 15_000),
   betweenJobsMs: numberEnv("BETWEEN_JOBS_MS", 1_500),
   stateFile: process.env.STATE_FILE || "/tmp/mast-state.json",
@@ -130,7 +134,13 @@ function stateClient() {
       secretAccessKey: r2StateConfig.secretAccessKey,
     },
     forcePathStyle: true,
-    maxAttempts: numberEnv("R2_MAX_ATTEMPTS", 2),
+    maxAttempts: CONFIG.r2MaxAttempts,
+    requestHandler: {
+      connectionTimeout: CONFIG.r2ConnectionTimeoutMs,
+      requestTimeout: CONFIG.r2RequestTimeoutMs,
+      socketTimeout: CONFIG.r2SocketTimeoutMs,
+      throwOnRequestTimeout: true,
+    },
   });
   return r2StateClient;
 }
