@@ -9,6 +9,8 @@ SCHEDULER_TICK_SECONDS=20
 ALLOW_PUBLIC_MANUAL_RUNS=false
 CRON_ADMIN_TOKEN={{ secret.CRON_ADMIN_TOKEN }}
 
+# Canonical AIMS service origin. All AIMS jobs and health probes derive from this value.
+# Origin only; do not append a path, query string or fragment.
 AIMS_BASE_URL=https://zeroth-kara-jonathanharris-3296ed37.koyeb.app
 AIMS_API_KEY={{ secret.AIMS_API_KEY }}
 RMS_API_KEY={{ secret.RMS_API_KEY }}
