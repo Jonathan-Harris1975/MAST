@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { aimsBaseUrl } from "../src/service-origins.js";
+
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_RETRY_DELAY_MS = 5_000;
 
@@ -90,7 +92,7 @@ function assertOk(condition, message) {
 
 async function main() {
   const mastBase = configuredBaseUrl('MAST_BASE_URL');
-  const aimsApiBase = configuredBaseUrl('AIMS_BASE_URL', 'https://zeroth-kara-jonathanharris-3296ed37.koyeb.app');
+  const aimsApiBase = configuredBaseUrl('AIMS_BASE_URL', aimsBaseUrl());
   const ramsBase = configuredBaseUrl('RAMS_BASE_URL', 'https://static-helaina-jonathanharris-6df5d241.koyeb.app');
   const hiveApiBase = configuredBaseUrl('HIVE_BASE_URL', 'https://liable-loreen-jonathanharris-57884580.koyeb.app');
   const websiteBase = configuredBaseUrl('WEBSITE_BASE_URL', 'https://jonathan-harris.online');
