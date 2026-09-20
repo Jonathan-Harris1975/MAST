@@ -1,5 +1,5 @@
 > **Document status:** Production reference
-> **Last reviewed:** 21 August 2026
+> **Last reviewed:** 20 September 2026
 > **Operational authority:** Current repository README and `src/jobs.js`.
 
 # Koyeb power management
@@ -31,4 +31,5 @@ AIMS and HIVE remain online throughout. RAMS pause is completion-driven.
 - `KOYEB_TOKEN` with `services:write` permission for RAMS lifecycle control and operator recovery.
 - `KOYEB_SERVICE_ID_AIMS`, `KOYEB_SERVICE_ID_RAMS`, and `KOYEB_SERVICE_ID_HIVE` for readiness/operator lifecycle integration.
 - `KOYEB_POWER_MANAGEMENT_ENABLED=true` to enable RAMS demand management.
+- `AIMS_BASE_URL` as the single canonical AIMS service origin. All AIMS jobs and the AIMS lifecycle health probe derive from it; do not configure per-job AIMS URLs.
 - `AIMS_API_KEY`, `RMS_API_KEY`, and `HIVE_ADMIN_BEARER_TOKEN` for authenticated automation.
