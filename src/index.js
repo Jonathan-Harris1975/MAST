@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { assertProductionSecurityConfig, isProductionEnvironment } from "./security.js";
+import { aimsBaseUrl } from "./service-origins.js";
 import http from "node:http";
 import { jobs, SERVICE_NAME } from "./jobs.js";
 import { validateJobRegistry } from "./schedule-validation.js";
@@ -362,6 +363,7 @@ assertProductionSecurityConfig({
   appEnv: APP_ENV,
   allowPublicManualRuns: ALLOW_PUBLIC_MANUAL_RUNS,
   stateStatus: startupState,
+  aimsOrigin: aimsBaseUrl(),
 });
 
 const server = http.createServer((req, res) => {

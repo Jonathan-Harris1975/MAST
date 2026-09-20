@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { dirname } from "node:path";
 import { jobs, LOCAL_TIME_ZONE, SERVICE_NAME, USER_AGENT, koyebServiceUrl } from "./jobs.js";
+import { aimsUrl } from "./service-origins.js";
 import { sendOperationalEvent } from "./alerts.js";
 import { evaluateResponsePolicy } from "./response-policy.js";
 
@@ -29,8 +30,7 @@ const DEFAULT_SERVICE_LIFECYCLE = () => ({
 const SERVICE_LIFECYCLE_CONFIG = {
   aims: {
     serviceIdEnv: "KOYEB_SERVICE_ID_AIMS",
-    healthUrlEnv: "AIMS_HEALTH_URL",
-    healthUrlFallback: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/livez",
+    healthPath: "/livez",
   },
   rams: {
     serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
@@ -638,6 +638,7 @@ export function setServiceLifecycle(serviceKey, value, { reason = null, lastActi
 export function serviceHealthUrl(serviceKey) {
   const config = SERVICE_LIFECYCLE_CONFIG[serviceKey];
   if (!config) return "";
+  if (serviceKey === "aims") return aimsUrl(config.healthPath);
   const configured = String(process.env[config.healthUrlEnv] || "").trim();
   return configured || config.healthUrlFallback;
 }

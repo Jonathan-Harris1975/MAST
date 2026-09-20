@@ -1,3 +1,5 @@
+import { aimsUrl } from "./service-origins.js";
+
 export const SERVICE_NAME = "MAST";
 export const LOCAL_TIME_ZONE = "Europe/London";
 export const USER_AGENT = "Jonathan-Harris-MAST/1.2.3 (+https://jonathan-harris.online)";
@@ -21,7 +23,7 @@ const HIVE_WEEKLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_WE
 const HIVE_MONTHLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_MONTHLY_CATCH_UP_MINUTES || 1020));
 
 function endpoint(envName, fallbackUrl) {
-  const configured = process.env[envName];
+  const configured = envName ? process.env[envName] : undefined;
   return configured && configured.trim() ? configured.trim() : fallbackUrl;
 }
 
@@ -113,214 +115,182 @@ function getJob({
   };
 }
 
-const rssRewrite = postJob({
+function aimsJob(buildJob, options) {
+  const targetUrl = aimsUrl(options.targetPath);
+  const { urlEnv: _unusedUrlEnv, ...job } = buildJob({
+    ...options,
+    urlEnv: null,
+    fallbackUrl: targetUrl,
+    targetUrl,
+  });
+  return { ...job, serviceOrigin: "aims" };
+}
+
+function aimsPostJob(options) {
+  return aimsJob(postJob, options);
+}
+
+function aimsGetJob(options) {
+  return aimsJob(getJob, options);
+}
+
+const rssRewrite = aimsPostJob({
   id: "rss-rewrite",
   group: "rss",
   description: "Run the RSS rewrite pipeline.",
   schedule: { type: "manual" },
-  urlEnv: null,
-  fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/rss/rewrite",
-  targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/rss/rewrite",
   targetPath: "/rss/rewrite",
   authEnv: "AIMS_API_KEY",
   body: { batchSize: 5 },
 });
 
-const outreachBatchNext = postJob({
+const outreachBatchNext = aimsPostJob({
   id: "outreach-batch-next",
   group: "outreach",
   description: "Process the next outreach batch.",
   schedule: { type: "manual" },
-  urlEnv: null,
-  fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/outreach/batch/next",
-  targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/outreach/batch/next",
   targetPath: "/outreach/batch/next",
   authEnv: "AIMS_API_KEY",
 });
 
 const outreachScheduledJobs = [
-  postJob({
+  aimsPostJob({
     id: "outreach-weekday-am",
     group: "outreach",
     description: "Automatically process the morning Outreach batch on weekdays.",
     schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "09:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
-    urlEnv: null,
-    fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/outreach/batch/next",
-    targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/outreach/batch/next",
     targetPath: "/outreach/batch/next",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims"],
   }),
-  postJob({
+  aimsPostJob({
     id: "outreach-weekday-pm",
     group: "outreach",
     description: "Automatically process the afternoon Outreach batch on weekdays.",
     schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "16:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
-    urlEnv: null,
-    fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/outreach/batch/next",
-    targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/outreach/batch/next",
     targetPath: "/outreach/batch/next",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims"],
   }),
 ];
 
-const podcastRun = postJob({
+const podcastRun = aimsPostJob({
   id: "podcast-run",
   group: "podcast",
   description: "Trigger the podcast pipeline.",
   schedule: { type: "manual" },
-  urlEnv: null,
-  fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/podcast/run",
-  targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/podcast/run",
   targetPath: "/podcast/run",
   authEnv: "AIMS_API_KEY",
 });
 
-const blogWeeklyBuild = postJob({
+const blogWeeklyBuild = aimsPostJob({
   id: "blog-weekly-build",
   group: "blog",
   description: "Build the weekly blog package.",
   schedule: { type: "manual" },
-  urlEnv: null,
-  fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/blog/weekly/build",
-  targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/blog/weekly/build",
   targetPath: "/blog/weekly/build",
   authEnv: "AIMS_API_KEY",
 });
 
-const blogDailySocialBuild = postJob({
+const blogDailySocialBuild = aimsPostJob({
   id: "blog-daily-social-build",
   group: "blog",
   description: "Build and publish the daily social media blog RSS package.",
   schedule: { type: "manual" },
-  urlEnv: null,
-  fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/blog/social/daily/build",
-  targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/blog/social/daily/build",
   targetPath: "/blog/social/daily/build",
   authEnv: "AIMS_API_KEY",
 });
 
-const newsletterAiEdgeGenerate = postJob({
+const newsletterAiEdgeGenerate = aimsPostJob({
   id: "newsletter-ai-edge-generate",
   group: "newsletter",
   description: "Build today's AI Edge newsletter issue (RSS ingest, ranking, composition, QA loop and hero image) before the governed morning delivery step.",
   schedule: { type: "manual" },
-  urlEnv: null,
-  fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/newsletter/generate",
-  targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/newsletter/generate",
   targetPath: "/newsletter/generate",
   authEnv: "AIMS_API_KEY",
   body: { profileId: "ai-edge" },
 });
 
-const newsletterAiEdgeSend = postJob({
+const newsletterAiEdgeSend = aimsPostJob({
   id: "newsletter-ai-edge-send",
   group: "newsletter",
   description: "Send today's built AI Edge newsletter issue via Brevo (creates the campaign and sends it immediately).",
   schedule: { type: "manual" },
-  urlEnv: null,
-  fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/newsletter/send",
-  targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/newsletter/send",
   targetPath: "/newsletter/send",
   authEnv: "AIMS_API_KEY",
   body: { profileId: "ai-edge" },
 });
 
 const zernioDailyJobs = [
-  postJob({
+  aimsPostJob({
     id: "zernio-monday",
     group: "zernio-daily",
     description: "Trigger Monday Motivation post build and schedule for Monday.",
     schedule: { type: "manual" },
-    urlEnv: null,
-    fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/daily/monday",
-    targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/daily/monday",
     targetPath: "/zernio/daily/monday",
     authEnv: "AIMS_API_KEY",
   }),
-  postJob({
+  aimsPostJob({
     id: "zernio-tuesday",
     group: "zernio-daily",
     description: "Trigger Tuesday Tech Talk post build and schedule for Tuesday.",
     schedule: { type: "manual" },
-    urlEnv: null,
-    fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/daily/tuesday",
-    targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/daily/tuesday",
     targetPath: "/zernio/daily/tuesday",
     authEnv: "AIMS_API_KEY",
   }),
-  postJob({
+  aimsPostJob({
     id: "zernio-wednesday",
     group: "zernio-daily",
     description: "Trigger Wednesday Writer's Corner post build and schedule for Wednesday.",
     schedule: { type: "manual" },
-    urlEnv: null,
-    fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/daily/wednesday",
-    targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/daily/wednesday",
     targetPath: "/zernio/daily/wednesday",
     authEnv: "AIMS_API_KEY",
   }),
-  postJob({
+  aimsPostJob({
     id: "zernio-thursday",
     group: "zernio-daily",
     description: "Trigger Thursday Industry AI post build and schedule for Thursday.",
     schedule: { type: "manual" },
-    urlEnv: null,
-    fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/daily/thursday",
-    targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/daily/thursday",
     targetPath: "/zernio/daily/thursday",
     authEnv: "AIMS_API_KEY",
   }),
-  postJob({
+  aimsPostJob({
     id: "zernio-friday",
     group: "zernio-daily",
     description: "Trigger Friday post build and schedule for Friday.",
     schedule: { type: "manual" },
-    urlEnv: null,
-    fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/daily/friday",
-    targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/daily/friday",
     targetPath: "/zernio/daily/friday",
     authEnv: "AIMS_API_KEY",
   }),
-  postJob({
+  aimsPostJob({
     id: "zernio-saturday",
     group: "zernio-daily",
     description: "Trigger Saturday post build and schedule for Saturday.",
     schedule: { type: "manual" },
-    urlEnv: null,
-    fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/daily/saturday",
-    targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/daily/saturday",
     targetPath: "/zernio/daily/saturday",
     authEnv: "AIMS_API_KEY",
   }),
-  postJob({
+  aimsPostJob({
     id: "zernio-sunday",
     group: "zernio-daily",
     description: "Trigger Sunday post build and schedule for Sunday.",
     schedule: { type: "manual" },
-    urlEnv: null,
-    fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/daily/sunday",
-    targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/daily/sunday",
     targetPath: "/zernio/daily/sunday",
     authEnv: "AIMS_API_KEY",
   }),
 ];
 
-const zernioWeeklyQuiz = postJob({
+const zernioWeeklyQuiz = aimsPostJob({
   id: "zernio-weekly-quiz",
   group: "zernio-quiz",
   description: "Build and schedule the weekly AI quiz pair.",
   schedule: { type: "manual" },
-  urlEnv: null,
-  fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/quiz/weekly",
-  targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/quiz/weekly",
   targetPath: "/zernio/quiz/weekly",
   authEnv: "AIMS_API_KEY",
 });
 
 const monthlyAuditJobs = [
-  postJob({
+  aimsPostJob({
     id: "website-audit-pipeline",
     group: "audits",
     description: [
@@ -328,9 +298,6 @@ const monthlyAuditJobs = [
       "AIMS owns the full council/report/RAMS sequence and MAST waits for terminal completion.",
     ].join(" "),
     schedule: { type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: WEBSITE_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES },
-    urlEnv: null,
-    fallbackUrl: `${aimsBaseUrl()}/audits/monthly/website`,
-    targetUrl: `${aimsBaseUrl()}/audits/monthly/website`,
     targetPath: "/audits/monthly/website",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims", "rams"],
@@ -348,14 +315,11 @@ const monthlyAuditJobs = [
       notes: "First-Sunday website audit. AIMS owns sequencing, monthly cadence enforcement, final publication and the required RAMS remediation handoff.",
     },
   }),
-  postJob({
+  aimsPostJob({
     id: "aims-audit-pipeline",
     group: "audits",
     description: `Run the complete AIMS audit at ${AIMS_AUDIT_RUN_TIME} on the second Saturday of each month. AIMS owns the full council/report/RAMS sequence.`,
     schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: AIMS_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AIMS_AUDIT_RUN_CATCH_UP_MINUTES },
-    urlEnv: null,
-    fallbackUrl: `${aimsBaseUrl()}/audits/monthly/aims`,
-    targetUrl: `${aimsBaseUrl()}/audits/monthly/aims`,
     targetPath: "/audits/monthly/aims",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims", "rams"],
@@ -374,14 +338,11 @@ const monthlyAuditJobs = [
   }),
 ];
 
-const zernioEbooksWeekly = postJob({
+const zernioEbooksWeekly = aimsPostJob({
   id: "zernio-ebooks-weekly",
   group: "zernio-ebooks",
   description: "Schedule the Tuesday, Thursday, and Saturday ebook posts for the current featured book.",
   schedule: { type: "manual" },
-  urlEnv: null,
-  fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/ebooks/weekly",
-  targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/zernio/ebooks/weekly",
   targetPath: "/zernio/ebooks/weekly",
   authEnv: "AIMS_API_KEY",
   addLocalDateAsWeekStartDate: true,
@@ -395,73 +356,56 @@ const zernioEbooksWeekly = postJob({
 
 
 const blotatoVideoJobs = [
-  postJob({
+  aimsPostJob({
     id: "blotato-news-insight-publish",
     group: "blotato-videos",
     description: "Governed manual recovery: schedule the Monday Blotato AI News Insight social video across Instagram, YouTube, TikTok, and Facebook.",
     schedule: { type: "manual" },
-    urlEnv: null,
-    fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/blotato/shorts/news-insight/schedule",
-    targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/blotato/shorts/news-insight/schedule",
     targetPath: "/blotato/shorts/news-insight/schedule",
     authEnv: "AIMS_API_KEY",
   }),
-  postJob({
+  aimsPostJob({
     id: "blotato-model-verdict-publish",
     group: "blotato-videos",
     description: "Governed manual recovery: schedule the Tuesday Blotato AI model/tool verdict social video across Instagram, YouTube, TikTok, and Facebook.",
     schedule: { type: "manual" },
-    urlEnv: null,
-    fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/blotato/shorts/model-verdict/schedule",
-    targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/blotato/shorts/model-verdict/schedule",
     targetPath: "/blotato/shorts/model-verdict/schedule",
     authEnv: "AIMS_API_KEY",
   }),
-  postJob({
+  aimsPostJob({
     id: "blotato-ai-at-work-publish",
     group: "blotato-videos",
     description: "Governed manual recovery: schedule the Wednesday Blotato AI at Work social video across Instagram, YouTube, TikTok, and Facebook.",
     schedule: { type: "manual" },
-    urlEnv: null,
-    fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/blotato/shorts/ai-at-work/schedule",
-    targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/blotato/shorts/ai-at-work/schedule",
     targetPath: "/blotato/shorts/ai-at-work/schedule",
     authEnv: "AIMS_API_KEY",
   }),
-  postJob({
+  aimsPostJob({
     id: "blotato-reality-check-publish",
     group: "blotato-videos",
     description: "Governed manual recovery: schedule the Thursday Blotato AI risk and reality-check social video across Instagram, YouTube, TikTok, and Facebook.",
     schedule: { type: "manual" },
-    urlEnv: null,
-    fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/blotato/shorts/reality-check/schedule",
-    targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/blotato/shorts/reality-check/schedule",
     targetPath: "/blotato/shorts/reality-check/schedule",
     authEnv: "AIMS_API_KEY",
   }),
-  postJob({
+  aimsPostJob({
     id: "blotato-ai-playbook-publish",
     group: "blotato-videos",
     description: "Governed manual recovery: schedule the Friday Blotato AI playbook/how-to social video across Instagram, YouTube, TikTok, and Facebook.",
     schedule: { type: "manual" },
-    urlEnv: null,
-    fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/blotato/shorts/ai-playbook/schedule",
-    targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/blotato/shorts/ai-playbook/schedule",
     targetPath: "/blotato/shorts/ai-playbook/schedule",
     authEnv: "AIMS_API_KEY",
   }),
 ];
 
-const healthPing = getJob({
+const healthPing = aimsGetJob({
   id: "suite-health-ping",
   group: "health",
   description: "Manual fallback ping for the AI Management Suite health endpoint.",
   schedule: { type: "manual" },
-  urlEnv: null,
-  fallbackUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/health",
-  targetUrl: "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app/health",
   targetPath: "/health",
 });
+
 
 
 
@@ -852,7 +796,7 @@ const hiveGovernanceJobs = [
 
 
 const operationWindowJobs = [
-  ...["monday", "tuesday", "wednesday", "thursday", "friday"].map((day) => postJob({
+  ...["monday", "tuesday", "wednesday", "thursday", "friday"].map((day) => aimsPostJob({
     id: `operation-${day}-am`,
     group: "operations",
     description: [
@@ -861,26 +805,21 @@ const operationWindowJobs = [
       "prepares weekend Zernio content.",
     ].join(" "),
     schedule: { type: "weekly", days: [day], time: AM_OPERATION_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AM_OPERATION_CATCH_UP_MINUTES },
-    urlEnv: null,
-    fallbackUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
-    targetUrl: `${aimsBaseUrl()}/ops/run/${day}-am`,
     targetPath: `/ops/run/${day}-am`,
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims"],
   })),
-  postJob({
+  aimsPostJob({
     id: "operation-friday-pm",
     group: "operations",
     description: "Friday podcast-only AIMS operating window.",
     schedule: { type: "weekly", days: ["friday"], time: FRIDAY_PM_OPERATION_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: FRIDAY_PM_OPERATION_CATCH_UP_MINUTES },
-    urlEnv: null,
-    fallbackUrl: `${aimsBaseUrl()}/ops/run/friday-pm`,
-    targetUrl: `${aimsBaseUrl()}/ops/run/friday-pm`,
     targetPath: "/ops/run/friday-pm",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims"],
   }),
 ];
+
 
 export const baseJobs = [
   ...operationWindowJobs,
@@ -909,10 +848,6 @@ function boolEnv(name, fallback = true) {
   return ["1", "true", "yes", "y", "on"].includes(String(raw).trim().toLowerCase());
 }
 
-function aimsBaseUrl() {
-  return String(process.env.AIMS_BASE_URL || "https://zeroth-kara-jonathanharris-3296ed37.koyeb.app").replace(/\/+$/, "");
-}
-
 function serviceForJob(job) {
   if (job.group?.startsWith("zernio")) return "zernio";
   if (job.group?.startsWith("blotato")) return "blotato";
@@ -926,7 +861,7 @@ function serviceForJob(job) {
 }
 
 function pretriggerUrl(stage, sourceJob, offsetMinutes) {
-  const url = new URL(`${aimsBaseUrl()}/ops/${stage}`);
+  const url = new URL(aimsUrl(`/ops/${stage}`));
   url.searchParams.set("service", serviceForJob(sourceJob));
   url.searchParams.set("sourceJob", sourceJob.id);
   url.searchParams.set("sourceGroup", sourceJob.group || "");
@@ -943,7 +878,6 @@ function pretriggerJob(sourceJob, stage, offsetMinutes) {
     description: `Run ${stage} check ${offsetMinutes} minutes before ${sourceJob.id}.`,
     method: "GET",
     schedule: { type: "pretrigger", sourceJobId: sourceJob.id, offsetMinutes },
-    urlEnv: null,
     url: pretriggerUrl(stage, sourceJob, offsetMinutes),
     targetUrl: pretriggerUrl(stage, sourceJob, offsetMinutes),
     targetPath: `/ops/${stage}`,
@@ -953,6 +887,7 @@ function pretriggerJob(sourceJob, stage, offsetMinutes) {
     pretriggerOffsetMinutes: offsetMinutes,
     sourceJobId: sourceJob.id,
     sourceTargetPath: sourceJob.targetPath || null,
+    serviceOrigin: "aims",
   };
 }
 
