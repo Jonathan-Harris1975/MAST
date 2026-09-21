@@ -47,7 +47,7 @@ AIMS owns downstream councils and RAMS hand-off. MAST waits for terminal complet
 
 ### HIVE governance
 
-MAST runs seven-day HIVE readiness/repository/provider checks plus weekly and monthly governance jobs. HIVE remains online continuously and scheduled HIVE jobs are readiness-gated before execution.
+MAST runs seven-day HIVE readiness/repository/provider checks plus weekly and monthly governance jobs. HIVE remains online continuously and scheduled HIVE jobs are readiness-gated before execution. After the second-Saturday AIMS audit completes, MAST triggers HIVE's asynchronous `/v1/repositories/refresh-all` workflow and polls `/v1/repositories/refresh-jobs/{job_id}` to terminal completion. A refresh is accepted as successful only when HIVE reports the exact governed catalogue (`HIVE`, `HIVE-UI`, `AIMS`, `AIMS-UI`, `RAMS`, `MAST`, `IRS`, `Website`), all eight results are complete, and none failed. Duplicate scheduler execution cannot start a second in-process refresh for the same job, and the monthly window is consumed after a terminal/transport failure so the expensive full-estate POST is not replayed every tick.
 
 ## Configuration
 
