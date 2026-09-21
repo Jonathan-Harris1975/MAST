@@ -77,6 +77,25 @@ export function evaluateResponsePolicy(policy, responseText) {
       continue;
     }
 
+    if (check?.type === "arrayKeySetEquals") {
+      const values = valueAtPath(payload, check.path);
+      const array = Array.isArray(values) ? values : null;
+      const expected = Array.isArray(check.values) ? [...check.values].sort() : [];
+      const actual = array ? array.map((item) => item?.[check.key]).sort() : values;
+      const matches = Array.isArray(actual)
+        && actual.length === expected.length
+        && actual.every((value, index) => value === expected[index]);
+      if (!matches) failures.push({
+        type: check.type,
+        path: check.path,
+        key: check.key,
+        expected,
+        actual,
+        message: check.message || `${check.path} did not contain the exact expected ${check.key} set.`,
+      });
+      continue;
+    }
+
     failures.push({
       type: "unsupported-check",
       message: `Unsupported response policy check type: ${check?.type || "<missing>"}.`,

@@ -21,6 +21,16 @@ const AIMS_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS
 const HIVE_DAILY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_DAILY_CATCH_UP_MINUTES || 180));
 const HIVE_WEEKLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_WEEKLY_CATCH_UP_MINUTES || 360));
 const HIVE_MONTHLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_MONTHLY_CATCH_UP_MINUTES || 1020));
+export const HIVE_GOVERNED_REPOSITORIES = Object.freeze([
+  "HIVE",
+  "HIVE-UI",
+  "AIMS",
+  "AIMS-UI",
+  "RAMS",
+  "MAST",
+  "IRS",
+  "Website",
+]);
 
 function endpoint(envName, fallbackUrl) {
   const configured = envName ? process.env[envName] : undefined;
@@ -784,6 +794,22 @@ const hiveRepositoryMonthlyRefresh = hiveJob({
     successStatuses: ["completed"],
     pendingStatuses: ["accepted", "running"],
     failureStatuses: ["completed-with-failures", "failed"],
+    terminalResponsePolicy: {
+      checks: [
+        { type: "equals", path: "ok", value: true, message: "HIVE repository refresh terminal payload reported ok=false." },
+        { type: "equals", path: "repository_count", value: HIVE_GOVERNED_REPOSITORIES.length, message: "HIVE repository refresh did not cover all eight governed repositories." },
+        { type: "equals", path: "completed_count", value: HIVE_GOVERNED_REPOSITORIES.length, message: "HIVE repository refresh did not complete all eight governed repositories." },
+        { type: "equals", path: "failed_count", value: 0, message: "HIVE repository refresh reported one or more failed repositories." },
+        {
+          type: "arrayKeySetEquals",
+          path: "results",
+          key: "repository_id",
+          values: HIVE_GOVERNED_REPOSITORIES,
+          message: "HIVE repository refresh terminal results did not contain the exact governed eight-repository catalogue.",
+        },
+        { type: "arrayEveryEquals", path: "results", key: "ok", value: true, message: "HIVE repository refresh terminal results contain a failed repository." },
+      ],
+    },
   },
 });
 

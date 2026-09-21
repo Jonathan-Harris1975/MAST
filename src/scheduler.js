@@ -850,6 +850,7 @@ function resultSummary(result) {
     operationFailures: Number(result.operationJob?.failures ?? result.operationFailure?.failures ?? 0),
     asyncStatus: result.asyncJob?.status || result.asyncFailure?.status || null,
     asyncId: result.asyncJob?.asyncId || result.asyncFailure?.asyncId || null,
+    asyncPolicyFailures: result.asyncFailure?.responsePolicy?.failures || [],
   };
 }
 
@@ -1003,7 +1004,8 @@ async function waitForConfiguredAsyncStatus(job, responseText) {
     if (!currentStatus) throw new Error(`${job.id} async status response omitted ${config.statusField || "status"}`);
     const current = statusPayload?.job || statusPayload;
     if (successStatuses.has(currentStatus) || failureStatuses.has(currentStatus)) {
-      return { ...current, status: currentStatus, asyncId, statusUrl };
+      const terminalResponsePolicy = evaluateResponsePolicy(config.terminalResponsePolicy, text);
+      return { ...current, status: currentStatus, asyncId, statusUrl, terminalResponsePolicy };
     }
     if (!pendingStatuses.has(currentStatus)) throw new Error(`Unexpected ${job.id} async status: ${currentStatus}`);
     await sleep(CONFIG.aimsOperationPollIntervalMs);
@@ -1221,7 +1223,10 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
     const operationJob = response.ok ? await waitForAimsOperation(job, responseText) : null;
     const asyncJob = response.ok ? await waitForConfiguredAsyncStatus(job, responseText) : null;
     const operationOk = !operationJob || (operationJob.status === "completed" && Number(operationJob.failures || 0) === 0);
-    const asyncOk = !asyncJob || (job.asyncStatus?.successStatuses || ["completed"]).includes(asyncJob.status);
+    const asyncOk = !asyncJob || (
+      (job.asyncStatus?.successStatuses || ["completed"]).includes(asyncJob.status)
+      && asyncJob.terminalResponsePolicy?.ok !== false
+    );
     const responsePolicy = response.ok && operationOk && asyncOk
       ? evaluateResponsePolicy(job.responsePolicy, responseText)
       : { ok: true, checked: false, failures: [] };
@@ -1246,7 +1251,10 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
       asyncFailure: asyncJob && !asyncOk ? {
         status: asyncJob.status,
         asyncId: asyncJob.asyncId || null,
-        error: asyncJob.error || null,
+        error: asyncJob.error
+          || asyncJob.terminalResponsePolicy?.failures?.[0]?.message
+          || null,
+        responsePolicy: asyncJob.terminalResponsePolicy || null,
       } : null,
       responsePolicy,
       payload: payload || null,
