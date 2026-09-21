@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { baseJobs, jobs, pretriggerJobs } from "../src/jobs.js";
+import { baseJobs, HIVE_GOVERNED_REPOSITORIES, jobs, pretriggerJobs } from "../src/jobs.js";
 import { aimsBaseUrl } from "../src/service-origins.js";
 import { dueJobPriority, isTimedJobDue, jobScheduleDue, nextRunForJob, requiredServiceStates, requiredServicesReady, serviceHealthUrl } from "../src/scheduler.js";
 
@@ -306,12 +306,19 @@ test("monthly HIVE repository refresh follows the second RAMS/AIMS audit and wai
   assert.deepEqual(job.requiredServices, ["hive"]);
   assert.equal(job.requestRetries, 0);
   assert.equal(job.consumeFailureWindow, true);
-  assert.deepEqual(job.asyncStatus, {
-    responseIdField: "job_id",
-    statusPath: "/v1/repositories/refresh-jobs/{id}",
-    statusField: "status",
-    successStatuses: ["completed"],
-    pendingStatuses: ["accepted", "running"],
-    failureStatuses: ["completed-with-failures", "failed"],
-  });
+  assert.equal(job.asyncStatus.responseIdField, "job_id");
+  assert.equal(job.asyncStatus.statusPath, "/v1/repositories/refresh-jobs/{id}");
+  assert.equal(job.asyncStatus.statusField, "status");
+  assert.deepEqual(job.asyncStatus.successStatuses, ["completed"]);
+  assert.deepEqual(job.asyncStatus.pendingStatuses, ["accepted", "running"]);
+  assert.deepEqual(job.asyncStatus.failureStatuses, ["completed-with-failures", "failed"]);
+  assert.deepEqual(HIVE_GOVERNED_REPOSITORIES, [
+    "HIVE", "HIVE-UI", "AIMS", "AIMS-UI", "RAMS", "MAST", "IRS", "Website",
+  ]);
+  const terminalChecks = job.asyncStatus.terminalResponsePolicy.checks;
+  assert.ok(terminalChecks.some((check) => check.type === "equals" && check.path === "repository_count" && check.value === 8));
+  assert.ok(terminalChecks.some((check) => check.type === "equals" && check.path === "completed_count" && check.value === 8));
+  assert.ok(terminalChecks.some((check) => check.type === "equals" && check.path === "failed_count" && check.value === 0));
+  const catalogueCheck = terminalChecks.find((check) => check.type === "arrayKeySetEquals");
+  assert.deepEqual(catalogueCheck.values, HIVE_GOVERNED_REPOSITORIES);
 });

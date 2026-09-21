@@ -43,3 +43,36 @@ test("monthly review persistence checks fail closed", () => {
   assert.equal(archiveFailed.ok, false);
   assert.equal(indexFailed.ok, false);
 });
+
+
+test("arrayKeySetEquals requires the exact governed repository catalogue", () => {
+  const policy = {
+    checks: [{
+      type: "arrayKeySetEquals",
+      path: "results",
+      key: "repository_id",
+      values: ["HIVE", "HIVE-UI", "AIMS", "AIMS-UI", "RAMS", "MAST", "IRS", "Website"],
+    }],
+  };
+  const complete = evaluateResponsePolicy(policy, JSON.stringify({
+    results: [
+      { repository_id: "Website" }, { repository_id: "IRS" }, { repository_id: "MAST" }, { repository_id: "RAMS" },
+      { repository_id: "AIMS-UI" }, { repository_id: "AIMS" }, { repository_id: "HIVE-UI" }, { repository_id: "HIVE" },
+    ],
+  }));
+  const missing = evaluateResponsePolicy(policy, JSON.stringify({
+    results: [
+      { repository_id: "HIVE" }, { repository_id: "HIVE-UI" }, { repository_id: "AIMS" }, { repository_id: "AIMS-UI" },
+      { repository_id: "RAMS" }, { repository_id: "MAST" }, { repository_id: "IRS" },
+    ],
+  }));
+  const duplicate = evaluateResponsePolicy(policy, JSON.stringify({
+    results: [
+      { repository_id: "HIVE" }, { repository_id: "HIVE-UI" }, { repository_id: "AIMS" }, { repository_id: "AIMS-UI" },
+      { repository_id: "RAMS" }, { repository_id: "MAST" }, { repository_id: "IRS" }, { repository_id: "IRS" },
+    ],
+  }));
+  assert.equal(complete.ok, true);
+  assert.equal(missing.ok, false);
+  assert.equal(duplicate.ok, false);
+});
