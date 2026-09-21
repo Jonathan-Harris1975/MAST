@@ -32,7 +32,7 @@ Rollback is the same operation in reverse: restore the previous `AIMS_BASE_URL`,
 
 ## Failure and retry behaviour
 
-HTTP execution uses bounded timeouts and retries. Jobs that must not be replayed through generic HTTP retry set their own retry policy. Accepted asynchronous AIMS operations are polled until terminal completion; `failed` and `completed-with-failures` are not treated as successful cycles. Catch-up windows allow bounded recovery after scheduler interruption, while durable run keys prevent duplicate execution of the same governed window.
+HTTP execution uses bounded timeouts and retries. Jobs that must not be replayed through generic HTTP retry set their own retry policy. Accepted asynchronous AIMS and HIVE operations are polled until terminal completion; `failed` and `completed-with-failures` are not treated as successful cycles. The HIVE full-estate repository refresh additionally validates the terminal payload: `repository_count=8`, `completed_count=8`, `failed_count=0`, `ok=true`, and the result set must contain exactly `HIVE`, `HIVE-UI`, `AIMS`, `AIMS-UI`, `RAMS`, `MAST`, `IRS`, and `Website`. Catch-up windows allow bounded recovery after scheduler interruption, while durable run keys prevent duplicate execution of the same governed window.
 
 ## Recovery
 
