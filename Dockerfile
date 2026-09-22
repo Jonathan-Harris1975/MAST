@@ -6,7 +6,12 @@ ENV NODE_ENV=production \
     PORT=8000
 WORKDIR /app
 
-RUN addgroup -S mast && adduser -S -G mast mast
+# Pull fixed Alpine packages into the otherwise digest-pinned runtime image.
+# This keeps the Node runtime pinned while ensuring fixable OS CVEs are not
+# inherited indefinitely from the base-image snapshot.
+RUN apk upgrade --no-cache \
+    && addgroup -S mast \
+    && adduser -S -G mast mast
 COPY --chown=mast:mast package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 COPY --chown=mast:mast src ./src
