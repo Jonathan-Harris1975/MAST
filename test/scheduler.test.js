@@ -62,6 +62,31 @@ test("Outreach is fully automated twice each weekday under MAST", () => {
   }
 });
 
+test("one.com cleanup permanently covers Info, Admin and Newsletter on the first of each month", () => {
+  const job = baseJobs.find((item) => item.id === "onecom-mailbox-cleanup");
+  assert.ok(job);
+  assert.deepEqual(job.schedule, {
+    type: "monthly",
+    dayOfMonth: 1,
+    time: process.env.MAST_EMAIL_CLEANUP_TIME || "03:00",
+    timezone: "Europe/London",
+    catchUpMinutes: Number(process.env.MAST_EMAIL_CLEANUP_CATCH_UP_MINUTES || 1260),
+  });
+  assert.equal(job.targetPath, "/comms-hub/email/maintenance/cleanup");
+  assert.equal(job.authEnv, "AIMS_API_KEY");
+  assert.deepEqual(job.requiredServices, ["aims"]);
+  assert.deepEqual(job.body, { confirmation: "permanently-delete-trash-and-spam" });
+  assert.equal(job.requestRetries, 0);
+  assert.equal(job.consumeFailureWindow, true);
+  const accountSet = job.responsePolicy.checks.find((check) => check.type === "arrayKeySetEquals");
+  assert.deepEqual(accountSet.values, ["info", "admin", "newsletter"]);
+
+  // 03:00 Europe/London is 02:00 UTC during British Summer Time.
+  assert.equal(isTimedJobDue(job, new Date("2026-08-01T02:00:00.000Z")), true);
+  assert.equal(isTimedJobDue(job, new Date("2026-08-01T22:59:00.000Z")), true);
+  assert.equal(isTimedJobDue(job, new Date("2026-08-02T02:00:00.000Z")), false);
+});
+
 test("manual Blotato recovery uses governed schedule routes, never immediate publish", () => {
   const blotatoIds = legacyContentIds.filter((id) => id.startsWith("blotato-") && id.endsWith("-publish"));
   assert.equal(blotatoIds.length, 5);
