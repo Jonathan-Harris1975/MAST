@@ -43,6 +43,10 @@ AIMS owns sequencing inside each content window. Individual RSS, Zernio, Blotato
 - **First Sunday:** resume RAMS at 10:00 and run the website audit at 10:30.
 - **Second Saturday:** resume RAMS at 09:00 and run the AIMS/content governance audit at 09:15.
 
+### one.com mailbox maintenance
+
+On the **first day of each month at 03:00 Europe/London**, MAST calls AIMS to permanently empty the server-advertised Trash and Junk/Spam folders for `info@`, `admin@` and `newsletter@jonathan-harris.online`. `MAST_EMAIL_CLEANUP_TIME` changes the time, and `MAST_EMAIL_CLEANUP_CATCH_UP_MINUTES` controls same-day recovery after downtime. The job is non-retried at the HTTP layer, consumes a failed monthly window, and accepts success only when AIMS reports all three governed accounts complete.
+
 AIMS owns downstream councils and RAMS hand-off. MAST waits for terminal completion and does not separately schedule individual RAMS remediation pipelines.
 
 ### HIVE governance
