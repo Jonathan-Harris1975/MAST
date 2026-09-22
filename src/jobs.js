@@ -21,6 +21,8 @@ const AIMS_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS
 const HIVE_DAILY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_DAILY_CATCH_UP_MINUTES || 180));
 const HIVE_WEEKLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_WEEKLY_CATCH_UP_MINUTES || 360));
 const HIVE_MONTHLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_MONTHLY_CATCH_UP_MINUTES || 1020));
+const EMAIL_CLEANUP_TIME = String(process.env.MAST_EMAIL_CLEANUP_TIME || "03:00");
+const EMAIL_CLEANUP_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_EMAIL_CLEANUP_CATCH_UP_MINUTES || 1260));
 export const HIVE_GOVERNED_REPOSITORIES = Object.freeze([
   "HIVE",
   "HIVE-UI",
@@ -183,6 +185,40 @@ const outreachScheduledJobs = [
     requiredServices: ["aims"],
   }),
 ];
+
+const oneComMailboxCleanup = aimsPostJob({
+  id: "onecom-mailbox-cleanup",
+  group: "email-maintenance",
+  description: "Permanently empty the one.com Trash and Junk/Spam folders for Info, Admin and Newsletter on the first day of each month.",
+  schedule: {
+    type: "monthly",
+    dayOfMonth: 1,
+    time: EMAIL_CLEANUP_TIME,
+    timezone: LOCAL_TIME_ZONE,
+    catchUpMinutes: EMAIL_CLEANUP_CATCH_UP_MINUTES,
+  },
+  targetPath: "/comms-hub/email/maintenance/cleanup",
+  authEnv: "AIMS_API_KEY",
+  requiredServices: ["aims"],
+  body: { confirmation: "permanently-delete-trash-and-spam" },
+  requestRetries: 0,
+  consumeFailureWindow: true,
+  responsePolicy: {
+    checks: [
+      { type: "equals", path: "ok", value: true, message: "One or more one.com mailboxes failed monthly cleanup." },
+      { type: "equals", path: "permanent", value: true, message: "The one.com cleanup response did not confirm permanent deletion." },
+      { type: "fieldsEqual", leftPath: "accountsSucceeded", rightPath: "accountsTotal", message: "Not every one.com mailbox completed cleanup." },
+      {
+        type: "arrayKeySetEquals",
+        path: "accounts",
+        key: "accountKey",
+        values: ["info", "admin", "newsletter"],
+        message: "The one.com cleanup response did not cover the exact three governed mailboxes.",
+      },
+      { type: "arrayEveryEquals", path: "accounts", key: "ok", value: true, message: "At least one governed one.com mailbox reported a cleanup failure." },
+    ],
+  },
+});
 
 const podcastRun = aimsPostJob({
   id: "podcast-run",
@@ -852,6 +888,7 @@ export const baseJobs = [
   rssRewrite,
   outreachBatchNext,
   ...outreachScheduledJobs,
+  oneComMailboxCleanup,
   podcastRun,
   blogWeeklyBuild,
   blogDailySocialBuild,
@@ -883,6 +920,7 @@ function serviceForJob(job) {
   if (job.group === "blog") return "blog";
   if (job.group === "newsletter") return "newsletter";
   if (job.group === "outreach") return "outreach";
+  if (job.group === "email-maintenance") return "email-maintenance";
   return "suite";
 }
 
