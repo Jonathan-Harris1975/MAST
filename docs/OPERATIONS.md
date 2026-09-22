@@ -1,7 +1,7 @@
 # MAST production operations
 
 **Status:** Paid Koyeb production Worker  
-**Last reviewed:** 20 September 2026
+**Last reviewed:** 22 September 2026
 
 MAST is deployed as a Worker and maintains its own scheduler loop. HIVE monitors `state/mast/scheduler-state.json` in the `metasystem` R2 bucket and classifies health from heartbeat age, failure streak and operator-control state. MAST also exposes `/livez`, `/readyz` and authenticated operational/job detail for direct diagnostics.
 
@@ -13,6 +13,9 @@ MAST is deployed as a Worker and maintains its own scheduler loop. HIVE monitors
 4. Keep durable R2 state and run keys intact; they provide replay protection across restarts.
 5. Use the separate R2 operator-control object for maintenance or an immediate scheduling pause.
 6. Confirm AIMS-facing jobs resolve through the configured `AIMS_BASE_URL`; operators must not maintain per-job AIMS origins.
+7. Confirm the automatic post-CI watcher observed the expected Koyeb source SHA and the mandatory ecosystem smoke completed before accepting its retained production attestation.
+
+Missing `KOYEB_TOKEN`, `KOYEB_SERVICE` or any mandatory smoke input fails the production watcher; no automatic `main` path silently skips verification. Run `node --test test/deployment-workflow-contract.test.js` for the credential-free workflow contract. Container CI also scans the built `mast:ci` image and rejects fixable High/Critical OS or library vulnerabilities while retaining the readable report.
 
 ## Canonical AIMS cut-over
 

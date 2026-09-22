@@ -1,7 +1,7 @@
 # MAST professional operations and alerting
 
 **Status:** Production Koyeb Worker
-**Last reviewed:** 20 September 2026
+**Last reviewed:** 22 September 2026
 
 MAST runs as a paid Koyeb Worker. It has no public inbound HTTP health contract. HIVE monitors the durable R2 heartbeat at `state/mast/scheduler-state.json`.
 
@@ -36,6 +36,10 @@ OPS_ALERT_TIMEOUT_MS=8000
 ## Deployment notifications
 
 The Koyeb deployment-watch workflow runs after a successful MAST CI workflow on `main`. Configure GitHub secrets `KOYEB_TOKEN`, `KOYEB_SERVICE`, `OPS_ALERT_WEBHOOK_URL` and `OPS_ALERT_WEBHOOK_TOKEN`. The watcher polls the paid production Worker deployment and emits a redacted HIVE event on failure, unhealthy state, sustained degradation or timeout.
+
+`KOYEB_TOKEN` and `KOYEB_SERVICE` are mandatory for automatic production verification. Missing either fails the job with only the missing variable name exposed. After the exact-SHA watch passes, the workflow also requires `MAST_BASE_URL`, `HIVE_UI_BASE_URL`, `CRON_ADMIN_TOKEN`, `RMS_API_KEY`, `HIVE_ADMIN_BEARER_TOKEN` and `HIVE_UI_ACCESS_KEY`; missing smoke configuration also fails. A green production attestation is written only after the full ecosystem smoke succeeds and is retained with its smoke log for 90 days. Alert delivery remains non-blocking and cannot replace or weaken those gates.
+
+Run `node --test test/deployment-workflow-contract.test.js` for deterministic checks. On failure, correct the named Actions configuration, confirm the Koyeb service/token scope and expected SHA, then rerun the post-CI watcher; never infer deployment success from an alert or dispatch alone.
 
 ## Recovery
 
