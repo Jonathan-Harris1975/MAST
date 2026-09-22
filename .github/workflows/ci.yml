@@ -58,6 +58,24 @@ jobs:
             sleep 1
           done
           curl -fsS http://127.0.0.1:18000/health | grep -q '"status":"healthy"'
+      - name: Scan built production image for fixable high-severity vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: mast:ci
+          format: table
+          output: trivy-mast-image.txt
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+      - name: Retain production image vulnerability report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mast-image-vulnerability-report-${{ github.sha }}
+          path: trivy-mast-image.txt
+          if-no-files-found: error
+          retention-days: 90
 
   notify_failure:
     name: Notify central operations on CI failure
@@ -107,4 +125,3 @@ jobs:
           name: release-attestation-${{ github.sha }}
           path: release-attestation.json
           retention-days: 90
-

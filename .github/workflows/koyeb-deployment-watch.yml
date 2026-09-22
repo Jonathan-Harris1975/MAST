@@ -28,14 +28,19 @@ jobs:
           KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
           KOYEB_SERVICE: ${{ secrets.KOYEB_SERVICE }}
         run: |
-          if [ -n "${KOYEB_TOKEN:-}" ] && [ -n "${KOYEB_SERVICE:-}" ]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::MAST deployment watcher is not configured; deployment verification and post-deployment smoke are skipped."
+          set -euo pipefail
+          missing=()
+          for name in KOYEB_TOKEN KOYEB_SERVICE; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::MAST production deployment verification cannot run. Missing required configuration: %s\n' "${missing[*]}"
+            exit 1
           fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
       - name: Install verified Koyeb CLI
-        if: steps.deployment_config.outputs.configured == 'true'
         env:
           KOYEB_CLI_VERSION: "5.10.2"
         run: |
@@ -59,7 +64,6 @@ jobs:
           install -m 0755 "$workdir/koyeb" "$HOME/.local/bin/koyeb"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Watch production deployment
-        if: steps.deployment_config.outputs.configured == 'true'
         env:
           KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
           KOYEB_SERVICE: ${{ secrets.KOYEB_SERVICE }}
@@ -71,7 +75,6 @@ jobs:
           EXPECTED_DEPLOYMENT_AFTER: ${{ github.event.workflow_run.created_at || '' }}
         run: python scripts/watch_koyeb_deployment.py
       - name: Check post-deployment smoke configuration
-        if: steps.deployment_config.outputs.configured == 'true'
         id: smoke_config
         env:
           MAST_BASE_URL: ${{ vars.MAST_BASE_URL || secrets.MAST_BASE_URL }}
@@ -81,6 +84,7 @@ jobs:
           HIVE_ADMIN_BEARER_TOKEN: ${{ secrets.HIVE_ADMIN_BEARER_TOKEN }}
           HIVE_UI_ACCESS_KEY: ${{ secrets.HIVE_UI_ACCESS_KEY }}
         run: |
+          set -euo pipefail
           missing=()
           for name in MAST_BASE_URL HIVE_UI_BASE_URL CRON_ADMIN_TOKEN RMS_API_KEY HIVE_ADMIN_BEARER_TOKEN HIVE_UI_ACCESS_KEY; do
             if [ -z "${!name:-}" ]; then
@@ -88,25 +92,22 @@ jobs:
             fi
           done
           if [ "${#missing[@]}" -gt 0 ]; then
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            printf 'Post-deployment ecosystem smoke is not configured; skipping. Missing: %s\n' "${missing[*]}"
-          else
-            echo "configured=true" >> "$GITHUB_OUTPUT"
+            printf '::error::Mandatory post-deployment ecosystem smoke cannot run. Missing required configuration: %s\n' "${missing[*]}"
+            exit 1
           fi
-      - if: steps.smoke_config.outputs.configured == 'true'
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+      - name: Set up Node for mandatory ecosystem smoke
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22.23.2'
           cache: npm
       - name: Verify pinned Node/npm toolchain
-        if: steps.smoke_config.outputs.configured == 'true'
         run: |
           test "$(node --version)" = "v22.23.2"
           test "$(npm --version)" = "10.9.8"
-      - if: steps.smoke_config.outputs.configured == 'true'
-        run: npm ci --ignore-scripts
+      - name: Install locked smoke dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run post-deployment ecosystem smoke
-        if: steps.smoke_config.outputs.configured == 'true'
         run: |
           set -o pipefail
           npm run ecosystem:smoke | tee ecosystem-smoke.log
@@ -122,21 +123,20 @@ jobs:
           RMS_API_KEY: ${{ secrets.RMS_API_KEY }}
           HIVE_ADMIN_BEARER_TOKEN: ${{ secrets.HIVE_ADMIN_BEARER_TOKEN }}
           HIVE_UI_ACCESS_KEY: ${{ secrets.HIVE_UI_ACCESS_KEY }}
-      - name: Record post-deployment smoke attestation
-        if: steps.smoke_config.outputs.configured == 'true' && success()
+      - name: Record final exact-SHA deployment and ecosystem-smoke attestation
         env:
           DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
-          printf '{"repository":"%s","sha":"%s","workflow_run":"%s","status":"post-deployment-ecosystem-smoke-green"}\n' \
-            "$GITHUB_REPOSITORY" "$DEPLOYED_SHA" "$GITHUB_RUN_ID" > ecosystem-smoke-attestation.json
+          printf '{"repository":"%s","sha":"%s","workflow_run":"%s","service":"MAST","status":"production-deployment-and-ecosystem-smoke-green"}\n' \
+            "$GITHUB_REPOSITORY" "$DEPLOYED_SHA" "$GITHUB_RUN_ID" > deployment-attestation.json
       - name: Retain post-deployment launch evidence
-        if: always() && steps.smoke_config.outputs.configured == 'true'
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: mast-post-deployment-smoke-${{ github.event.workflow_run.head_sha || github.sha }}
           path: |
             ecosystem-smoke.log
-            ecosystem-smoke-attestation.json
+            deployment-attestation.json
           if-no-files-found: warn
           retention-days: 90
 
