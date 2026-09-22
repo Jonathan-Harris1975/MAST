@@ -86,7 +86,9 @@ docker build -t mast:ci .
 docker run --rm mast:ci node -e "const major=Number(process.versions.node.split('.')[0]); if (major !== 22) process.exit(1);"
 ```
 
-The CI workflow additionally boots the image with local state and checks `/health`. Repository-defined release gates are `.github/workflows/ci.yml`, `.github/workflows/staging-gate.yml`, `.github/workflows/ecosystem-smoke.yml`, `.github/workflows/codeql.yml` and the Koyeb deployment watcher.
+The CI workflow additionally boots the image with local state, checks `/health`, then scans the actual `mast:ci` image for fixable High/Critical OS and library vulnerabilities. The pinned Trivy gate ignores vulnerabilities for which no upstream fix exists and retains its table report for 90 days; fixable High/Critical findings fail CI. A matching local scan is `trivy image --ignore-unfixed --vuln-type os,library --severity HIGH,CRITICAL --exit-code 1 mast:ci`.
+
+Repository-defined release gates are `.github/workflows/ci.yml`, `.github/workflows/staging-gate.yml`, `.github/workflows/ecosystem-smoke.yml`, `.github/workflows/codeql.yml` and the Koyeb deployment watcher. `npm test` includes deterministic contracts for the watcher, mandatory smoke ordering and image scan.
 
 ## Deployment and operations
 
@@ -103,7 +105,7 @@ For an AIMS hostname migration or emergency cut-over:
 
 The production ecosystem smoke in `scripts/ecosystemSmoke.js` verifies AIMS and MAST readiness, executes MAST's real `suite-health-ping` job into AIMS, wakes RAMS and admits an `on-brand` dry-run, verifies HIVE dependency/provider/database readiness, exercises authenticated HIVE-UI to AIMS-UI hand-off, and sends one first-party CogniPal message/sync round trip.
 
-The GitHub Actions environment must provide `MAST_BASE_URL`, `HIVE_UI_BASE_URL` and `AIMS_UI_BASE_URL` as repository variables (or `MAST_BASE_URL` as a secret), plus `CRON_ADMIN_TOKEN`, `RMS_API_KEY`, `HIVE_ADMIN_BEARER_TOKEN` and `HIVE_UI_ACCESS_KEY` as Actions secrets. `AIMS_BASE_URL`, `RAMS_BASE_URL`, `HIVE_BASE_URL` and `WEBSITE_BASE_URL` have governed production defaults in the workflows and may be overridden with repository variables. Missing required endpoints or credentials fail the smoke rather than silently skipping a service.
+The automatic production workflow requires `KOYEB_TOKEN` and `KOYEB_SERVICE` for exact-SHA deployment verification. Its mandatory smoke requires `MAST_BASE_URL` and `HIVE_UI_BASE_URL` as repository variables (or `MAST_BASE_URL` as a secret), plus `CRON_ADMIN_TOKEN`, `RMS_API_KEY`, `HIVE_ADMIN_BEARER_TOKEN` and `HIVE_UI_ACCESS_KEY` as Actions secrets. `AIMS_UI_BASE_URL` is an optional consistency override; when set it must match the signed HIVE hand-off origin. `AIMS_BASE_URL`, `RAMS_BASE_URL`, `HIVE_BASE_URL` and `WEBSITE_BASE_URL` have governed production defaults and may be overridden with repository variables. Missing required watcher or smoke configuration fails closed. The workflow writes its final exact-SHA attestation only after both the bounded Koyeb watch and complete ecosystem smoke pass.
 
 ## Network and security model
 

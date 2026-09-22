@@ -10,3 +10,5 @@ MAST uses authenticated public HTTPS endpoints for AIMS, RAMS and HIVE. `AIMS_BA
 Public health and compact status responses intentionally omit full endpoint URLs, tokens and request bodies. Detailed status and the job registry require admin authentication. Report suspected unauthorised scheduling or credential exposure privately to the repository owner.
 
 Production scheduler state is stored in R2 so restarts do not erase run keys. Scope the token to the `metasystem` bucket and rotate it after suspected exposure.
+
+CI scans the built production image, not merely the Dockerfile, with an immutably pinned Trivy action. It inspects OS and application-library content and fails for fixable `HIGH` or `CRITICAL` vulnerabilities. `ignore-unfixed` is deliberately enabled so an issue with no upstream remediation does not create an unactionable permanent release block; such findings remain visible in ordinary scanner review and must not be broadly allow-listed or suppressed. The human-readable report is retained for 90 days.
