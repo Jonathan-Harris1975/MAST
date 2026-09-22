@@ -13,7 +13,12 @@ RUN apk upgrade --no-cache \
     && addgroup -S mast \
     && adduser -S -G mast mast
 COPY --chown=mast:mast package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
+    # npm is only required to install dependencies. The npm 10.9.8 bundled with
+    # Node 22.23.2 contains a vulnerable transitive tar package, so do not ship
+    # the package manager in the production image.
+    && rm -rf /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx
 COPY --chown=mast:mast src ./src
 COPY --chown=mast:mast README.md ./README.md
 
@@ -22,4 +27,4 @@ EXPOSE 8000
 STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8000)+'/livez').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-CMD ["npm", "start"]
+CMD ["node", "src/index.js"]
