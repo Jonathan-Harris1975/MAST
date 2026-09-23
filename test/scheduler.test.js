@@ -87,6 +87,51 @@ test("one.com cleanup permanently covers Info, Admin and Newsletter on the first
   assert.equal(isTimedJobDue(job, new Date("2026-08-02T02:00:00.000Z")), false);
 });
 
+test("Comms Hub full housekeeping follows mailbox cleanup on day one with a strict response contract", () => {
+  const job = baseJobs.find((item) => item.id === "comms-hub-monthly-housekeeping");
+  assert.ok(job);
+  assert.deepEqual(job.schedule, {
+    type: "monthly",
+    dayOfMonth: 1,
+    time: process.env.MAST_COMMS_HOUSEKEEPING_TIME || "04:00",
+    timezone: "Europe/London",
+    catchUpMinutes: Number(process.env.MAST_COMMS_HOUSEKEEPING_CATCH_UP_MINUTES || 1200),
+  });
+  assert.equal(job.targetPath, "/comms-hub/maintenance/run");
+  assert.deepEqual(job.body, { confirmation: "run-comms-hub-monthly-housekeeping", dryRun: false });
+  assert.equal(job.requestRetries, 0);
+  assert.equal(job.consumeFailureWindow, true);
+  const stageSet = job.responsePolicy.checks.find((check) => check.type === "arrayKeySetEquals");
+  assert.deepEqual(stageSet.values, [
+    "retention_policy_health",
+    "database_janitor",
+    "quarantine_review",
+    "private_storage_reconciliation",
+    "telemetry",
+    "backup_restore_and_rotation",
+    "info_mailbox_archive",
+  ]);
+  assert.equal(isTimedJobDue(job, new Date("2026-08-01T03:00:00.000Z")), true);
+  assert.equal(isTimedJobDue(job, new Date("2026-08-02T03:00:00.000Z")), false);
+});
+
+test("Comms Hub quarantine review runs weekly and never requests deletion", () => {
+  const job = baseJobs.find((item) => item.id === "comms-hub-weekly-quarantine-review");
+  assert.ok(job);
+  assert.deepEqual(job.schedule, {
+    type: "weekly",
+    days: ["sunday"],
+    time: process.env.MAST_COMMS_QUARANTINE_REVIEW_TIME || "08:00",
+    timezone: "Europe/London",
+    catchUpMinutes: Number(process.env.MAST_COMMS_QUARANTINE_REVIEW_CATCH_UP_MINUTES || 720),
+  });
+  assert.equal(job.targetPath, "/comms-hub/maintenance/quarantine-review");
+  assert.deepEqual(job.body, { dryRun: false });
+  assert.equal(Object.hasOwn(job.body, "confirmation"), false);
+  assert.equal(isTimedJobDue(job, new Date("2026-09-27T07:00:00.000Z")), true);
+  assert.equal(isTimedJobDue(job, new Date("2026-09-28T07:00:00.000Z")), false);
+});
+
 test("manual Blotato recovery uses governed schedule routes, never immediate publish", () => {
   const blotatoIds = legacyContentIds.filter((id) => id.startsWith("blotato-") && id.endsWith("-publish"));
   assert.equal(blotatoIds.length, 5);
