@@ -23,6 +23,10 @@ const HIVE_WEEKLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_WE
 const HIVE_MONTHLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_MONTHLY_CATCH_UP_MINUTES || 1020));
 const EMAIL_CLEANUP_TIME = String(process.env.MAST_EMAIL_CLEANUP_TIME || "03:00");
 const EMAIL_CLEANUP_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_EMAIL_CLEANUP_CATCH_UP_MINUTES || 1260));
+const COMMS_HOUSEKEEPING_TIME = String(process.env.MAST_COMMS_HOUSEKEEPING_TIME || "04:00");
+const COMMS_HOUSEKEEPING_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_COMMS_HOUSEKEEPING_CATCH_UP_MINUTES || 1200));
+const COMMS_QUARANTINE_REVIEW_TIME = String(process.env.MAST_COMMS_QUARANTINE_REVIEW_TIME || "08:00");
+const COMMS_QUARANTINE_REVIEW_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_COMMS_QUARANTINE_REVIEW_CATCH_UP_MINUTES || 720));
 export const HIVE_GOVERNED_REPOSITORIES = Object.freeze([
   "HIVE",
   "HIVE-UI",
@@ -216,6 +220,75 @@ const oneComMailboxCleanup = aimsPostJob({
         message: "The one.com cleanup response did not cover the exact three governed mailboxes.",
       },
       { type: "arrayEveryEquals", path: "accounts", key: "ok", value: true, message: "At least one governed one.com mailbox reported a cleanup failure." },
+    ],
+  },
+});
+
+const commsHubMonthlyHousekeeping = aimsPostJob({
+  id: "comms-hub-monthly-housekeeping",
+  group: "comms-maintenance",
+  description: "Run the complete AIMS Communications Hub housekeeping cycle after monthly one.com mailbox cleanup.",
+  schedule: {
+    type: "monthly",
+    dayOfMonth: 1,
+    time: COMMS_HOUSEKEEPING_TIME,
+    timezone: LOCAL_TIME_ZONE,
+    catchUpMinutes: COMMS_HOUSEKEEPING_CATCH_UP_MINUTES,
+  },
+  targetPath: "/comms-hub/maintenance/run",
+  authEnv: "AIMS_API_KEY",
+  requiredServices: ["aims"],
+  body: { confirmation: "run-comms-hub-monthly-housekeeping", dryRun: false },
+  requestRetries: 0,
+  consumeFailureWindow: true,
+  responsePolicy: {
+    checks: [
+      { type: "equals", path: "ok", value: true, message: "One or more Comms Hub housekeeping stages failed." },
+      { type: "equals", path: "permanent", value: true, message: "The Comms Hub response did not confirm a mutating housekeeping run." },
+      { type: "equals", path: "runType", value: "monthly", message: "AIMS returned the wrong housekeeping run type." },
+      {
+        type: "arrayKeySetEquals",
+        path: "stages",
+        key: "name",
+        values: [
+          "retention_policy_health",
+          "database_janitor",
+          "quarantine_review",
+          "private_storage_reconciliation",
+          "telemetry",
+          "backup_restore_and_rotation",
+          "info_mailbox_archive",
+        ],
+        message: "The monthly Comms Hub response omitted one or more required housekeeping stages.",
+      },
+      { type: "arrayEveryEquals", path: "stages", key: "ok", value: true, message: "At least one monthly Comms Hub housekeeping stage reported failure." },
+    ],
+  },
+});
+
+const commsHubWeeklyQuarantineReview = aimsPostJob({
+  id: "comms-hub-weekly-quarantine-review",
+  group: "comms-maintenance",
+  description: "Report unresolved AIMS Communications Hub quarantine items every Sunday without automatically deleting them.",
+  schedule: {
+    type: "weekly",
+    days: ["sunday"],
+    time: COMMS_QUARANTINE_REVIEW_TIME,
+    timezone: LOCAL_TIME_ZONE,
+    catchUpMinutes: COMMS_QUARANTINE_REVIEW_CATCH_UP_MINUTES,
+  },
+  targetPath: "/comms-hub/maintenance/quarantine-review",
+  authEnv: "AIMS_API_KEY",
+  requiredServices: ["aims"],
+  body: { dryRun: false },
+  requestRetries: 0,
+  consumeFailureWindow: true,
+  responsePolicy: {
+    checks: [
+      { type: "equals", path: "ok", value: true, message: "The weekly Comms Hub quarantine review failed." },
+      { type: "equals", path: "runType", value: "quarantine_review", message: "AIMS returned the wrong quarantine-review run type." },
+      { type: "arrayKeySetEquals", path: "stages", key: "name", values: ["quarantine_review"], message: "The quarantine review response omitted its required stage." },
+      { type: "arrayEveryEquals", path: "stages", key: "ok", value: true, message: "The quarantine review stage reported failure." },
     ],
   },
 });
@@ -889,6 +962,8 @@ export const baseJobs = [
   outreachBatchNext,
   ...outreachScheduledJobs,
   oneComMailboxCleanup,
+  commsHubMonthlyHousekeeping,
+  commsHubWeeklyQuarantineReview,
   podcastRun,
   blogWeeklyBuild,
   blogDailySocialBuild,
@@ -921,6 +996,7 @@ function serviceForJob(job) {
   if (job.group === "newsletter") return "newsletter";
   if (job.group === "outreach") return "outreach";
   if (job.group === "email-maintenance") return "email-maintenance";
+  if (job.group === "comms-maintenance") return "comms-maintenance";
   return "suite";
 }
 
