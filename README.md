@@ -47,6 +47,10 @@ AIMS owns sequencing inside each content window. Individual RSS, Zernio, Blotato
 
 On the **first day of each month at 03:00 Europe/London**, MAST calls AIMS to permanently empty the server-advertised Trash and Junk/Spam folders for `info@`, `admin@` and `newsletter@jonathan-harris.online`. `MAST_EMAIL_CLEANUP_TIME` changes the time, and `MAST_EMAIL_CLEANUP_CATCH_UP_MINUTES` controls same-day recovery after downtime. The job is non-retried at the HTTP layer, consumes a failed monthly window, and accepts success only when AIMS reports all three governed accounts complete.
 
+At **04:00 Europe/London on day 1**, MAST starts the complete Comms Hub housekeeping cycle. Its strict response policy requires retention health, database janitor, quarantine review, private-storage reconciliation, telemetry/audit archive, backup restore/rotation and Info-mail archive stages to be present and successful. `MAST_COMMS_HOUSEKEEPING_TIME` and `MAST_COMMS_HOUSEKEEPING_CATCH_UP_MINUTES` control this window. The exact confirmation body and the AIMS D1 window ledger prevent an accidental duplicate mutating run.
+
+Every **Sunday at 08:00 Europe/London**, MAST requests the separate quarantine review. That job reports unresolved items and raises AIMS operator notifications; it does not request their deletion. Configure the window with `MAST_COMMS_QUARANTINE_REVIEW_TIME` and `MAST_COMMS_QUARANTINE_REVIEW_CATCH_UP_MINUTES`.
+
 AIMS owns downstream councils and RAMS hand-off. MAST waits for terminal completion and does not separately schedule individual RAMS remediation pipelines.
 
 ### HIVE governance
