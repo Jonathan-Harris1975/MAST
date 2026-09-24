@@ -21,6 +21,8 @@ const AIMS_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS
 const HIVE_DAILY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_DAILY_CATCH_UP_MINUTES || 180));
 const HIVE_WEEKLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_WEEKLY_CATCH_UP_MINUTES || 360));
 const HIVE_MONTHLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_MONTHLY_CATCH_UP_MINUTES || 1020));
+const CLOUDFLARE_PURGE_TIME = String(process.env.MAST_CLOUDFLARE_PURGE_TIME || "03:00");
+const CLOUDFLARE_PURGE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_CLOUDFLARE_PURGE_CATCH_UP_MINUTES || 120));
 const EMAIL_CLEANUP_TIME = String(process.env.MAST_EMAIL_CLEANUP_TIME || "03:00");
 const EMAIL_CLEANUP_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_EMAIL_CLEANUP_CATCH_UP_MINUTES || 1260));
 const COMMS_HOUSEKEEPING_TIME = String(process.env.MAST_COMMS_HOUSEKEEPING_TIME || "04:00");
@@ -189,6 +191,30 @@ const outreachScheduledJobs = [
     requiredServices: ["aims"],
   }),
 ];
+
+const cloudflareDailyPurge = aimsPostJob({
+  id: "cloudflare-daily-purge",
+  group: "cloudflare-maintenance",
+  description: "Purge the complete configured Cloudflare cache every day at 03:00 Europe/London.",
+  schedule: {
+    type: "weekly",
+    days: EVERY_DAY,
+    time: CLOUDFLARE_PURGE_TIME,
+    timezone: LOCAL_TIME_ZONE,
+    catchUpMinutes: CLOUDFLARE_PURGE_CATCH_UP_MINUTES,
+  },
+  targetPath: "/cloudflare/purge",
+  authEnv: "AIMS_API_KEY",
+  requiredServices: ["aims"],
+  body: { purge_everything: true },
+  consumeFailureWindow: true,
+  responsePolicy: {
+    checks: [
+      { type: "equals", path: "ok", value: true, message: "The daily Cloudflare cache purge failed." },
+      { type: "equals", path: "mode", value: "purge_everything", message: "AIMS did not confirm a complete Cloudflare cache purge." },
+    ],
+  },
+});
 
 const oneComMailboxCleanup = aimsPostJob({
   id: "onecom-mailbox-cleanup",
@@ -961,6 +987,7 @@ export const baseJobs = [
   rssRewrite,
   outreachBatchNext,
   ...outreachScheduledJobs,
+  cloudflareDailyPurge,
   oneComMailboxCleanup,
   commsHubMonthlyHousekeeping,
   commsHubWeeklyQuarantineReview,
@@ -996,6 +1023,7 @@ function serviceForJob(job) {
   if (job.group === "newsletter") return "newsletter";
   if (job.group === "outreach") return "outreach";
   if (job.group === "email-maintenance") return "email-maintenance";
+  if (job.group === "cloudflare-maintenance") return "cloudflare-maintenance";
   if (job.group === "comms-maintenance") return "comms-maintenance";
   return "suite";
 }
