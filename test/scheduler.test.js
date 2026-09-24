@@ -62,6 +62,28 @@ test("Outreach is fully automated twice each weekday under MAST", () => {
   }
 });
 
+test("Cloudflare cache is purged completely every day at 03:00 Europe/London", () => {
+  const job = baseJobs.find((item) => item.id === "cloudflare-daily-purge");
+  assert.ok(job);
+  assert.deepEqual(job.schedule, {
+    type: "weekly",
+    days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+    time: process.env.MAST_CLOUDFLARE_PURGE_TIME || "03:00",
+    timezone: "Europe/London",
+    catchUpMinutes: Number(process.env.MAST_CLOUDFLARE_PURGE_CATCH_UP_MINUTES || 120),
+  });
+  assert.equal(job.targetPath, "/cloudflare/purge");
+  assert.equal(job.authEnv, "AIMS_API_KEY");
+  assert.deepEqual(job.requiredServices, ["aims"]);
+  assert.deepEqual(job.body, { purge_everything: true });
+  assert.equal(job.consumeFailureWindow, true);
+
+  // 03:00 Europe/London is 02:00 UTC during British Summer Time.
+  assert.equal(isTimedJobDue(job, new Date("2026-09-24T02:00:00.000Z")), true);
+  assert.equal(isTimedJobDue(job, new Date("2026-09-25T02:00:00.000Z")), true);
+  assert.equal(isTimedJobDue(job, new Date("2026-09-24T01:59:00.000Z")), false);
+});
+
 test("one.com cleanup permanently covers Info, Admin and Newsletter on the first of each month", () => {
   const job = baseJobs.find((item) => item.id === "onecom-mailbox-cleanup");
   assert.ok(job);
