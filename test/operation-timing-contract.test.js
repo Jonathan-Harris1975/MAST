@@ -21,8 +21,8 @@ test("production env patch keeps operation polling and canonical times", async (
   assert.match(patch, /^MAST_AM_OPERATION_CATCH_UP_MINUTES=180$/m);
   assert.match(patch, /^MAST_FRIDAY_PM_OPERATION_TIME=17:00$/m);
   assert.match(patch, /^MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES=180$/m);
-  assert.match(patch, /^MAST_WEBSITE_AUDIT_WAKE_TIME=10:00$/m);
-  assert.match(patch, /^MAST_WEBSITE_AUDIT_RUN_TIME=10:30$/m);
+  assert.match(patch, /^MAST_WEBSITE_AUDIT_WAKE_TIME=13:00$/m);
+  assert.match(patch, /^MAST_WEBSITE_AUDIT_RUN_TIME=13:30$/m);
   assert.match(patch, /^MAST_AIMS_AUDIT_WAKE_TIME=09:00$/m);
   assert.match(patch, /^MAST_AIMS_AUDIT_RUN_TIME=09:15$/m);
   assert.match(patch, /^MAST_AIMS_AUDIT_WAKE_CATCH_UP_MINUTES=120$/m);

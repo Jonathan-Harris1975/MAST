@@ -142,7 +142,7 @@ test("Comms Hub quarantine review runs weekly and never requests deletion", () =
   assert.ok(job);
   assert.deepEqual(job.schedule, {
     type: "weekly",
-    days: ["sunday"],
+    days: ["saturday"],
     time: process.env.MAST_COMMS_QUARANTINE_REVIEW_TIME || "08:00",
     timezone: "Europe/London",
     catchUpMinutes: Number(process.env.MAST_COMMS_QUARANTINE_REVIEW_CATCH_UP_MINUTES || 720),
@@ -150,8 +150,8 @@ test("Comms Hub quarantine review runs weekly and never requests deletion", () =
   assert.equal(job.targetPath, "/comms-hub/maintenance/quarantine-review");
   assert.deepEqual(job.body, { dryRun: false });
   assert.equal(Object.hasOwn(job.body, "confirmation"), false);
-  assert.equal(isTimedJobDue(job, new Date("2026-09-27T07:00:00.000Z")), true);
-  assert.equal(isTimedJobDue(job, new Date("2026-09-28T07:00:00.000Z")), false);
+  assert.equal(isTimedJobDue(job, new Date("2026-09-26T07:00:00.000Z")), true);
+  assert.equal(isTimedJobDue(job, new Date("2026-09-27T07:00:00.000Z")), false);
 });
 
 test("manual Blotato recovery uses governed schedule routes, never immediate publish", () => {
@@ -168,7 +168,7 @@ test("manual Blotato recovery uses governed schedule routes, never immediate pub
 
 test("HIVE governance and optimisation schedules are fully wired", () => {
   const expected = new Map([
-    ["hive-readiness-check", ["weekly", "06:00", "/v1/runtime/readiness"]],
+    ["hive-readiness-check", ["weekly", "06:20", "/v1/runtime/readiness"]],
     ["hive-repo-health-check", ["weekly", "06:05", "/v1/system/repo-health"]],
     ["hive-provider-health-check", ["weekly", "06:10", "/v1/providers/health"]],
     ["hive-env-audit", ["weekly", "06:25", "/v1/environment/audit"]],
@@ -239,11 +239,11 @@ test("Friday PM starts the podcast at 17:00 while AIMS remains always-on", () =>
   assert.match(job.description, /podcast-only/i);
 });
 
-test("website audit uses the first Sunday while the AIMS audit remains second Saturday", () => {
+test("website audit uses the first Saturday while the AIMS audit remains second Saturday", () => {
   const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
   const aims = baseJobs.find((job) => job.id === "aims-audit-pipeline");
   assert.deepEqual(website.schedule, {
-    type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: "10:30", timezone: "Europe/London", catchUpMinutes: 180,
+    type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "13:30", timezone: "Europe/London", catchUpMinutes: 180,
   });
   assert.deepEqual(aims.schedule, {
     type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "09:15", timezone: "Europe/London", catchUpMinutes: 180,
@@ -253,18 +253,18 @@ test("website audit uses the first Sunday while the AIMS audit remains second Sa
   assert.equal(aims.asyncStatus.statusPath, "/audits/content-master/jobs/{id}");
   assert.equal(website.asyncStatus.statusPath, "/audits/website/jobs/{id}");
 
-  // 10:30 Europe/London is 09:30 UTC during British Summer Time.
-  assert.equal(isTimedJobDue(website, new Date("2026-08-02T09:30:00.000Z")), true);
-  assert.equal(isTimedJobDue(website, new Date("2026-08-02T12:29:00.000Z")), true);
-  assert.equal(isTimedJobDue(website, new Date("2026-08-02T12:31:00.000Z")), false);
-  assert.equal(isTimedJobDue(website, new Date("2026-08-09T09:30:00.000Z")), false);
+  // 13:30 Europe/London is 12:30 UTC during British Summer Time.
+  assert.equal(isTimedJobDue(website, new Date("2026-08-01T12:30:00.000Z")), true);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-01T15:29:00.000Z")), true);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-01T15:31:00.000Z")), false);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-08T12:30:00.000Z")), false);
   assert.equal(isTimedJobDue(aims, new Date("2026-08-08T08:15:00.000Z")), true);
 });
 
 
 test("next-run calculation handles London DST without minute-by-minute horizon scanning", () => {
   const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
-  assert.equal(nextRunForJob(website, new Date("2026-07-31T12:00:00.000Z")), "2026-08-02T09:30:00.000Z");
+  assert.equal(nextRunForJob(website, new Date("2026-07-31T12:00:00.000Z")), "2026-08-01T12:30:00.000Z");
 
   const weekly = {
     id: "dst-weekly",
@@ -281,13 +281,13 @@ test("next-run calculation returns the next catch-up minute when already inside 
   assert.equal(nextRunForJob(job, new Date("2026-08-03T08:30:15.000Z")), "2026-08-03T08:32:00.000Z");
 });
 
-test("first-Sunday website audit wakes RAMS at 10:00 while AIMS stays online", () => {
+test("first-Saturday website audit wakes RAMS at 13:00 while AIMS stays online", () => {
   assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-website-audit"), false);
   const wake = baseJobs.find((job) => job.id === "rams-power-resume-website-audit");
   assert.deepEqual(wake.schedule, {
-    type: "nth-weekday-monthly", weekday: "sunday", occurrence: 1, time: "10:00", timezone: "Europe/London", catchUpMinutes: 120,
+    type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "13:00", timezone: "Europe/London", catchUpMinutes: 120,
   });
-  assert.equal(isTimedJobDue(wake, new Date("2026-08-02T09:00:00.000Z")), true);
+  assert.equal(isTimedJobDue(wake, new Date("2026-08-01T12:00:00.000Z")), true);
 });
 
 
@@ -301,7 +301,7 @@ test("second-Saturday AIMS audit wake and run have catch-up protection", () => {
   assert.equal(wake.schedule.catchUpMinutes, Number(process.env.MAST_AIMS_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 });
 
-test("website audit pretriggers run after the 10:00 wake", () => {
+test("website audit pretriggers run after the 13:00 wake", () => {
   const stages = Object.fromEntries(pretriggerJobs
     .filter((job) => job.sourceJobId === "website-audit-pipeline")
     .map((job) => [job.pretriggerStage, job.pretriggerOffsetMinutes]));
@@ -318,7 +318,7 @@ test("website audit dispatch requires both AIMS and RAMS readiness", () => {
 
 test("schedule eligibility remains visible even when the lifecycle ledger is stale", () => {
   const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
-  const at = new Date("2026-08-02T09:30:00.000Z");
+  const at = new Date("2026-08-01T12:30:00.000Z");
   const staleState = { lastRunKeys: {}, intervalLastRunAt: {}, services: { aims: { state: "offline" } } };
   assert.equal(jobScheduleDue(website, at, staleState), true);
   assert.equal(requiredServicesReady(website, staleState), false);
