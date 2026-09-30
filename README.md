@@ -100,20 +100,20 @@ Repository-defined release gates are `.github/workflows/ci.yml`, `.github/workfl
 
 ## Deployment and operations
 
-MAST is deployed as a Koyeb Worker. Normal scheduling does not depend on an external caller: the process evaluates its own registry and writes durable state to R2. The HTTP API provides health/readiness, authenticated job/status detail and controlled manual execution.
+MAST is deployed as a Koyeb Worker. Normal scheduling does not depend on an external caller: the process evaluates its own registry and writes durable state to R2. Its HTTP handlers are available inside the process for local diagnostics, but the Worker has no public inbound HTTP route. HIVE reads the R2 heartbeat to monitor production health.
 
 For an AIMS hostname migration or emergency cut-over:
 
 1. Set the new origin in `AIMS_BASE_URL`; do not alter individual job paths.
 2. Run `npm test` (or at minimum `node --test test/aims-base-url-contract.test.js`) against the proposed origin value.
 3. Deploy MAST with the new environment value.
-4. Confirm `/readyz` is ready and inspect the authenticated `/jobs` registry for the expected AIMS paths.
-5. Run the governed ecosystem smoke and confirm AIMS readiness plus the real `suite-health-ping` MAST job.
-6. Review structured job results and HIVE operational events for failures before considering the cut-over complete.
+4. Confirm HIVE's authenticated `/v1/system/repo-health` reports a recent MAST R2 heartbeat. Inspect the local job registry for the expected AIMS paths.
+5. Run the governed ecosystem smoke and confirm AIMS readiness, the Worker heartbeat and downstream paths.
+6. Review the actual `suite-health-ping` result in MAST's durable state and HIVE operational events before considering the cut-over complete; the external smoke does not trigger a Worker job.
 
-The production ecosystem smoke in `scripts/ecosystemSmoke.js` verifies AIMS and MAST readiness, executes MAST's real `suite-health-ping` job into AIMS, wakes RAMS and admits an `on-brand` dry-run, verifies HIVE dependency/provider/database readiness, exercises authenticated HIVE-UI to AIMS-UI hand-off, and sends one first-party CogniPal message/sync round trip.
+The production ecosystem smoke in `scripts/ecosystemSmoke.js` verifies AIMS readiness and MAST's fresh R2 heartbeat through HIVE, wakes RAMS through HIVE's Koyeb-backed ensure-ready API and admits an `on-brand` dry-run, verifies HIVE dependency/provider/database readiness, exercises authenticated HIVE-UI to AIMS-UI hand-off, and sends one first-party CogniPal message/sync round trip. It does not remotely execute a MAST job; inspect the durable results for job-level confirmation.
 
-The automatic production workflow requires `KOYEB_TOKEN` and `KOYEB_SERVICE` for exact-SHA deployment verification. Its mandatory smoke requires `MAST_BASE_URL` and `HIVE_UI_BASE_URL` as repository variables (or `MAST_BASE_URL` as a secret), plus `CRON_ADMIN_TOKEN`, `RMS_API_KEY`, `HIVE_ADMIN_BEARER_TOKEN` and `HIVE_UI_ACCESS_KEY` as Actions secrets. `AIMS_UI_BASE_URL` is an optional consistency override; when set it must match the signed HIVE hand-off origin. `AIMS_BASE_URL`, `RAMS_BASE_URL`, `HIVE_BASE_URL` and `WEBSITE_BASE_URL` have governed production defaults and may be overridden with repository variables. Missing required watcher or smoke configuration fails closed. The workflow writes its final exact-SHA attestation only after both the bounded Koyeb watch and complete ecosystem smoke pass.
+The automatic production workflow uses the GitHub `Koyeb` environment: set `KOYEB_TOKEN` as an environment secret and `KOYEB_SERVICE` as the MAST service UUID environment variable for exact-SHA deployment verification. Its mandatory smoke requires `HIVE_UI_BASE_URL` as an environment variable, plus `RMS_API_KEY`, `HIVE_ADMIN_BEARER_TOKEN` and `HIVE_UI_ACCESS_KEY` as environment secrets. HIVE must monitor MAST from `state/mast/scheduler-state.json` in R2 (`MAST_MONITOR_MODE=r2`), and HIVE's Koyeb RAMS wake control must be configured. Koyeb runtime secrets are not automatically exposed to GitHub Actions. `AIMS_UI_BASE_URL` is an optional consistency override; when set it must match the signed HIVE hand-off origin. `AIMS_BASE_URL`, `RAMS_BASE_URL`, `HIVE_BASE_URL` and `WEBSITE_BASE_URL` have governed production defaults and may be overridden with environment variables. Missing required watcher or smoke configuration fails closed. The workflow writes its final exact-SHA attestation only after both the bounded Koyeb watch and ecosystem smoke pass.
 
 ## Network and security model
 
