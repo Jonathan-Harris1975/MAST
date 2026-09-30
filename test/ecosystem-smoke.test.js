@@ -77,7 +77,10 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
   });
 
   const aims = await listen((req, res) => {
-    if (req.url === '/readyz') return send(res, 200, { ok: true, ready: true });
+    if (req.url === '/readyz') {
+      if (workerMode && req.headers.origin) return send(res, 403, { detail: 'CORS origin not allowed' });
+      return send(res, 200, { ok: true, ready: true });
+    }
     if (req.url === '/console/api/auth/handoff') {
       return send(res, 200, { authenticated: true, actor: 'owner', role: 'admin' }, { 'set-cookie': '__Host-aims_session=test; Path=/; HttpOnly; SameSite=Strict' });
     }
