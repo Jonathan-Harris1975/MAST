@@ -86,12 +86,25 @@ async function waitForJson(url, options = {}, predicate = () => true) {
   throw lastError || new Error(`Timed out waiting for ${url}`);
 }
 
+async function waitForWake(url, options = {}) {
+  const attempts = Math.max(1, Math.min(36, Number(process.env.ECOSYSTEM_SMOKE_RETRY_ATTEMPTS || 24)));
+  const delayMs = Math.max(250, Number(process.env.ECOSYSTEM_SMOKE_RETRY_DELAY_MS || DEFAULT_RETRY_DELAY_MS));
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const { body } = await requestJson(url, options);
+    if (body?.status === 'ready' && body?.result?.ready === true) return;
+    if (body?.status === 'failed' || body?.status === 'timeout') {
+      throw new Error(`HIVE RAMS wake failed: ${body.error || body.status}`);
+    }
+    if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  throw new Error('HIVE RAMS wake did not complete within the smoke retry window');
+}
+
 function assertOk(condition, message) {
   if (!condition) throw new Error(message);
 }
 
 async function main() {
-  const mastBase = configuredBaseUrl('MAST_BASE_URL');
   const aimsApiBase = configuredBaseUrl('AIMS_BASE_URL', aimsBaseUrl());
   const ramsBase = configuredBaseUrl('RAMS_BASE_URL', 'https://static-helaina-jonathanharris-6df5d241.koyeb.app');
   const hiveApiBase = configuredBaseUrl('HIVE_BASE_URL', 'https://liable-loreen-jonathanharris-57884580.koyeb.app');
@@ -101,7 +114,6 @@ async function main() {
     ? configuredBaseUrl('AIMS_UI_BASE_URL')
     : null;
 
-  const cronAdminToken = required('CRON_ADMIN_TOKEN');
   const rmsApiKey = required('RMS_API_KEY');
   const hiveAdminToken = required('HIVE_ADMIN_BEARER_TOKEN');
   const hiveUiAccessKey = required('HIVE_UI_ACCESS_KEY');
@@ -112,31 +124,33 @@ async function main() {
   assertOk(aimsReady.body?.ok === true || aimsReady.body?.ready === true, 'AIMS readiness did not report ready');
   console.log('ok 1 - AIMS readiness');
 
-  const mastReady = await requestJson(new URL('/readyz', mastBase), {
-    headers: requestHeaders(mastBase),
+  const workerHealth = await requestJson(new URL('/v1/system/repo-health?force_refresh=true', hiveApiBase), {
+    headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)),
   });
-  assertOk(mastReady.body?.ok === true || mastReady.body?.ready === true, 'MAST readiness did not report ready');
-  console.log('ok 2 - MAST readiness');
+  const mast = workerHealth.body?.repos?.find((repo) => repo?.repo === 'MAST');
+  const heartbeat = mast?.operational?.payload;
+  const tickTime = Date.parse(heartbeat?.last_tick_at || '');
+  assertOk(mast?.category === 'background_worker' && mast?.status === 'healthy', 'HIVE did not report a healthy MAST Worker');
+  assertOk(['r2_s3', 'r2_public'].includes(heartbeat?.source)
+    && heartbeat?.object_key === 'state/mast/scheduler-state.json', 'MAST Worker health was not read from its durable R2 heartbeat');
+  assertOk(Number.isFinite(tickTime) && tickTime <= Date.now() + 60_000
+    && Number.isInteger(heartbeat?.heartbeat_age_seconds)
+    && heartbeat.heartbeat_age_seconds <= heartbeat.healthy_max_age_seconds,
+  'MAST Worker heartbeat is missing or stale');
+  assertOk(heartbeat?.recent_failures === 0, 'MAST Worker has recent failed jobs');
+  console.log('ok 2 - MAST Worker R2 heartbeat via HIVE');
 
-  const mastToAims = await requestJson(new URL('/run/suite-health-ping', mastBase), {
+  const wake = await requestJson(new URL('/v1/services/RAMS/ensure-ready', hiveApiBase), {
     method: 'POST',
-    headers: requestHeaders(mastBase, {
-      ...bearer(cronAdminToken),
-      'content-type': 'application/json',
-    }),
-    body: JSON.stringify({ force: true }),
+    headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)),
+  }, [202]);
+  assertOk(wake.body?.ok === true && wake.body?.repo === 'RAMS'
+    && /^\/services\/RAMS\/ensure-ready\/[0-9a-f]{32}$/.test(wake.body?.poll_url || ''),
+  'HIVE did not create a RAMS wake ticket');
+  await waitForWake(new URL(`/v1${wake.body.poll_url}`, hiveApiBase), {
+    headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)),
   });
-  assertOk(mastToAims.body?.ok === true && mastToAims.body?.jobId === 'suite-health-ping', 'MAST → AIMS health job failed');
-  console.log('ok 3 - MAST → AIMS operation');
-
-  await requestJson(new URL('/services/rams/resume', mastBase), {
-    method: 'POST',
-    headers: requestHeaders(mastBase, {
-      ...bearer(cronAdminToken),
-      'content-type': 'application/json',
-    }),
-    body: JSON.stringify({ reason: 'production-launch-smoke' }),
-  }, [200, 202]);
+  console.log('ok 3 - RAMS ready through HIVE Koyeb lifecycle');
 
   const ramsReady = await waitForJson(new URL('/readyz', ramsBase), {
     headers: requestHeaders(ramsBase, bearer(rmsApiKey)),

@@ -3,11 +3,11 @@
 **Status:** Paid Koyeb production Worker  
 **Last reviewed:** 22 September 2026
 
-MAST is deployed as a Worker and maintains its own scheduler loop. HIVE monitors `state/mast/scheduler-state.json` in the `metasystem` R2 bucket and classifies health from heartbeat age, failure streak and operator-control state. MAST also exposes `/livez`, `/readyz` and authenticated operational/job detail for direct diagnostics.
+MAST is deployed as a Worker and maintains its own scheduler loop. HIVE monitors `state/mast/scheduler-state.json` in the `metasystem` R2 bucket and classifies health from heartbeat age, failure streak and operator-control state. MAST's `/livez`, `/readyz` and authenticated operational/job handlers have no public inbound route on Koyeb Worker; use them only in a local or otherwise reachable diagnostic environment.
 
 ## Routine checks
 
-1. Confirm the Koyeb Worker deployment is healthy and `/readyz` reports ready.
+1. Confirm the Koyeb Worker deployment is healthy and HIVE's authenticated `/v1/system/repo-health?force_refresh=true` reports MAST as a healthy `background_worker` with source `r2_s3` (or `r2_public`).
 2. Confirm `lastTickAt` advances and tick lag remains bounded.
 3. Review failure streaks, duplicate-prevention count, recent results and the review queue.
 4. Keep durable R2 state and run keys intact; they provide replay protection across restarts.
@@ -15,7 +15,7 @@ MAST is deployed as a Worker and maintains its own scheduler loop. HIVE monitors
 6. Confirm AIMS-facing jobs resolve through the configured `AIMS_BASE_URL`; operators must not maintain per-job AIMS origins.
 7. Confirm the automatic post-CI watcher observed the expected Koyeb source SHA and the mandatory ecosystem smoke completed before accepting its retained production attestation.
 
-Missing `KOYEB_TOKEN`, `KOYEB_SERVICE` or any mandatory smoke input fails the production watcher; no automatic `main` path silently skips verification. Run `node --test test/deployment-workflow-contract.test.js` for the credential-free workflow contract. Container CI also scans the built `mast:ci` image and rejects fixable High/Critical OS or library vulnerabilities while retaining the readable report.
+Missing `KOYEB_TOKEN`, `KOYEB_SERVICE` or any mandatory smoke input fails the production watcher; no automatic `main` path silently skips verification. GitHub's `Koyeb` environment supplies these values separately from the Worker's Koyeb runtime secrets. Run `node --test test/deployment-workflow-contract.test.js` for the credential-free workflow contract. Container CI also scans the built `mast:ci` image and rejects fixable High/Critical OS or library vulnerabilities while retaining the readable report.
 
 ## Canonical AIMS cut-over
 
@@ -27,9 +27,9 @@ For staging, migration or emergency endpoint replacement:
 2. Keep the value origin-only. A trailing slash is normalised; embedded credentials, paths, query strings and fragments are rejected.
 3. Run `node --test test/aims-base-url-contract.test.js` and the full `npm test` suite before deployment.
 4. Deploy without editing individual job paths.
-5. Confirm `/readyz`, then inspect authenticated `/jobs` output and verify representative RSS, Outreach, audit, operation and pre-trigger jobs use the replacement origin.
+5. Confirm the HIVE R2 heartbeat, then inspect MAST's local job registry and durable results to verify representative RSS, Outreach, audit, operation and pre-trigger jobs use the replacement origin.
 6. Run `npm run ecosystem:smoke` from an appropriately configured environment, or use the GitHub **Ecosystem smoke** workflow.
-7. Review HIVE operational events and MAST recent results before closing the cut-over.
+7. Review HIVE operational events and MAST recent results, including the actual `suite-health-ping` result, before closing the cut-over.
 
 Rollback is the same operation in reverse: restore the previous `AIMS_BASE_URL`, redeploy and repeat the contract/smoke validation. There is no list of per-job URLs to repair.
 

@@ -36,15 +36,8 @@ async function runSmoke(env) {
   });
 }
 
-test('post-deployment ecosystem smoke exercises all launch-critical paths', async () => {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, wakeStatus = 'ready' } = {}) {
   let aimsBase = '';
-
-  const mast = await listen((req, res) => {
-    if (req.url === '/readyz') return send(res, 200, { ok: true, ready: true });
-    if (req.url === '/run/suite-health-ping') return send(res, 200, { ok: true, jobId: 'suite-health-ping' });
-    if (req.url === '/services/rams/resume') return send(res, 202, { ok: true, service: 'rams' });
-    return send(res, 404, { error: 'not-found' });
-  });
 
   const rams = await listen((req, res) => {
     if (req.url === '/readyz') return send(res, 200, { status: 'ready' });
@@ -53,6 +46,23 @@ test('post-deployment ecosystem smoke exercises all launch-critical paths', asyn
   });
 
   const hive = await listen((req, res) => {
+    if (req.url === '/v1/system/repo-health?force_refresh=true') {
+      return send(res, 200, { repos: [{
+        repo: 'MAST', category: 'background_worker', status: 'healthy',
+        operational: { payload: {
+          source: heartbeatSource, object_key: 'state/mast/scheduler-state.json',
+          last_tick_at: new Date(Date.now() - heartbeatAgeSeconds * 1000).toISOString(),
+          heartbeat_age_seconds: heartbeatAgeSeconds, healthy_max_age_seconds: 90,
+          recent_failures: 0,
+        } },
+      }] });
+    }
+    if (req.url === '/v1/services/RAMS/ensure-ready') {
+      return send(res, 202, { ok: true, repo: 'RAMS', poll_url: '/services/RAMS/ensure-ready/0123456789abcdef0123456789abcdef' });
+    }
+    if (req.url === '/v1/services/RAMS/ensure-ready/0123456789abcdef0123456789abcdef') {
+      return send(res, 200, { status: wakeStatus, result: { ready: wakeStatus === 'ready' }, error: 'wake failed' });
+    }
     if (req.url === '/v1/runtime/readiness') {
       return send(res, 200, { ready: true, configuration_ready: true, dependency_probes: [{ required: true, status: 'ok' }] });
     }
@@ -83,27 +93,49 @@ test('post-deployment ecosystem smoke exercises all launch-critical paths', asyn
   });
 
   try {
-    const result = await runSmoke({
+    return await runSmoke({
       ECOSYSTEM_SMOKE_ALLOW_HTTP: 'true',
       ECOSYSTEM_SMOKE_TIMEOUT_MS: '3000',
       ECOSYSTEM_SMOKE_RETRY_ATTEMPTS: '2',
       ECOSYSTEM_SMOKE_RETRY_DELAY_MS: '10',
-      MAST_BASE_URL: mast.base,
       AIMS_BASE_URL: aims.base,
       RAMS_BASE_URL: rams.base,
       HIVE_BASE_URL: hive.base,
       WEBSITE_BASE_URL: website.base,
       HIVE_UI_BASE_URL: hive.base,
       AIMS_UI_BASE_URL: aims.base,
-      CRON_ADMIN_TOKEN: 'test-cron-token',
       RMS_API_KEY: 'test-rams-token',
       HIVE_ADMIN_BEARER_TOKEN: 'test-hive-token',
       HIVE_UI_ACCESS_KEY: 'test-ui-key',
     });
-    assert.equal(result.code, 0, result.stderr || result.stdout);
-    assert.match(result.stdout, /ok 17 - CogniPal message\/sync round trip/);
-    assert.match(result.stdout, /ecosystem smoke passed/);
   } finally {
-    await Promise.all([mast.close(), rams.close(), hive.close(), aims.close(), website.close()]);
+    await Promise.all([rams.close(), hive.close(), aims.close(), website.close()]);
   }
+}
+
+test('post-deployment smoke checks the private Worker heartbeat and wakes RAMS through HIVE', async () => {
+  const result = await exerciseSmoke();
+  assert.equal(result.code, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /ok 2 - MAST Worker R2 heartbeat via HIVE/);
+  assert.match(result.stdout, /ok 3 - RAMS ready through HIVE Koyeb lifecycle/);
+  assert.match(result.stdout, /ok 17 - CogniPal message\/sync round trip/);
+  assert.match(result.stdout, /ecosystem smoke passed/);
+});
+
+test('smoke rejects Koyeb status when HIVE has no R2 heartbeat', async () => {
+  const result = await exerciseSmoke({ heartbeatSource: 'koyeb_api' });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /health was not read from its durable R2 heartbeat/);
+});
+
+test('smoke rejects a stale Worker heartbeat', async () => {
+  const result = await exerciseSmoke({ heartbeatAgeSeconds: 600 });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /heartbeat is missing or stale/);
+});
+
+test('smoke rejects a failed RAMS wake ticket', async () => {
+  const result = await exerciseSmoke({ wakeStatus: 'failed' });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /HIVE RAMS wake failed/);
 });

@@ -13,6 +13,7 @@ concurrency:
 jobs:
   staging:
     runs-on: ubuntu-latest
+    environment: Koyeb
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -25,11 +26,15 @@ jobs:
           test "$(node --version)" = "v22.23.2"
           test "$(npm --version)" = "10.9.8"
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Run MAST → AIMS/RAMS/HIVE → UI staging exercise
+      - name: Run Worker heartbeat and ecosystem staging exercise
         env:
-          MAST_BASE_URL: ${{ vars.MAST_BASE_URL || secrets.MAST_BASE_URL }}
-          CRON_ADMIN_TOKEN: ${{ secrets.CRON_ADMIN_TOKEN }}
+          AIMS_BASE_URL: ${{ vars.AIMS_BASE_URL || 'https://zeroth-kara-jonathanharris-3296ed37.koyeb.app' }}
+          RAMS_BASE_URL: ${{ vars.RAMS_BASE_URL || 'https://static-helaina-jonathanharris-6df5d241.koyeb.app' }}
+          HIVE_BASE_URL: ${{ vars.HIVE_BASE_URL || 'https://liable-loreen-jonathanharris-57884580.koyeb.app' }}
+          WEBSITE_BASE_URL: ${{ vars.WEBSITE_BASE_URL || 'https://jonathan-harris.online' }}
           HIVE_UI_BASE_URL: ${{ vars.HIVE_UI_BASE_URL || secrets.HIVE_UI_BASE_URL }}
           HIVE_UI_ACCESS_KEY: ${{ secrets.HIVE_UI_ACCESS_KEY }}
           AIMS_UI_BASE_URL: ${{ vars.AIMS_UI_BASE_URL || secrets.AIMS_UI_BASE_URL }}
+          RMS_API_KEY: ${{ secrets.RMS_API_KEY }}
+          HIVE_ADMIN_BEARER_TOKEN: ${{ secrets.HIVE_ADMIN_BEARER_TOKEN }}
         run: npm run staging:gate

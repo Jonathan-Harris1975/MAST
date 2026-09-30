@@ -28,9 +28,7 @@ test("every mandatory ecosystem-smoke input fails closed when absent", async () 
   const workflow = await readFile(WATCHER_PATH, "utf8");
   const config = stepBody(workflow, "Check post-deployment smoke configuration");
   const required = [
-    "MAST_BASE_URL",
     "HIVE_UI_BASE_URL",
-    "CRON_ADMIN_TOKEN",
     "RMS_API_KEY",
     "HIVE_ADMIN_BEARER_TOKEN",
     "HIVE_UI_ACCESS_KEY",
@@ -40,6 +38,15 @@ test("every mandatory ecosystem-smoke input fails closed when absent", async () 
   assert.match(config, /exit 1/);
   assert.match(config, /::error::Mandatory post-deployment ecosystem smoke cannot run/);
   assert.doesNotMatch(config, /configured=false|skipp(?:ed|ing)/i);
+});
+
+test("production jobs use the Koyeb environment without a public MAST URL", async () => {
+  const watcher = await readFile(WATCHER_PATH, "utf8");
+  const smoke = await readFile(new URL("../.github/workflows/ecosystem-smoke.yml", import.meta.url), "utf8");
+  assert.match(watcher, /    environment: Koyeb/);
+  assert.match(smoke, /    environment: Koyeb/);
+  assert.match(watcher, /KOYEB_SERVICE: \$\{\{ vars\.KOYEB_SERVICE \}\}/);
+  assert.doesNotMatch(watcher + smoke, /MAST_BASE_URL|CRON_ADMIN_TOKEN/);
 });
 
 test("exact-SHA watch and smoke gate the final attestation in order", async () => {
