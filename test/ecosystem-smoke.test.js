@@ -36,7 +36,7 @@ async function runSmoke(env, args = []) {
   });
 }
 
-async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token' } = {}) {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token' } = {}) {
   let aimsBase = '';
 
   const rams = await listen((req, res) => {
@@ -53,7 +53,7 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
           source: heartbeatSource, object_key: 'state/mast/scheduler-state.json',
           last_tick_at: new Date(Date.now() - heartbeatAgeSeconds * 1000).toISOString(),
           heartbeat_age_seconds: heartbeatAgeSeconds, healthy_max_age_seconds: 90,
-          recent_failures: 0,
+          recent_failures: recentFailures,
         } },
       }] });
     }
@@ -136,6 +136,13 @@ test('smoke rejects a stale Worker heartbeat', async () => {
   const result = await exerciseSmoke({ heartbeatAgeSeconds: 600 });
   assert.equal(result.code, 1);
   assert.match(result.stderr, /heartbeat is missing or stale/);
+});
+
+test('historical job failures are reported while live Worker and API checks continue', async () => {
+  const result = await exerciseSmoke({ workerMode: true, recentFailures: 2 });
+  assert.equal(result.code, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /MAST recorded 2 failed job\(s\) in its recent history/);
+  assert.match(result.stdout, /ok 17 - CogniPal message\/sync round trip/);
 });
 
 test('smoke rejects a failed RAMS wake ticket', async () => {
