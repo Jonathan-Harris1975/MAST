@@ -22,44 +22,31 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '22.23.2'
-          cache: npm
-      - name: Verify pinned Node/npm toolchain
-        run: |
-          test "$(node --version)" = "v22.23.2"
-          test "$(npm --version)" = "10.9.8"
-      - run: npm ci --ignore-scripts
-      - name: Production ecosystem smoke
+      - name: Install verified Koyeb CLI
+        run: bash scripts/install_koyeb_cli.sh
+      - name: Production MAST Worker/API smoke
         run: |
           set -o pipefail
-          npm run ecosystem:smoke | tee ecosystem-smoke.log
+          bash scripts/run_koyeb_worker_smoke.sh | tee worker-api-smoke.log
         env:
-          AIMS_BASE_URL: ${{ vars.AIMS_BASE_URL || 'https://zeroth-kara-jonathanharris-3296ed37.koyeb.app' }}
-          RAMS_BASE_URL: ${{ vars.RAMS_BASE_URL || 'https://static-helaina-jonathanharris-6df5d241.koyeb.app' }}
-          HIVE_BASE_URL: ${{ vars.HIVE_BASE_URL || 'https://liable-loreen-jonathanharris-57884580.koyeb.app' }}
-          WEBSITE_BASE_URL: ${{ vars.WEBSITE_BASE_URL || 'https://jonathan-harris.online' }}
-          HIVE_UI_BASE_URL: ${{ vars.HIVE_UI_BASE_URL }}
-          AIMS_UI_BASE_URL: ${{ vars.AIMS_UI_BASE_URL }}
-          RMS_API_KEY: ${{ secrets.RMS_API_KEY }}
-          HIVE_ADMIN_BEARER_TOKEN: ${{ secrets.HIVE_ADMIN_BEARER_TOKEN }}
-          HIVE_UI_ACCESS_KEY: ${{ secrets.HIVE_UI_ACCESS_KEY }}
-      - name: Record ecosystem-smoke attestation
+          KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
+          KOYEB_SERVICE: ${{ vars.KOYEB_SERVICE }}
+          EXPECTED_DEPLOYMENT_SHA: ${{ github.sha }}
+      - name: Record Worker/API-smoke attestation
         if: success()
         env:
           SOURCE_REPOSITORY: ${{ inputs.source_repository || github.repository }}
           SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
         run: |
-          printf '{"orchestrator_repository":"%s","orchestrator_sha":"%s","source_repository":"%s","source_sha":"%s","workflow_run":"%s","status":"ecosystem-smoke-green"}\n' \
-            "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$SOURCE_REPOSITORY" "$SOURCE_SHA" "$GITHUB_RUN_ID" > ecosystem-smoke-attestation.json
-      - name: Retain ecosystem-smoke launch evidence
+          printf '{"orchestrator_repository":"%s","orchestrator_sha":"%s","source_repository":"%s","source_sha":"%s","workflow_run":"%s","status":"worker-api-smoke-green"}\n' \
+            "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$SOURCE_REPOSITORY" "$SOURCE_SHA" "$GITHUB_RUN_ID" > worker-api-smoke-attestation.json
+      - name: Retain Worker/API-smoke launch evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ecosystem-smoke-${{ inputs.source_sha || github.sha }}
+          name: worker-api-smoke-${{ inputs.source_sha || github.sha }}
           path: |
-            ecosystem-smoke.log
-            ecosystem-smoke-attestation.json
+            worker-api-smoke.log
+            worker-api-smoke-attestation.json
           if-no-files-found: warn
           retention-days: 90

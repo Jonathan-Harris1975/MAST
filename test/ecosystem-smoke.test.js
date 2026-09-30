@@ -21,9 +21,9 @@ function send(res, status, body, headers = {}) {
   res.end(JSON.stringify(body));
 }
 
-async function runSmoke(env) {
+async function runSmoke(env, args = []) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, ['scripts/ecosystemSmoke.js'], {
+    const child = spawn(process.execPath, ['scripts/ecosystemSmoke.js', ...args], {
       cwd: process.cwd(),
       env: { ...process.env, ...env },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -36,7 +36,7 @@ async function runSmoke(env) {
   });
 }
 
-async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, wakeStatus = 'ready' } = {}) {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token' } = {}) {
   let aimsBase = '';
 
   const rams = await listen((req, res) => {
@@ -105,9 +105,10 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
       HIVE_UI_BASE_URL: hive.base,
       AIMS_UI_BASE_URL: aims.base,
       RMS_API_KEY: 'test-rams-token',
-      HIVE_ADMIN_BEARER_TOKEN: 'test-hive-token',
-      HIVE_UI_ACCESS_KEY: 'test-ui-key',
-    });
+      HIVE_ADMIN_BEARER_TOKEN: hiveToken,
+      HIVE_UI_ACCESS_KEY: workerMode ? '' : 'test-ui-key',
+      KOYEB_GIT_SHA: deployedSha,
+    }, workerMode ? ['--worker', 'a'.repeat(40)] : []);
   } finally {
     await Promise.all([rams.close(), hive.close(), aims.close(), website.close()]);
   }
@@ -138,4 +139,28 @@ test('smoke rejects a failed RAMS wake ticket', async () => {
   const result = await exerciseSmoke({ wakeStatus: 'failed' });
   assert.equal(result.code, 1);
   assert.match(result.stderr, /HIVE RAMS wake failed/);
+});
+
+test('Koyeb Worker runs the API checks with Koyeb-resident credentials and no UI key', async () => {
+  const result = await exerciseSmoke({ workerMode: true });
+  assert.equal(result.code, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /ok 8 - HIVE database write\/delete readiness/);
+  assert.match(result.stdout, /ok 17 - CogniPal message\/sync round trip/);
+  assert.doesNotMatch(result.stdout, /ok 9 - HIVE-UI/);
+  assert.match(result.stdout, /MAST Worker\/API smoke passed/);
+});
+
+test('Worker smoke rejects an instance with a different or missing deployment SHA', async () => {
+  for (const deployedSha of ['b'.repeat(40), '']) {
+    const result = await exerciseSmoke({ workerMode: true, deployedSha });
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /not running the expected MAST Git SHA/);
+    assert.equal(result.stdout, '');
+  }
+});
+
+test('Worker smoke fails closed when its HIVE credential is absent', async () => {
+  const result = await exerciseSmoke({ workerMode: true, hiveToken: '' });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /HIVE_ADMIN_BEARER_TOKEN is required/);
 });

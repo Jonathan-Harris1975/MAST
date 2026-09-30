@@ -20,6 +20,7 @@ RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
     && rm -rf /usr/local/lib/node_modules/npm \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx
 COPY --chown=mast:mast src ./src
+COPY --chown=mast:mast scripts/ecosystemSmoke.js ./scripts/ecosystemSmoke.js
 COPY --chown=mast:mast README.md ./README.md
 
 USER mast

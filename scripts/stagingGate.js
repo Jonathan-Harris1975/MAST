@@ -9,6 +9,12 @@ function main() {
   }
   console.log("ok 1 - local MAST governed job registry");
 
+  if (process.argv[2] === "--registry-only" && process.argv.length === 3) {
+    console.log("MAST staging registry passed");
+    return;
+  }
+  if (process.argv.length !== 2) throw new Error("Usage: stagingGate.js [--registry-only]");
+
   const ui = spawnSync(process.execPath, ["scripts/ecosystemSmoke.js"], {
     cwd: process.cwd(),
     env: process.env,

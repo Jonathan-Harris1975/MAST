@@ -24,20 +24,21 @@ test("automatic Koyeb watcher fails closed when either required value is missing
   assert.doesNotMatch(config, /::warning::|configured=false|skipp(?:ed|ing)/i);
 });
 
-test("every mandatory ecosystem-smoke input fails closed when absent", async () => {
+test("Koyeb Worker/API smoke fails closed and keeps downstream keys off GitHub runners", async () => {
   const workflow = await readFile(WATCHER_PATH, "utf8");
-  const config = stepBody(workflow, "Check post-deployment smoke configuration");
-  const required = [
-    "HIVE_UI_BASE_URL",
-    "RMS_API_KEY",
-    "HIVE_ADMIN_BEARER_TOKEN",
-    "HIVE_UI_ACCESS_KEY",
-  ];
+  const standalone = await readFile(new URL("../.github/workflows/ecosystem-smoke.yml", import.meta.url), "utf8");
+  const staging = await readFile(new URL("../.github/workflows/staging-gate.yml", import.meta.url), "utf8");
+  const runner = await readFile(new URL("../scripts/run_koyeb_worker_smoke.sh", import.meta.url), "utf8");
+  const dockerfile = await readFile(new URL("../Dockerfile", import.meta.url), "utf8");
 
-  assert.match(config, new RegExp(`for name in ${required.join(" ")}`));
-  assert.match(config, /exit 1/);
-  assert.match(config, /::error::Mandatory post-deployment ecosystem smoke cannot run/);
-  assert.doesNotMatch(config, /configured=false|skipp(?:ed|ing)/i);
+  for (const file of [workflow, standalone, staging]) {
+    assert.match(file, /scripts\/run_koyeb_worker_smoke\.sh/);
+    assert.doesNotMatch(file, /secrets\.(?:RMS_API_KEY|HIVE_ADMIN_BEARER_TOKEN|HIVE_UI_ACCESS_KEY)/);
+  }
+  assert.match(runner, /for name in KOYEB_TOKEN KOYEB_SERVICE EXPECTED_DEPLOYMENT_SHA/);
+  assert.match(runner, /koyeb services exec "\$KOYEB_SERVICE" node -- \/app\/scripts\/ecosystemSmoke\.js --worker "\$EXPECTED_DEPLOYMENT_SHA"/);
+  assert.match(runner, /exit 1/);
+  assert.match(dockerfile, /COPY --chown=mast:mast scripts\/ecosystemSmoke\.js \.\/scripts\/ecosystemSmoke\.js/);
 });
 
 test("production jobs use the Koyeb environment without a public MAST URL", async () => {
@@ -52,14 +53,15 @@ test("production jobs use the Koyeb environment without a public MAST URL", asyn
 test("exact-SHA watch and smoke gate the final attestation in order", async () => {
   const workflow = await readFile(WATCHER_PATH, "utf8");
   const watchIndex = workflow.indexOf("- name: Watch production deployment");
-  const smokeIndex = workflow.indexOf("- name: Run post-deployment ecosystem smoke");
-  const attestationName = "Record final exact-SHA deployment and ecosystem-smoke attestation";
+  const smokeIndex = workflow.indexOf("- name: Run post-deployment MAST Worker/API smoke");
+  const attestationName = "Record final exact-SHA deployment and Worker/API-smoke attestation";
   const attestationIndex = workflow.indexOf(`- name: ${attestationName}`);
 
   assert.ok(watchIndex > 0 && smokeIndex > watchIndex && attestationIndex > smokeIndex);
   assert.match(stepBody(workflow, "Watch production deployment"), /EXPECTED_DEPLOYMENT_SHA:[\s\S]*workflow_run\.head_sha/);
   assert.match(stepBody(workflow, attestationName), /DEPLOYED_SHA:[\s\S]*workflow_run\.head_sha/);
-  assert.match(stepBody(workflow, attestationName), /production-deployment-and-ecosystem-smoke-green/);
+  assert.match(stepBody(workflow, "Run post-deployment MAST Worker/API smoke"), /EXPECTED_DEPLOYMENT_SHA:[\s\S]*workflow_run\.head_sha/);
+  assert.match(stepBody(workflow, attestationName), /production-deployment-and-worker-api-smoke-green/);
   assert.doesNotMatch(workflow, /steps\.(?:deployment_config|smoke_config)\.outputs\.configured == 'true'/);
 });
 
