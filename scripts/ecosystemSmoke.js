@@ -105,18 +105,29 @@ function assertOk(condition, message) {
 }
 
 async function main() {
+  const workerMode = process.argv[2] === '--worker';
+  if (process.argv.length !== (workerMode ? 4 : 2)) {
+    throw new Error('Usage: ecosystemSmoke.js [--worker EXPECTED_MAST_SHA]');
+  }
+  if (workerMode) {
+    const expectedSha = process.argv[3];
+    const deployedSha = String(process.env.KOYEB_GIT_SHA || '').trim();
+    if (!/^[a-f0-9]{40}$/i.test(expectedSha) || deployedSha.toLowerCase() !== expectedSha.toLowerCase()) {
+      throw new Error('The selected Koyeb Worker is not running the expected MAST Git SHA');
+    }
+  }
   const aimsApiBase = configuredBaseUrl('AIMS_BASE_URL', aimsBaseUrl());
   const ramsBase = configuredBaseUrl('RAMS_BASE_URL', 'https://static-helaina-jonathanharris-6df5d241.koyeb.app');
   const hiveApiBase = configuredBaseUrl('HIVE_BASE_URL', 'https://liable-loreen-jonathanharris-57884580.koyeb.app');
   const websiteBase = configuredBaseUrl('WEBSITE_BASE_URL', 'https://jonathan-harris.online');
-  const hiveUiBase = configuredBaseUrl('HIVE_UI_BASE_URL');
-  const configuredAimsUiBase = process.env.AIMS_UI_BASE_URL?.trim()
+  const hiveUiBase = workerMode ? null : configuredBaseUrl('HIVE_UI_BASE_URL');
+  const configuredAimsUiBase = !workerMode && process.env.AIMS_UI_BASE_URL?.trim()
     ? configuredBaseUrl('AIMS_UI_BASE_URL')
     : null;
 
   const rmsApiKey = required('RMS_API_KEY');
   const hiveAdminToken = required('HIVE_ADMIN_BEARER_TOKEN');
-  const hiveUiAccessKey = required('HIVE_UI_ACCESS_KEY');
+  const hiveUiAccessKey = workerMode ? null : required('HIVE_UI_ACCESS_KEY');
 
   const aimsReady = await requestJson(new URL('/readyz', aimsApiBase), {
     headers: requestHeaders(aimsApiBase),
@@ -200,65 +211,67 @@ async function main() {
   assertOk(dbPing.body?.ok === true, 'HIVE SQL/D1 write-delete readiness probe failed');
   console.log('ok 8 - HIVE database write/delete readiness');
 
-  const hiveHealth = await requestJson(new URL('/health', hiveUiBase), {
-    headers: requestHeaders(hiveUiBase),
-  });
-  assertOk(String(hiveHealth.body?.service || '').toLowerCase().includes('hive'), 'HIVE-UI health response did not identify the HIVE UI service');
-  console.log('ok 9 - HIVE-UI health');
+  if (!workerMode) {
+    const hiveHealth = await requestJson(new URL('/health', hiveUiBase), {
+      headers: requestHeaders(hiveUiBase),
+    });
+    assertOk(String(hiveHealth.body?.service || '').toLowerCase().includes('hive'), 'HIVE-UI health response did not identify the HIVE UI service');
+    console.log('ok 9 - HIVE-UI health');
 
-  const login = await requestJson(new URL('/api/auth/login', hiveUiBase), {
-    method: 'POST',
-    headers: requestHeaders(hiveUiBase, { 'content-type': 'application/json' }),
-    body: JSON.stringify({ access_key: hiveUiAccessKey }),
-  });
-  assertOk(login.body?.authenticated === true, 'HIVE-UI login did not establish an authenticated session');
-  const hiveCookie = cookiePair(login.response);
-  console.log('ok 10 - HIVE-UI authenticated session');
+    const login = await requestJson(new URL('/api/auth/login', hiveUiBase), {
+      method: 'POST',
+      headers: requestHeaders(hiveUiBase, { 'content-type': 'application/json' }),
+      body: JSON.stringify({ access_key: hiveUiAccessKey }),
+    });
+    assertOk(login.body?.authenticated === true, 'HIVE-UI login did not establish an authenticated session');
+    const hiveCookie = cookiePair(login.response);
+    console.log('ok 10 - HIVE-UI authenticated session');
 
-  const session = await requestJson(new URL('/api/auth/session', hiveUiBase), {
-    headers: requestHeaders(hiveUiBase, { cookie: hiveCookie }),
-  });
-  assertOk(session.body?.authenticated === true, 'HIVE-UI session verification failed');
-  console.log('ok 11 - HIVE session verified');
+    const session = await requestJson(new URL('/api/auth/session', hiveUiBase), {
+      headers: requestHeaders(hiveUiBase, { cookie: hiveCookie }),
+    });
+    assertOk(session.body?.authenticated === true, 'HIVE-UI session verification failed');
+    console.log('ok 11 - HIVE session verified');
 
-  const handoff = await requestJson(new URL('/api/auth/comms-handoff?format=json', hiveUiBase), {
-    headers: requestHeaders(hiveUiBase, { cookie: hiveCookie }),
-  });
-  const communicationsUrl = new URL(String(handoff.body?.url || ''));
-  const hashParams = new URLSearchParams(communicationsUrl.hash.replace(/^#/, ''));
-  const handoffToken = hashParams.get('handoff') || '';
-  assertOk(Boolean(handoffToken), 'HIVE-UI communications handoff did not return a signed handoff token');
-  console.log('ok 12 - HIVE-UI communications handoff issued');
+    const handoff = await requestJson(new URL('/api/auth/comms-handoff?format=json', hiveUiBase), {
+      headers: requestHeaders(hiveUiBase, { cookie: hiveCookie }),
+    });
+    const communicationsUrl = new URL(String(handoff.body?.url || ''));
+    const hashParams = new URLSearchParams(communicationsUrl.hash.replace(/^#/, ''));
+    const handoffToken = hashParams.get('handoff') || '';
+    assertOk(Boolean(handoffToken), 'HIVE-UI communications handoff did not return a signed handoff token');
+    console.log('ok 12 - HIVE-UI communications handoff issued');
 
-  const identity = await requestJson(new URL('/api/auth/comms-identity', hiveUiBase), {
-    headers: requestHeaders(hiveUiBase, { authorization: `Bearer ${handoffToken}` }),
-  });
-  assertOk(Boolean(identity.body?.actor && identity.body?.role), 'HIVE communications identity response is incomplete');
-  console.log(`ok 13 - HIVE identity verified (${identity.body.role})`);
+    const identity = await requestJson(new URL('/api/auth/comms-identity', hiveUiBase), {
+      headers: requestHeaders(hiveUiBase, { authorization: `Bearer ${handoffToken}` }),
+    });
+    assertOk(Boolean(identity.body?.actor && identity.body?.role), 'HIVE communications identity response is incomplete');
+    console.log(`ok 13 - HIVE identity verified (${identity.body.role})`);
 
-  const aimsUiBase = configuredAimsUiBase || new URL(communicationsUrl.origin);
-  if (configuredAimsUiBase && configuredAimsUiBase.origin !== communicationsUrl.origin) {
-    throw new Error(`AIMS_UI_BASE_URL (${configuredAimsUiBase.origin}) does not match the HIVE handoff origin (${communicationsUrl.origin})`);
+    const aimsUiBase = configuredAimsUiBase || new URL(communicationsUrl.origin);
+    if (configuredAimsUiBase && configuredAimsUiBase.origin !== communicationsUrl.origin) {
+      throw new Error(`AIMS_UI_BASE_URL (${configuredAimsUiBase.origin}) does not match the HIVE handoff origin (${communicationsUrl.origin})`);
+    }
+
+    const exchange = await requestJson(new URL('/console/api/auth/handoff', aimsUiBase), {
+      method: 'POST',
+      headers: requestHeaders(aimsUiBase, { authorization: `Bearer ${handoffToken}` }),
+    });
+    assertOk(
+      exchange.body?.authenticated === true
+        && exchange.body?.actor === identity.body.actor
+        && exchange.body?.role === identity.body.role,
+      'AIMS-UI handoff exchange did not preserve the HIVE identity',
+    );
+    const aimsCookie = cookiePair(exchange.response);
+    console.log('ok 14 - AIMS-UI handoff exchange');
+
+    const comms = await requestJson(new URL('/console/api/health', aimsUiBase), {
+      headers: requestHeaders(aimsUiBase, { cookie: aimsCookie }),
+    });
+    assertOk(comms.body?.service === 'comms-hub' && comms.body?.ok === true, 'AIMS Comms Hub did not report ready through the delegated console route');
+    console.log('ok 15 - AIMS Comms Hub delegated route');
   }
-
-  const exchange = await requestJson(new URL('/console/api/auth/handoff', aimsUiBase), {
-    method: 'POST',
-    headers: requestHeaders(aimsUiBase, { authorization: `Bearer ${handoffToken}` }),
-  });
-  assertOk(
-    exchange.body?.authenticated === true
-      && exchange.body?.actor === identity.body.actor
-      && exchange.body?.role === identity.body.role,
-    'AIMS-UI handoff exchange did not preserve the HIVE identity',
-  );
-  const aimsCookie = cookiePair(exchange.response);
-  console.log('ok 14 - AIMS-UI handoff exchange');
-
-  const comms = await requestJson(new URL('/console/api/health', aimsUiBase), {
-    headers: requestHeaders(aimsUiBase, { cookie: aimsCookie }),
-  });
-  assertOk(comms.body?.service === 'comms-hub' && comms.body?.ok === true, 'AIMS Comms Hub did not report ready through the delegated console route');
-  console.log('ok 15 - AIMS Comms Hub delegated route');
 
   const smokeSuffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   const chatPayload = {
@@ -282,7 +295,7 @@ async function main() {
   assertOk(chatSync.body?.ok === true, 'CogniPal sync gateway did not complete successfully');
   console.log('ok 17 - CogniPal message/sync round trip');
 
-  console.log('ecosystem smoke passed');
+  console.log(workerMode ? 'MAST Worker/API smoke passed' : 'ecosystem smoke passed');
 }
 
 main().catch((error) => {

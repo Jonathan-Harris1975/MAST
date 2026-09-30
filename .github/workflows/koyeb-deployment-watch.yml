@@ -42,28 +42,7 @@ jobs:
           fi
           echo "configured=true" >> "$GITHUB_OUTPUT"
       - name: Install verified Koyeb CLI
-        env:
-          KOYEB_CLI_VERSION: "5.10.2"
-        run: |
-          set -euo pipefail
-          archive="koyeb-cli_${KOYEB_CLI_VERSION}_linux_amd64.tar.gz"
-          release_url="https://github.com/koyeb/koyeb-cli/releases/download/v${KOYEB_CLI_VERSION}"
-          workdir="$(mktemp -d)"
-          trap 'rm -rf "$workdir"' EXIT
-          curl --fail --show-error --silent --location --proto '=https' --tlsv1.2 \
-            --output "$workdir/$archive" "$release_url/$archive"
-          curl --fail --show-error --silent --location --proto '=https' --tlsv1.2 \
-            --output "$workdir/checksums.txt" "$release_url/checksums.txt"
-          (
-            cd "$workdir"
-            grep -F "  $archive" checksums.txt > archive.sha256
-            test -s archive.sha256
-            sha256sum --check --strict archive.sha256
-            tar -xzf "$archive"
-          )
-          install -d -m 0755 "$HOME/.local/bin"
-          install -m 0755 "$workdir/koyeb" "$HOME/.local/bin/koyeb"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        run: bash scripts/install_koyeb_cli.sh
       - name: Watch production deployment
         env:
           KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
@@ -75,56 +54,19 @@ jobs:
           EXPECTED_DEPLOYMENT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           EXPECTED_DEPLOYMENT_AFTER: ${{ github.event.workflow_run.created_at || '' }}
         run: python scripts/watch_koyeb_deployment.py
-      - name: Check post-deployment smoke configuration
-        id: smoke_config
-        env:
-          HIVE_UI_BASE_URL: ${{ vars.HIVE_UI_BASE_URL }}
-          RMS_API_KEY: ${{ secrets.RMS_API_KEY }}
-          HIVE_ADMIN_BEARER_TOKEN: ${{ secrets.HIVE_ADMIN_BEARER_TOKEN }}
-          HIVE_UI_ACCESS_KEY: ${{ secrets.HIVE_UI_ACCESS_KEY }}
-        run: |
-          set -euo pipefail
-          missing=()
-          for name in HIVE_UI_BASE_URL RMS_API_KEY HIVE_ADMIN_BEARER_TOKEN HIVE_UI_ACCESS_KEY; do
-            if [ -z "${!name:-}" ]; then
-              missing+=("$name")
-            fi
-          done
-          if [ "${#missing[@]}" -gt 0 ]; then
-            printf '::error::Mandatory post-deployment ecosystem smoke cannot run. Missing required configuration: %s\n' "${missing[*]}"
-            exit 1
-          fi
-          echo "configured=true" >> "$GITHUB_OUTPUT"
-      - name: Set up Node for mandatory ecosystem smoke
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '22.23.2'
-          cache: npm
-      - name: Verify pinned Node/npm toolchain
-        run: |
-          test "$(node --version)" = "v22.23.2"
-          test "$(npm --version)" = "10.9.8"
-      - name: Install locked smoke dependencies
-        run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Run post-deployment ecosystem smoke
+      - name: Run post-deployment MAST Worker/API smoke
         run: |
           set -o pipefail
-          npm run ecosystem:smoke | tee ecosystem-smoke.log
+          bash scripts/run_koyeb_worker_smoke.sh | tee worker-api-smoke.log
         env:
-          AIMS_BASE_URL: ${{ vars.AIMS_BASE_URL || 'https://zeroth-kara-jonathanharris-3296ed37.koyeb.app' }}
-          RAMS_BASE_URL: ${{ vars.RAMS_BASE_URL || 'https://static-helaina-jonathanharris-6df5d241.koyeb.app' }}
-          HIVE_BASE_URL: ${{ vars.HIVE_BASE_URL || 'https://liable-loreen-jonathanharris-57884580.koyeb.app' }}
-          WEBSITE_BASE_URL: ${{ vars.WEBSITE_BASE_URL || 'https://jonathan-harris.online' }}
-          HIVE_UI_BASE_URL: ${{ vars.HIVE_UI_BASE_URL }}
-          AIMS_UI_BASE_URL: ${{ vars.AIMS_UI_BASE_URL }}
-          RMS_API_KEY: ${{ secrets.RMS_API_KEY }}
-          HIVE_ADMIN_BEARER_TOKEN: ${{ secrets.HIVE_ADMIN_BEARER_TOKEN }}
-          HIVE_UI_ACCESS_KEY: ${{ secrets.HIVE_UI_ACCESS_KEY }}
-      - name: Record final exact-SHA deployment and ecosystem-smoke attestation
+          KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
+          KOYEB_SERVICE: ${{ vars.KOYEB_SERVICE }}
+          EXPECTED_DEPLOYMENT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Record final exact-SHA deployment and Worker/API-smoke attestation
         env:
           DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
-          printf '{"repository":"%s","sha":"%s","workflow_run":"%s","service":"MAST","status":"production-deployment-and-ecosystem-smoke-green"}\n' \
+          printf '{"repository":"%s","sha":"%s","workflow_run":"%s","service":"MAST","status":"production-deployment-and-worker-api-smoke-green"}\n' \
             "$GITHUB_REPOSITORY" "$DEPLOYED_SHA" "$GITHUB_RUN_ID" > deployment-attestation.json
       - name: Retain post-deployment launch evidence
         if: always()
@@ -132,7 +74,7 @@ jobs:
         with:
           name: mast-post-deployment-smoke-${{ github.event.workflow_run.head_sha || github.sha }}
           path: |
-            ecosystem-smoke.log
+            worker-api-smoke.log
             deployment-attestation.json
           if-no-files-found: warn
           retention-days: 90

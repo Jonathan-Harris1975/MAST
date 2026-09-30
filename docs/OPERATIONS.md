@@ -13,9 +13,9 @@ MAST is deployed as a Worker and maintains its own scheduler loop. HIVE monitors
 4. Keep durable R2 state and run keys intact; they provide replay protection across restarts.
 5. Use the separate R2 operator-control object for maintenance or an immediate scheduling pause.
 6. Confirm AIMS-facing jobs resolve through the configured `AIMS_BASE_URL`; operators must not maintain per-job AIMS origins.
-7. Confirm the automatic post-CI watcher observed the expected Koyeb source SHA and the mandatory ecosystem smoke completed before accepting its retained production attestation.
+7. Confirm the automatic post-CI watcher observed the expected Koyeb source SHA and the mandatory Worker/API smoke completed on that exact Worker instance before accepting its retained production attestation. Check the HIVE-UI deployed-integration attestation separately for login and handoff.
 
-Missing `KOYEB_TOKEN`, `KOYEB_SERVICE` or any mandatory smoke input fails the production watcher; no automatic `main` path silently skips verification. GitHub's `Koyeb` environment supplies these values separately from the Worker's Koyeb runtime secrets. Run `node --test test/deployment-workflow-contract.test.js` for the credential-free workflow contract. Container CI also scans the built `mast:ci` image and rejects fixable High/Critical OS or library vulnerabilities while retaining the readable report.
+Missing `KOYEB_TOKEN`, `KOYEB_SERVICE`, the expected commit SHA or the Worker's Koyeb-resident `RMS_API_KEY`/`HIVE_ADMIN_BEARER_TOKEN` fails the production watcher; no automatic `main` path silently skips verification. GitHub's `Koyeb` environment supplies the service ID and control token only. Run `node --test test/deployment-workflow-contract.test.js` for the credential-free workflow contract. Container CI also scans the built `mast:ci` image and rejects fixable High/Critical OS or library vulnerabilities while retaining the readable report.
 
 ## Canonical AIMS cut-over
 
