@@ -90,6 +90,7 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
   aimsBase = aims.base;
 
   const website = await listen((req, res) => {
+    if (req.headers.origin !== `http://${req.headers.host}`) return send(res, 403, { error: 'origin_rejected' });
     if (req.url === '/api/cognipal/message') return send(res, 202, { ok: true, accepted: true });
     if (req.url === '/api/cognipal/sync') return send(res, 200, { ok: true, messages: [] });
     return send(res, 404, { error: 'not-found' });
