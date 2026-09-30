@@ -27,8 +27,7 @@ function configuredBaseUrl(name, fallback = '') {
 function requestHeaders(origin, extra = {}) {
   return {
     accept: 'application/json',
-    origin: origin.origin,
-    'sec-fetch-site': 'same-origin',
+    ...(process.argv[2] === '--worker' ? {} : { origin: origin.origin, 'sec-fetch-site': 'same-origin' }),
     'user-agent': 'mast-ecosystem-smoke/2.0',
     ...extra,
   };
