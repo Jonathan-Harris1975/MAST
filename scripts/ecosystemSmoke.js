@@ -280,9 +280,10 @@ async function main() {
     visitorId: `launch-smoke-visitor-${smokeSuffix}`,
     text: `[production-launch-smoke] Verify CogniPal gateway connectivity. ${smokeSuffix}`,
   };
+  // The public CogniPal visitor gateway explicitly requires its own Origin.
   const chatMessage = await requestJson(new URL('/api/cognipal/message', websiteBase), {
     method: 'POST',
-    headers: requestHeaders(websiteBase, { 'content-type': 'application/json' }),
+    headers: requestHeaders(websiteBase, { 'content-type': 'application/json', origin: websiteBase.origin }),
     body: JSON.stringify(chatPayload),
   }, [200, 202]);
   assertOk(chatMessage.body?.ok === true || chatMessage.body?.accepted === true, 'CogniPal message gateway did not accept the smoke message');
@@ -290,7 +291,7 @@ async function main() {
 
   const chatSync = await requestJson(new URL('/api/cognipal/sync', websiteBase), {
     method: 'POST',
-    headers: requestHeaders(websiteBase, { 'content-type': 'application/json' }),
+    headers: requestHeaders(websiteBase, { 'content-type': 'application/json', origin: websiteBase.origin }),
     body: JSON.stringify({ sessionId: chatPayload.sessionId, visitorId: chatPayload.visitorId }),
   });
   assertOk(chatSync.body?.ok === true, 'CogniPal sync gateway did not complete successfully');
