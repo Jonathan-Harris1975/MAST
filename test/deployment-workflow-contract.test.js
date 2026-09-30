@@ -36,7 +36,7 @@ test("Koyeb Worker/API smoke fails closed and keeps downstream keys off GitHub r
     assert.doesNotMatch(file, /secrets\.(?:RMS_API_KEY|HIVE_ADMIN_BEARER_TOKEN|HIVE_UI_ACCESS_KEY)/);
   }
   assert.match(runner, /for name in KOYEB_TOKEN KOYEB_SERVICE EXPECTED_DEPLOYMENT_SHA/);
-  assert.match(runner, /koyeb services exec "\$KOYEB_SERVICE" node -- \/app\/scripts\/ecosystemSmoke\.js --worker "\$EXPECTED_DEPLOYMENT_SHA"/);
+  assert.match(runner, /script -q -e -c 'koyeb services exec "\$KOYEB_SERVICE" node -- \/app\/scripts\/ecosystemSmoke\.js --worker "\$EXPECTED_DEPLOYMENT_SHA"' \/dev\/null < \/dev\/null/);
   assert.match(runner, /exit 1/);
   assert.match(dockerfile, /COPY --chown=mast:mast scripts\/ecosystemSmoke\.js \.\/scripts\/ecosystemSmoke\.js/);
 });
