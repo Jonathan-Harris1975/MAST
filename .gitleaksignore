@@ -1,0 +1,12 @@
+# MAST Gitleaks reviewed-finding allowlist
+#
+# Exact fingerprints only. These findings were reviewed on 2026-10-04 and
+# confirmed by the repository owner as false positives, not real secrets.
+# Do not replace these entries with broad path or rule exclusions.
+
+# Synthetic AWS token fixture used by scripts/secret_scan.py
+24b958968822261574f01728a08458b73b72affa:scripts/secret_scan.py:aws-access-token:110
+
+# Historical README documentation placeholders
+2e661a7fbc95185029b395f6e6db7a88a2d9b9bf:README.md:curl-auth-header:97
+2e661a7fbc95185029b395f6e6db7a88a2d9b9bf:README.md:curl-auth-header:106
