@@ -12,9 +12,10 @@ API="https://api.github.com"; GRAPHQL="https://api.github.com/graphql"
 TOKEN=os.environ["GH_TOKEN"]; REPO=os.environ.get("REPO") or os.environ["GITHUB_REPOSITORY"]
 DEFAULT_BRANCH=os.environ.get("DEFAULT_BRANCH","main"); REPAIR_APP_LOGIN=os.environ.get("REPAIR_APP_LOGIN","")
 REQUIRED_WORKFLOWS=[x.strip() for x in os.environ.get("REQUIRED_WORKFLOWS","").split("|") if x.strip()]
-MANAGED_LABEL="automation:branch-pr"; ALLOWED=("fix/","feat/","chore/","ci/","work/","codex/")
+MANAGED_LABEL="automation:branch-pr"; ALLOWED=("fix/","feat/","chore/","ci/","work/")
+EXCLUDED=("codex/","automation/","autonomy/","renovate/","dependabot/","mergify/","tmp/","temp/","internal/")
 BLOCKING={"autonomy:human-hold","do-not-merge","do not merge","hold"}
-BRANCH_RE=re.compile(r"^(fix|feat|chore|ci|work|codex)/[A-Za-z0-9._/-]+$")
+BRANCH_RE=re.compile(r"^(fix|feat|chore|ci|work)/[A-Za-z0-9._/-]+$")
 
 @dataclass
 class ApiError(RuntimeError): status:int; body:str
@@ -45,7 +46,7 @@ def event()->dict[str,Any]:
     return x if isinstance(x,dict) else {}
 def labs(pr:dict[str,Any])->set[str]:return {str(x.get("name","")).strip().lower() for x in pr.get("labels",[])}
 def same_repo(pr:dict[str,Any])->bool:return str(pr.get("head",{}).get("repo",{}).get("full_name",""))==REPO
-def allowed(b:str)->bool:return b!=DEFAULT_BRANCH and any(b.startswith(x) for x in ALLOWED) and ".." not in b and "//" not in b and not b.endswith("/") and BRANCH_RE.fullmatch(b) is not None
+def allowed(b:str)->bool:return b!=DEFAULT_BRANCH and not any(b.startswith(x) for x in EXCLUDED) and any(b.startswith(x) for x in ALLOWED) and ".." not in b and "//" not in b and not b.endswith("/") and BRANCH_RE.fullmatch(b) is not None
 
 def ensure_label()->None:
     try:post(f"/repos/{REPO}/labels",{"name":MANAGED_LABEL,"color":"1D76DB","description":"PR created and managed by trusted branch automation"},(201,))

@@ -15,7 +15,6 @@ on:
         type: choice
         options:
           - ci
-          - dast
           - council
 
 permissions:
@@ -66,12 +65,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           WORKFLOW: ${{ steps.slot.outputs.workflow }}
-        run: gh workflow run "$WORKFLOW" --repo "$GITHUB_REPOSITORY" --ref "${{ github.event.repository.default_branch }}"
+          PHASE: ${{ steps.slot.outputs.phase }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          gh workflow run "$WORKFLOW" --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH"
+          if [ "$PHASE" = ci ]; then
+            gh workflow run security.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH"
+            gh workflow run codeql.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH"
+          fi
 
-      - name: Record allocated windows
+      - name: Record prescribed starts
         if: always()
         run: |
-          echo "CI: Fri 22:30–Sat 01:00"
-          echo "DAST: N/A — background worker with no authorised public HTTP target"
-          echo "Council: Sun 21:00–Sun 23:30"
-          echo "Weekend operating envelope: Friday 20:00 to Monday 04:00 Europe/London"
+          echo "CI: Fri 22:30 Europe/London"
+          echo "DAST: N/A Europe/London"
+          echo "Council: Sun 21:00 Europe/London"
