@@ -74,12 +74,14 @@ test("CI scans the actual built MAST image and retains a readable report", async
   const evidence = stepBody(workflow, "Retain production image vulnerability report");
 
   assert.match(workflow, /docker build -t mast:ci/);
-  assert.match(scan, /aquasecurity\/trivy-action@[0-9a-f]{40}/);
-  assert.match(scan, /image-ref: mast:ci/);
-  assert.match(scan, /vuln-type: os,library/);
-  assert.match(scan, /severity: CRITICAL,HIGH/);
-  assert.match(scan, /exit-code: "1"/);
-  assert.match(scan, /ignore-unfixed: true/);
+  assert.match(scan, /run: \.ci-tools\/bin\/trivy image/);
+  assert.match(scan, /mast:ci/);
+  assert.match(scan, /--pkg-types os,library/);
+  assert.match(scan, /--severity CRITICAL,HIGH/);
+  assert.match(scan, /--exit-code 1/);
+  assert.match(scan, /--ignore-unfixed/);
+  assert.match(scan, /--format table --output trivy-mast-image\.txt/);
+  assert.doesNotMatch(scan, /aquasecurity\/trivy-action/);
   assert.match(evidence, /trivy-mast-image\.txt/);
   assert.match(evidence, /if: always\(\)/);
 });
