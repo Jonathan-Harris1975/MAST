@@ -1,0 +1,7 @@
+{
+  "ci": "ci.yml",
+  "deployment": "koyeb-deployment-watch.yml",
+  "artifact": "mast-post-deployment-smoke-",
+  "dast": false,
+  "dispatch_step": "Dispatch Council contract to Kilo"
+}
