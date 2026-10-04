@@ -1,2 +1,2 @@
 # Quarantined vulnerability fixture; never install or merge.
-django==2.2.0
+Django==2.2.0
