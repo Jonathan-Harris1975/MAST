@@ -156,6 +156,22 @@ class ManagedBranchOwnershipTests(unittest.TestCase):
         hold.assert_called_once()
         admit.assert_not_called()
 
+    def test_managed_branch_pr_cannot_rewrite_admission_controller(self):
+        hold = self.enterContext(patch.object(automation, "place_human_hold"))
+        admit = self.enterContext(patch.object(automation, "admit_to_mergify"))
+        self.enterContext(
+            patch.object(
+                automation,
+                "pr_files",
+                return_value=[".github/scripts/trusted_automation.py"],
+            )
+        )
+
+        automation.reconcile_pr(copy.deepcopy(self.pr))
+
+        hold.assert_called_once()
+        admit.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
