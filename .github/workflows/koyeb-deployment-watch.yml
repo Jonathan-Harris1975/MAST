@@ -21,9 +21,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned release commit
-      with:
-        persist-credentials: false
         with:
+          persist-credentials: false
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Check Koyeb deployment-watch configuration
         id: deployment_config
@@ -92,9 +91,8 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      with:
-        persist-credentials: false
         with:
+          persist-credentials: false
           ref: main
           fetch-depth: 0
       - name: Revert only the failed Renovate merge
