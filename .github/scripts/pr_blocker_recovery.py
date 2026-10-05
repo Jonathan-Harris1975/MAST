@@ -105,7 +105,9 @@ def required_checks_pass(pr):
 
 
 def verified_receipts(comments, sha, base_sha):
-    trusted = {login(router.KILO_IMPLEMENTER), login(router.REPAIR_APP_LOGIN)} - {""}
+    # A repair implementer must not self-verify its own review fix. Receipts are
+    # accepted only from the separately authenticated repair App identity.
+    trusted = {login(router.REPAIR_APP_LOGIN)} - {""}
     receipts = {}
     for comment in comments:
         if login(comment.get("user", {}).get("login")) not in trusted:
@@ -157,11 +159,12 @@ def recover(number):
     threads = [t for t in review_threads(number) if not t["isResolved"]]
     if not threads:
         return {"pr": number, "state": "no-conflict-or-review-blocker"}
+    repair_reviewers = BOT_REVIEWERS | {login(router.KILO_IMPLEMENTER), login(router.REPAIR_APP_LOGIN)} - {""}
     bot_threads = [
         t
         for t in threads
         if t["comments"]["nodes"]
-        and login(t["comments"]["nodes"][0].get("author", {}).get("login")) in BOT_REVIEWERS
+        and login(t["comments"]["nodes"][0].get("author", {}).get("login")) in repair_reviewers
     ]
     comments = router.all_pages(f"/repos/{router.REPO}/issues/{number}/comments")
     receipts = verified_receipts(comments, sha, base)
@@ -198,7 +201,10 @@ def recover(number):
             ).get("thread", {}).get("isResolved"):
                 raise RuntimeError("Review thread resolution was not confirmed")
             resolved.append(thread["id"])
-    remaining = [t for t in bot_threads if t["id"] not in resolved]
+    # A receipt means the finding has already been implemented and independently
+    # verified for this exact head/base pair. Do not redispatch it merely because
+    # another required check is still running or failing.
+    remaining = [t for t in bot_threads if t["id"] not in resolved and t["id"] not in receipts]
     request = None
     if remaining:
         evidence = [
