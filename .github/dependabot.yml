@@ -1,11 +1,9 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
+  - package-ecosystem: "npm" # zizmor: ignore[dependabot-cooldown] Renovate owns version updates; Dependabot remains for security updates.
     directory: "/"
     schedule:
       interval: "weekly"
-    cooldown:
-      default-days: 7
     open-pull-requests-limit: 0
     groups:
       aws-sdk-family:
@@ -17,22 +15,18 @@ updates:
     commit-message:
       prefix: "deps"
 
-  - package-ecosystem: "docker"
+  - package-ecosystem: "docker" # zizmor: ignore[dependabot-cooldown] Renovate owns version updates; Dependabot remains for security updates.
     directory: "/"
     schedule:
       interval: "weekly"
-    cooldown:
-      default-days: 7
     open-pull-requests-limit: 0
     commit-message:
       prefix: "deps(docker)"
 
-  - package-ecosystem: "github-actions"
+  - package-ecosystem: "github-actions" # zizmor: ignore[dependabot-cooldown] Renovate owns version updates; Dependabot remains for security updates.
     directory: "/"
     schedule:
       interval: "weekly"
-    cooldown:
-      default-days: 7
     open-pull-requests-limit: 0
     commit-message:
       prefix: "deps(ci)"
