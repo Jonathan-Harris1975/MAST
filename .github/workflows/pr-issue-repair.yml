@@ -45,7 +45,7 @@ jobs:
       - name: Discover installed repair App login
         id: repair_app
         env:
-          APP_ID: ${{ vars.AUTONOMY_REPAIR_APP_ID }}
+          APP_ID: ${{ vars.AUTONOMY_REPAIR_APP_ID || '5112339' }}
           APP_PRIVATE_KEY: ${{ secrets.AUTONOMY_REPAIR_APP_PRIVATE_KEY }}
           REPO: ${{ github.repository }}
         shell: bash
