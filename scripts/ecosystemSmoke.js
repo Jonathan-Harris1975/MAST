@@ -62,7 +62,9 @@ async function requestJson(url, options = {}, expected = [200]) {
     try { body = JSON.parse(text); } catch { body = { raw: text.slice(0, 500) }; }
   }
   if (!expected.includes(response.status)) {
-    const detail = body?.detail || body?.message || body?.error || text.slice(0, 300) || 'no response body';
+    const errorCode = String(body?.error || body?.code || '').trim();
+    const message = String(body?.detail || body?.message || '').trim();
+    const detail = [errorCode, message].filter(Boolean).join(': ') || text.slice(0, 300) || 'no response body';
     throw new Error(`${options.method || 'GET'} ${url} returned ${response.status}: ${detail}`);
   }
   return { response, body };
