@@ -23,6 +23,8 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22.23.2
@@ -48,6 +50,8 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
       - run: docker build -t mast:ci .
       - name: Verify Node runtime and boot API inside production image
         run: |
@@ -97,6 +101,8 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
       - name: Send redacted HIVE operational event
         env:
           OPS_ALERT_WEBHOOK_URL: ${{ vars.OPS_ALERT_WEBHOOK_URL || secrets.OPS_ALERT_WEBHOOK_URL || 'https://liable-loreen-jonathanharris-57884580.koyeb.app/v1/ops/events' }}
@@ -131,6 +137,8 @@ jobs:
           test "$RESULT_VERIFY" = "success"
           test "$RESULT_DOCKER" = "success"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
       - name: Assert checked-out commit is the workflow SHA
         run: |
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
