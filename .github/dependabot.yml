@@ -4,6 +4,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 0
     groups:
       aws-sdk-family:
@@ -19,6 +21,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 0
     commit-message:
       prefix: "deps(docker)"
@@ -27,6 +31,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 0
     commit-message:
       prefix: "deps(ci)"
