@@ -55,6 +55,77 @@ jobs:
               handle.write("\n")
           PY
 
+      - name: Verify all governed repositories are online
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repos=(
+            "AIMS"
+            "AIMS-UI"
+            "HIVE"
+            "HIVE-UI"
+            "IRS"
+            "MAST"
+            "RAMS"
+            "jonathan-harris-website"
+          )
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          owner = "Jonathan-Harris1975"
+          repos = [
+              "AIMS",
+              "AIMS-UI",
+              "HIVE",
+              "HIVE-UI",
+              "IRS",
+              "MAST",
+              "RAMS",
+              "jonathan-harris-website",
+          ]
+          results = []
+          for repo in repos:
+              repo_payload = json.loads(subprocess.check_output([
+                  "gh", "api", f"/repos/{owner}/{repo}"
+              ], text=True))
+              default_branch = repo_payload.get("default_branch")
+              if not default_branch:
+                  raise RuntimeError(f"{repo} has no default branch")
+              branch_payload = json.loads(subprocess.check_output([
+                  "gh", "api", f"/repos/{owner}/{repo}/branches/{default_branch}"
+              ], text=True))
+              sha = ((branch_payload.get("commit") or {}).get("sha") or "").strip()
+              if len(sha) != 40:
+                  raise RuntimeError(f"{repo} default branch did not resolve to a full commit SHA")
+              results.append({
+                  "repository": f"{owner}/{repo}",
+                  "default_branch": default_branch,
+                  "sha": sha,
+                  "online": True,
+              })
+
+          with open("oidc-estate-online.json", "w", encoding="utf-8") as handle:
+              json.dump({
+                  "checker": f"{owner}/MAST",
+                  "count": len(results),
+                  "all_online": all(item["online"] for item in results),
+                  "repositories": results,
+              }, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+
+      - name: Retain estate online evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: oidc-estate-online-${{ github.sha }}
+          path: oidc-estate-online.json
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Retain sanitised OIDC evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
