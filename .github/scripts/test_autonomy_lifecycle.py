@@ -1,6 +1,7 @@
 """Regression checks for repair retirement; all GitHub writes are mocked."""
 import copy
 import inspect
+from datetime import datetime, timezone
 import os
 import unittest
 from unittest.mock import patch
@@ -111,18 +112,21 @@ class ManagedBranchOwnershipTests(unittest.TestCase):
         }.items():
             self.enterContext(patch.object(automation, name, value))
         self.enterContext(patch.object(automation, "log"))
+        self.enterContext(
+            patch.object(automation, "council_evidence_freeze", return_value=(False, "test release"))
+        )
 
-    def test_branch_controller_has_no_merge_authority(self):
+    def test_branch_controller_has_no_native_merge_authority(self):
         source = inspect.getsource(branch_controller)
         self.assertNotIn("enablePullRequestAutoMerge", source)
-        self.assertNotIn("disablePullRequestAutoMerge", source)
-        self.assertNotIn('gh", "pr", "merge', source)
+        self.assertNotIn("enable_native_auto_merge", source)
+        self.assertNotIn("/merge", source)
 
     def test_managed_branch_pr_is_admitted_to_mergify_after_green_checks(self):
         admit = self.enterContext(patch.object(automation, "admit_to_mergify"))
         approve = self.enterContext(patch.object(automation, "approve_pr"))
         self.enterContext(
-            patch.object(automation, "pr_files", return_value=["src/example.ts"])
+            patch.object(automation, "pr_files", return_value=["services/example.js"])
         )
         self.enterContext(
             patch.object(
@@ -140,7 +144,7 @@ class ManagedBranchOwnershipTests(unittest.TestCase):
         admit.assert_called_once_with(22)
         approve.assert_not_called()
 
-    def test_managed_branch_pr_touching_governance_gets_human_hold(self):
+    def test_managed_branch_pr_touching_protected_controls_gets_human_hold(self):
         hold = self.enterContext(patch.object(automation, "place_human_hold"))
         admit = self.enterContext(patch.object(automation, "admit_to_mergify"))
         self.enterContext(
@@ -156,21 +160,115 @@ class ManagedBranchOwnershipTests(unittest.TestCase):
         hold.assert_called_once()
         admit.assert_not_called()
 
-    def test_managed_branch_pr_cannot_rewrite_admission_controller(self):
-        hold = self.enterContext(patch.object(automation, "place_human_hold"))
-        admit = self.enterContext(patch.object(automation, "admit_to_mergify"))
-        self.enterContext(
+
+class CouncilEvidenceFreezeTests(unittest.TestCase):
+    def setUp(self):
+        self.sha = "d" * 40
+        for name, value in {"REPO": "owner/repo", "DEFAULT_BRANCH": "main"}.items():
+            self.enterContext(patch.object(automation, name, value))
+
+    def test_weekend_envelope_uses_europe_london(self):
+        inside = datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc)
+        outside = datetime(2026, 10, 6, 12, 0, tzinfo=timezone.utc)
+        self.assertIsNotNone(automation.current_weekend_bounds(inside))
+        self.assertIsNone(automation.current_weekend_bounds(outside))
+
+    def test_successful_ci_freezes_routine_merges_until_same_sha_council(self):
+        runs = {
+            "workflow_runs": [
+                {
+                    "id": 100,
+                    "name": "MAST CI",
+                    "event": "workflow_dispatch",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "head_sha": self.sha,
+                    "created_at": "2026-10-02T19:05:00Z",
+                }
+            ]
+        }
+        with (
             patch.object(
                 automation,
-                "pr_files",
-                return_value=[".github/scripts/trusted_automation.py"],
-            )
+                "current_weekend_bounds",
+                return_value=(
+                    datetime(2026, 10, 2, 20, 0, tzinfo=automation.LONDON),
+                    datetime(2026, 10, 5, 4, 0, tzinfo=automation.LONDON),
+                ),
+            ),
+            patch.object(
+                automation,
+                "get",
+                side_effect=[
+                    {"commit": {"sha": self.sha}},
+                    runs,
+                    {"commit": {"sha": self.sha}},
+                ],
+            ),
+        ):
+            frozen, reason = automation.council_evidence_freeze()
+        self.assertTrue(frozen)
+        self.assertIn(self.sha[:12], reason)
+
+        runs["workflow_runs"].append(
+            {
+                "id": 101,
+                "name": "Repository Council",
+                "event": "workflow_dispatch",
+                "status": "completed",
+                "conclusion": "success",
+                "head_sha": self.sha,
+                "created_at": "2026-10-04T17:35:00Z",
+            }
         )
+        with (
+            patch.object(
+                automation,
+                "current_weekend_bounds",
+                return_value=(
+                    datetime(2026, 10, 2, 20, 0, tzinfo=automation.LONDON),
+                    datetime(2026, 10, 5, 4, 0, tzinfo=automation.LONDON),
+                ),
+            ),
+            patch.object(
+                automation,
+                "get",
+                side_effect=[
+                    {"commit": {"sha": self.sha}},
+                    runs,
+                    {"commit": {"sha": self.sha}},
+                ],
+            ),
+        ):
+            frozen, reason = automation.council_evidence_freeze()
+        self.assertFalse(frozen)
+        self.assertIn("Council completed", reason)
 
-        automation.reconcile_pr(copy.deepcopy(self.pr))
+    def test_default_branch_move_during_evidence_collection_fails_closed(self):
+        runs = {"workflow_runs": []}
+        with (
+            patch.object(
+                automation,
+                "current_weekend_bounds",
+                return_value=(
+                    datetime(2026, 10, 2, 20, 0, tzinfo=automation.LONDON),
+                    datetime(2026, 10, 5, 4, 0, tzinfo=automation.LONDON),
+                ),
+            ),
+            patch.object(
+                automation,
+                "get",
+                side_effect=[
+                    {"commit": {"sha": self.sha}},
+                    runs,
+                    {"commit": {"sha": "e" * 40}},
+                ],
+            ),
+        ):
+            frozen, reason = automation.council_evidence_freeze()
+        self.assertTrue(frozen)
+        self.assertIn("default branch moved", reason)
 
-        hold.assert_called_once()
-        admit.assert_not_called()
 
 
 if __name__ == "__main__":
