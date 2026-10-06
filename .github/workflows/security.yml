@@ -19,6 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2
+        with:
+          egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -135,6 +139,8 @@ jobs:
       - name: Validate GitHub Actions workflows
         run: |
           "${{ runner.temp }}/ci-bin/actionlint" -color
+      - name: Validate autonomous ownership and Council freeze lifecycle
+        run: python3 .github/scripts/test_autonomy_lifecycle.py
       - name: Trivy filesystem vulnerability and misconfiguration scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
