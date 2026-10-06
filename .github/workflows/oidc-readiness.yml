@@ -61,52 +61,43 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json
-          import os
-          import subprocess
+          node --input-type=module <<'NODE'
+          import { execFileSync } from "node:child_process";
+          import { writeFileSync } from "node:fs";
+          import { HIVE_GOVERNED_REPOSITORIES } from "./src/jobs.js";
 
-          owner = "Jonathan-Harris1975"
-          repos = [
-              "AIMS",
-              "AIMS-UI",
-              "HIVE",
-              "HIVE-UI",
-              "IRS",
-              "MAST",
-              "RAMS",
-              "jonathan-harris-website",
-          ]
-          results = []
-          for repo in repos:
-              repo_payload = json.loads(subprocess.check_output([
-                  "gh", "api", f"/repos/{owner}/{repo}"
-              ], text=True))
-              default_branch = repo_payload.get("default_branch")
-              if not default_branch:
-                  raise RuntimeError(f"{repo} has no default branch")
-              branch_payload = json.loads(subprocess.check_output([
-                  "gh", "api", f"/repos/{owner}/{repo}/branches/{default_branch}"
-              ], text=True))
-              sha = ((branch_payload.get("commit") or {}).get("sha") or "").strip()
-              if len(sha) != 40:
-                  raise RuntimeError(f"{repo} default branch did not resolve to a full commit SHA")
-              results.append({
-                  "repository": f"{owner}/{repo}",
-                  "default_branch": default_branch,
-                  "sha": sha,
-                  "online": True,
-              })
+          const owner = "Jonathan-Harris1975";
+          const repositoryName = (name) => name === "Website" ? "jonathan-harris-website" : name;
+          const ghJson = (path) => JSON.parse(execFileSync("gh", ["api", path], {
+            encoding: "utf8",
+            timeout: 30_000,
+            maxBuffer: 1_000_000,
+          }));
 
-          with open("oidc-estate-online.json", "w", encoding="utf-8") as handle:
-              json.dump({
-                  "checker": f"{owner}/MAST",
-                  "count": len(results),
-                  "all_online": all(item["online"] for item in results),
-                  "repositories": results,
-              }, handle, indent=2, sort_keys=True)
-              handle.write("\n")
-          PY
+          const results = HIVE_GOVERNED_REPOSITORIES.map((governedName) => {
+            const repo = repositoryName(governedName);
+            const repoPayload = ghJson(`/repos/${owner}/${repo}`);
+            const defaultBranch = String(repoPayload.default_branch || "").trim();
+            if (!defaultBranch) throw new Error(`${repo} has no default branch`);
+            const branchPayload = ghJson(`/repos/${owner}/${repo}/branches/${encodeURIComponent(defaultBranch)}`);
+            const sha = String(branchPayload?.commit?.sha || "").trim();
+            const online = /^[0-9a-f]{40}$/i.test(sha);
+            if (!online) throw new Error(`${repo} default branch did not resolve to a full commit SHA`);
+            return {
+              repository: `${owner}/${repo}`,
+              default_branch: defaultBranch,
+              sha,
+              online,
+            };
+          });
+
+          writeFileSync("oidc-estate-online.json", `${JSON.stringify({
+            checker: `${owner}/MAST`,
+            count: results.length,
+            all_online: results.every((item) => item.online),
+            repositories: results,
+          }, null, 2)}\n`, "utf8");
+          NODE
 
       - name: Retain estate online evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
