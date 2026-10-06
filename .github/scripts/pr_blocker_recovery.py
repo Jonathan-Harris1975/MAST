@@ -64,7 +64,11 @@ def required_checks_pass(pr):
             continue
         detail = router.api("GET", f"/repos/{router.REPO}/rulesets/{summary['id']}")
         includes = detail.get("conditions", {}).get("ref_name", {}).get("include", [])
-        if "~DEFAULT_BRANCH" in includes or f"refs/heads/{router.DEFAULT}" in includes:
+        if (
+            "~ALL" in includes
+            or "~DEFAULT_BRANCH" in includes
+            or f"refs/heads/{router.DEFAULT}" in includes
+        ):
             rules.extend(detail.get("rules", []))
     required = [
         item
@@ -105,7 +109,9 @@ def required_checks_pass(pr):
 
 
 def verified_receipts(comments, sha, base_sha):
-    trusted = {login(router.REPAIR_APP_LOGIN), login(router.KILO_IMPLEMENTER)} - {""}
+    trusted = {login(router.REPAIR_APP_LOGIN)} - {""}
+    if not trusted:
+        raise RuntimeError("Repair App identity unavailable; receipt verification is disabled")
     receipts = {}
     for comment in comments:
         if login(comment.get("user", {}).get("login")) not in trusted:
@@ -199,6 +205,7 @@ def recover(number):
             ).get("thread", {}).get("isResolved"):
                 raise RuntimeError("Review thread resolution was not confirmed")
             resolved.append(thread["id"])
+    pending = [t for t in bot_threads if t["id"] in receipts and t["id"] not in resolved]
     remaining = [t for t in bot_threads if t["id"] not in resolved and t["id"] not in receipts]
     request = None
     if remaining:
@@ -210,11 +217,12 @@ def recover(number):
         request = router.dispatch(pr, "review-threads-" + base, evidence)
     return {
         "pr": number,
-        "state": "review-recovery",
+        "state": "review-recovery-awaiting-checks" if pending else "review-recovery",
         "head": sha,
         "base": base,
         "resolved": resolved,
         "request_status": request,
+        "bot_threads_awaiting_checks": len(pending),
         "bot_threads_remaining": len(remaining),
         "human_threads_remaining": len(threads) - len(bot_threads),
     }
