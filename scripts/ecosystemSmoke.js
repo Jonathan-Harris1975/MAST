@@ -173,15 +173,30 @@ async function main() {
   console.log('ok 4 - RAMS readiness');
 
   const idempotencyKey = `production-launch-smoke-${Date.now()}`;
-  const ramsDryRun = await requestJson(new URL('/rebuild/on-brand/run', ramsBase), {
-    method: 'POST',
-    headers: requestHeaders(ramsBase, {
-      ...bearer(rmsApiKey),
-      'content-type': 'application/json',
-      'x-idempotency-key': idempotencyKey,
-    }),
-    body: JSON.stringify({ dry_run: true }),
-  }, [202]);
+  let ramsDryRun = null;
+  const ramsDryRunAttempts = Math.max(1, Math.min(12, Number(process.env.ECOSYSTEM_SMOKE_RETRY_ATTEMPTS || 6)));
+  const ramsDryRunDelayMs = Math.max(250, Number(process.env.ECOSYSTEM_SMOKE_RETRY_DELAY_MS || DEFAULT_RETRY_DELAY_MS));
+  for (let attempt = 1; attempt <= ramsDryRunAttempts; attempt += 1) {
+    const result = await requestJson(new URL('/rebuild/on-brand/run', ramsBase), {
+      method: 'POST',
+      headers: requestHeaders(ramsBase, {
+        ...bearer(rmsApiKey),
+        'content-type': 'application/json',
+        'x-idempotency-key': idempotencyKey,
+      }),
+      body: JSON.stringify({ dry_run: true }),
+    }, [202, 409]);
+    if (result.response.status === 202) {
+      ramsDryRun = result;
+      break;
+    }
+    const busyMessage = String(result.body?.error || result.body?.detail || result.body?.message || '');
+    if (!/pipeline already running/i.test(busyMessage)) {
+      throw new Error(`RAMS dry-run returned 409: ${busyMessage || 'unexpected conflict'}`);
+    }
+    if (attempt < ramsDryRunAttempts) await new Promise((resolve) => setTimeout(resolve, ramsDryRunDelayMs));
+  }
+  if (!ramsDryRun) throw new Error('RAMS dry-run remained busy for the full smoke retry window');
   assertOk(ramsDryRun.body?.dryRun === true && ramsDryRun.body?.pipeline === 'on-brand', 'RAMS dry-run was not admitted as a dry run');
   console.log('ok 5 - RAMS remediation dry-run admitted');
 

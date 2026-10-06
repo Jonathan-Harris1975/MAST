@@ -36,12 +36,19 @@ async function runSmoke(env, args = []) {
   });
 }
 
-async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token' } = {}) {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0 } = {}) {
   let aimsBase = '';
 
+  let ramsBusyRemaining = ramsBusyResponses;
   const rams = await listen((req, res) => {
     if (req.url === '/readyz') return send(res, 200, { status: 'ready' });
-    if (req.url === '/rebuild/on-brand/run') return send(res, 202, { runId: 'smoke-run', pipeline: 'on-brand', dryRun: true });
+    if (req.url === '/rebuild/on-brand/run') {
+      if (ramsBusyRemaining > 0) {
+        ramsBusyRemaining -= 1;
+        return send(res, 409, { error: 'pipeline already running' });
+      }
+      return send(res, 202, { runId: 'smoke-run', pipeline: 'on-brand', dryRun: true });
+    }
     return send(res, 404, { error: 'not-found' });
   });
 
@@ -144,6 +151,13 @@ test('historical job failures are reported while live Worker and API checks cont
   assert.equal(result.code, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /MAST recorded 2 failed job\(s\) in its recent history/);
   assert.match(result.stdout, /ok 17 - CogniPal message\/sync round trip/);
+});
+
+
+test('smoke retries a transient RAMS pipeline-busy conflict', async () => {
+  const result = await exerciseSmoke({ ramsBusyResponses: 1 });
+  assert.equal(result.code, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /ok 5 - RAMS remediation dry-run admitted/);
 });
 
 test('smoke rejects a failed RAMS wake ticket', async () => {
