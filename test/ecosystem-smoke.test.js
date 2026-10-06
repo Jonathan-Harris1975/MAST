@@ -96,8 +96,6 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
   });
   aimsBase = aims.base;
 
-
-
   try {
     return await runSmoke({
       ECOSYSTEM_SMOKE_ALLOW_HTTP: 'true',
