@@ -146,8 +146,11 @@ class Recovery(unittest.TestCase):
         ]:
             self.assertEqual(m.verified_receipts([receipt], "a" * 40, "b" * 40), {})
         self.assertIn("PRRT_test", m.verified_receipts([self.receipt()], "a" * 40, "b" * 40))
-        self.assertEqual(
-            m.verified_receipts([self.receipt(author="kilo-code-bot[bot]")], "a" * 40, "b" * 40), {}
+        self.assertIn(
+            "PRRT_test",
+            m.verified_receipts(
+                [self.receipt(author="kilo-code-bot[bot]")], "a" * 40, "b" * 40
+            ),
         )
 
     def test_receipt_accepts_configured_app_identity(self):
@@ -264,7 +267,14 @@ class Recovery(unittest.TestCase):
                     }
                 ]
             }
-            with patch.object(m.router, "api", side_effect=[requirement, checks, {"statuses": []}]):
+            rulesets = [{"id": 1, "enforcement": "active", "target": "branch"}]
+            detail = {
+                "conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"]}},
+                "rules": requirement,
+            }
+            with patch.object(
+                m.router, "api", side_effect=[rulesets, detail, checks, {"statuses": []}]
+            ):
                 self.assertEqual(m.required_checks_pass(self.pr), expected)
 
     def test_manual_pr_selection_and_invalid_number(self):
@@ -284,30 +294,36 @@ class Recovery(unittest.TestCase):
         event["comment"] = {"user": {"login": "kilo-code-bot[bot]"}}
         self.assertEqual(m.candidate_numbers(event), [7])
 
-    def test_required_check_on_second_rule_page_cannot_be_omitted(self):
-        first = [
-            {
+    def test_required_checks_from_multiple_applicable_rulesets_are_enforced(self):
+        rulesets = [
+            {"id": 1, "enforcement": "active", "target": "branch"},
+            {"id": 2, "enforcement": "active", "target": "branch"},
+        ]
+        green_rule = {
+            "conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"]}},
+            "rules": [{
                 "type": "required_status_checks",
                 "parameters": {"required_status_checks": [{"context": "green"}]},
-            }
-        ] + [{"type": "dummy"}] * 99
-        second = [
-            {
+            }],
+        }
+        red_rule = {
+            "conditions": {"ref_name": {"include": [f"refs/heads/{m.router.DEFAULT}"]}},
+            "rules": [{
                 "type": "required_status_checks",
                 "parameters": {"required_status_checks": [{"context": "red"}]},
-            }
-        ]
+            }],
+        }
         checks = {
             "check_runs": [
-                {"name": name, "status": "completed", "conclusion": result}
-                for name, result in [("green", "success"), ("red", "failure")]
+                {"name": "green", "status": "completed", "conclusion": "success"},
+                {"name": "red", "status": "completed", "conclusion": "failure"},
             ]
         }
         with patch.object(
-            m.router, "api", side_effect=[first, second, checks, {"statuses": []}]
-        ) as api:
+            m.router, "api",
+            side_effect=[rulesets, green_rule, red_rule, checks, {"statuses": []}],
+        ):
             self.assertFalse(m.required_checks_pass(self.pr))
-        self.assertIn("page=2", api.call_args_list[1].args[1])
 
     def test_reviews_and_inline_comments_require_trusted_actor(self):
         for key in ["review", "comment"]:
@@ -358,27 +374,28 @@ class Recovery(unittest.TestCase):
             with self.assertRaises(ValueError):
                 m.required_checks_pass(self.pr)
 
-    @patch.dict(os.environ, {"KILO_REPAIR_TRIGGER_URL": "https://example.invalid/repair"})
-    def test_behind_recovery_uses_real_dispatcher_return_and_existing_branch(self):
+    def test_behind_recovery_posts_autonomous_command_for_existing_branch(self):
         self.pr["mergeable_state"] = "behind"
+        posted = []
+
+        def api(method, path, payload=None):
+            if method == "GET" and path.endswith("/commits/main"):
+                return {"sha": "b" * 40}
+            if method == "POST" and path.endswith("/issues/7/comments"):
+                posted.append(payload["body"])
+                return {}
+            raise AssertionError((method, path, payload))
+
         with (
             patch.object(m.router, "all_pages", return_value=[]),
-            patch.object(m.router, "valid_kilo_webhook_url", return_value=True),
             patch.object(m.router, "pr_details", return_value=self.pr),
-            patch.object(
-                m.router,
-                "api",
-                side_effect=lambda method, path, payload=None: (
-                    {"sha": "b" * 40} if method == "GET" else None
-                ),
-            ),
-            patch.object(m.router.urllib.request, "urlopen") as openurl,
+            patch.object(m.router, "api", side_effect=api),
         ):
-            openurl.return_value.__enter__.return_value.status = 202
             self.assertEqual(m.recover(7)["state"], "behind-requested")
-            task = json.loads(openurl.call_args.args[0].data)["task"]
-            self.assertIn("existing source PR branch", task)
-            self.assertNotIn("create one implementation PR", task)
+        self.assertEqual(len(posted), 1)
+        self.assertIn("@kilocode-bot fix it", posted[0])
+        self.assertIn("existing source PR branch", posted[0])
+        self.assertNotIn("create one implementation PR", posted[0])
 
     def test_one_pr_error_does_not_stop_others_and_fails_visibly(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -415,14 +432,6 @@ class Recovery(unittest.TestCase):
     def test_operational_errors_are_actionable_without_exposing_secrets(self):
         cases = [
             (
-                RuntimeError(
-                    "Configure KILO_REPAIR_TRIGGER_URL with this repository's Kilo Cloud Agent webhook trigger"
-                ),
-                "repair-webhook-configuration",
-            ),
-            (RuntimeError("Kilo trigger returned HTTP 401"), "repair-webhook-http"),
-            (RuntimeError("Kilo trigger could not be reached"), "repair-webhook-unreachable"),
-            (
                 m.router.urllib.error.HTTPError(
                     "https://api.github.com/private?token=secret-value",
                     403,
@@ -441,43 +450,51 @@ class Recovery(unittest.TestCase):
             result = m.describe_error(error)
             self.assertEqual(result["error_code"], code)
             self.assertNotIn("secret-value", json.dumps(result))
-        self.assertEqual(m.describe_error(cases[1][0])["http_status"], 401)
-        self.assertEqual(m.describe_error(cases[3][0])["http_status"], 403)
+        self.assertEqual(m.describe_error(cases[0][0])["http_status"], 403)
 
     def test_conflict_dispatch_requests_existing_branch_and_no_force_push(self):
+        posted = []
+
+        def api(method, path, payload=None):
+            if method == "GET" and path.endswith("/commits/main"):
+                return {"sha": "b" * 40}
+            if method == "POST" and path.endswith("/issues/7/comments"):
+                posted.append(payload["body"])
+                return {}
+            raise AssertionError((method, path, payload))
+
         with (
             patch.object(m.router, "all_pages", return_value=[]),
-            patch.object(m.router, "valid_kilo_webhook_url", return_value=True),
             patch.object(m.router, "pr_details", return_value=self.pr),
-            patch.object(m.router, "api", side_effect=self.api),
-            patch.object(m.router.urllib.request, "urlopen") as openurl,
-            patch.dict(os.environ, {"KILO_REPAIR_TRIGGER_URL": "https://example.invalid/repair"}),
-        ):
-            openurl.return_value.__enter__.return_value.status = 202
-
-            # The acknowledgement write is mocked separately from base reads.
-            def api(method, path, payload=None):
-                return {"sha": "b" * 40} if method == "GET" else None
-
-            with patch.object(m.router, "api", side_effect=api):
-                m.router.dispatch(self.pr, "merge-conflict-" + "b" * 40, ["conflict"])
-            task = json.loads(openurl.call_args.args[0].data)["task"]
-            self.assertIn("existing source PR branch", task)
-            self.assertIn("Never force-push", task)
-            self.assertIn("Do not merge pull requests or deploy", task)
-
-    def test_dispatch_head_race_makes_no_webhook_call(self):
-        changed = copy.deepcopy(self.pr)
-        changed["head"]["sha"] = "c" * 40
-        with (
-            patch.object(m.router, "all_pages", return_value=[]),
-            patch.object(m.router, "valid_kilo_webhook_url", return_value=True),
-            patch.object(m.router, "pr_details", return_value=changed),
-            patch.object(m.router, "api", side_effect=self.api),
-            patch.object(m.router.urllib.request, "urlopen") as openurl,
+            patch.object(m.router, "api", side_effect=api),
         ):
             m.router.dispatch(self.pr, "merge-conflict-" + "b" * 40, ["conflict"])
-            openurl.assert_not_called()
+        self.assertEqual(len(posted), 1)
+        self.assertIn("@kilocode-bot fix it", posted[0])
+        self.assertIn("existing source PR branch", posted[0])
+        self.assertIn("Never force-push", posted[0])
+        self.assertIn("Do not merge pull requests or deploy", posted[0])
+
+    def test_dispatch_head_race_makes_no_kilo_comment(self):
+        changed = copy.deepcopy(self.pr)
+        changed["head"]["sha"] = "c" * 40
+        posts = []
+
+        def api(method, path, payload=None):
+            if method == "GET" and path.endswith("/commits/main"):
+                return {"sha": "b" * 40}
+            if method == "POST":
+                posts.append((path, payload))
+                return {}
+            raise AssertionError((method, path, payload))
+
+        with (
+            patch.object(m.router, "all_pages", return_value=[]),
+            patch.object(m.router, "pr_details", return_value=changed),
+            patch.object(m.router, "api", side_effect=api),
+        ):
+            m.router.dispatch(self.pr, "merge-conflict-" + "b" * 40, ["conflict"])
+        self.assertEqual(posts, [])
 
     def test_duplicate_exact_head_base_is_not_dispatched(self):
         marker = "<!-- kilo-auto-repair:" + "a" * 40 + ":merge-conflict-" + "b" * 40 + " -->"
@@ -487,10 +504,10 @@ class Recovery(unittest.TestCase):
                 "all_pages",
                 return_value=[{"user": {"login": "github-actions[bot]"}, "body": marker}],
             ),
-            patch.object(m.router.urllib.request, "urlopen") as openurl,
+            patch.object(m.router, "api") as api,
         ):
             m.router.dispatch(self.pr, "merge-conflict-" + "b" * 40, ["conflict"])
-            openurl.assert_not_called()
+        api.assert_not_called()
 
 
 if __name__ == "__main__":
