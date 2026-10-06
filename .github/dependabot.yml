@@ -1,6 +1,6 @@
 version: 2
 updates:
-  - package-ecosystem: "npm" # zizmor: ignore[dependabot-cooldown] Renovate owns version updates; Dependabot remains for security updates.
+  - package-ecosystem: "npm" # zizmor: ignore[dependabot-cooldown] Renovate owns version updates; Dependabot is passive posture only and live security-update PR creation must remain disabled.
     directory: "/"
     schedule:
       interval: "weekly"
@@ -15,7 +15,7 @@ updates:
     commit-message:
       prefix: "deps"
 
-  - package-ecosystem: "docker" # zizmor: ignore[dependabot-cooldown] Renovate owns version updates; Dependabot remains for security updates.
+  - package-ecosystem: "docker" # zizmor: ignore[dependabot-cooldown] Renovate owns version updates; Dependabot is passive posture only and live security-update PR creation must remain disabled.
     directory: "/"
     schedule:
       interval: "weekly"
@@ -23,7 +23,7 @@ updates:
     commit-message:
       prefix: "deps(docker)"
 
-  - package-ecosystem: "github-actions" # zizmor: ignore[dependabot-cooldown] Renovate owns version updates; Dependabot remains for security updates.
+  - package-ecosystem: "github-actions" # zizmor: ignore[dependabot-cooldown] Renovate owns version updates; Dependabot is passive posture only and live security-update PR creation must remain disabled.
     directory: "/"
     schedule:
       interval: "weekly"
