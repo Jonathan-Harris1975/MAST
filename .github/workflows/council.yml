@@ -77,43 +77,6 @@ jobs:
         run: |
           set -euo pipefail
           prompt="$(cat .council/council.md)"
-          prompt="${prompt}"
-          task="Run the checked-in Council contract for $REPO@$TARGET_SHA. Do not create a cosmetic PR.\n\n$prompt"
-          payload="$(jq -n --arg repository "$REPO" --arg sha "$TARGET_SHA" --arg task "$task" '{repository:$repository,target_sha:$sha,kind:"repository-council",task:$task}')"
-          code="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 30 -X POST -H 'Content-Type: application/json' --data "$payload" "$KILO_REPAIR_TRIGGER_URL")"
-          [[ "$code" == 2?? ]] || { echo "::error::Kilo Council trigger returned HTTP $code"; exit 1; }
-
-          mkdir -p "$RUNNER_TEMP/council-r2"
-          prompt_sha256="$(printf '%s' "$task" | sha256sum | awk '{print $1}')"
-          run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          jq -n \
-            --arg repository "$REPO" \
-            --arg sha "$TARGET_SHA" \
-            --arg run_id "$GITHUB_RUN_ID" \
-            --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
-            --arg run_url "$run_url" \
-            --arg prompt_sha256 "$prompt_sha256" \
-            '{repository:$repository,sha:$sha,workflow_run_id:$run_id,workflow_run_attempt:$run_attempt,council_run:$run_url,status:"DISPATCHED",final_result_persisted:false,prompt_sha256:$prompt_sha256}' \
-            > "$RUNNER_TEMP/council-r2/dispatch-evidence.json"
-
-      - name: Persist Council dispatch evidence to hive-repositories R2
-        if: always() && steps.target.outputs.sha != ''
-        env:
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT || secrets.R2_ENDPOINT_URL }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET_REPOSITORIES: hive-repositories
-          TARGET_SHA: ${{ steps.target.outputs.sha }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f "$RUNNER_TEMP/council-r2/dispatch-evidence.json" || {
-            echo "::error::Council was not successfully dispatched; no Council evidence will be fabricated."
-            exit 1
-          }
-          bash .github/scripts/persist_r2_evidence.sh council-dispatch "$TARGET_SHA" "$RUNNER_TEMP/council-r2"
-\\n\\n'"IMPORTANT COMPLETION RETURN CONTRACT: after producing the real completed Council assessment, return it to this repository by dispatching workflow council-result-r2.yml on the default branch. Supply target_sha=${TARGET_SHA}, source_council_run_id=${GITHUB_RUN_ID}, source_council_run_attempt=${GITHUB_RUN_ATTEMPT}, disposition=<real Council disposition>, report_md_b64=<base64 of the completed Markdown report>, and report_json_b64=<base64 of the completed JSON report>. The JSON must include repository and exact_evaluated_sha. Do not report Council persistence complete unless that return workflow succeeds and verifies R2 storage."
-
           task="Run the checked-in Council contract for $REPO@$TARGET_SHA. Do not create a cosmetic PR.\n\n$prompt"
           payload="$(jq -n --arg repository "$REPO" --arg sha "$TARGET_SHA" --arg task "$task" '{repository:$repository,target_sha:$sha,kind:"repository-council",task:$task}')"
           code="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 30 -X POST -H 'Content-Type: application/json' --data "$payload" "$KILO_REPAIR_TRIGGER_URL")"
