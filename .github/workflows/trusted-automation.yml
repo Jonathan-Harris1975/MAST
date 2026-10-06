@@ -1,6 +1,6 @@
 name: Trusted automation admission for Mergify
 
-on:
+on: # zizmor: ignore[dangerous-triggers] workflow_run is guarded and executes trusted default-branch automation only
   issue_comment:
     types: [created]
   pull_request_review:
