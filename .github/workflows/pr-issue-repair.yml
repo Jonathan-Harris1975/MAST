@@ -134,7 +134,7 @@ jobs:
     branches:
     - main
   schedule:
-  - cron: 7,27,47 * * * *
+  - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
       pr_number:
