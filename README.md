@@ -1,3 +1,4 @@
+<!-- Trusted branch-controller replay of the validated MAST smoke decoupling change. -->
 # MAST
 
 MAST is the master automation scheduler for the Jonathan Harris ecosystem. It runs on Node.js 22, evaluates governed schedules in the `Europe/London` time zone, triggers AIMS and HIVE operations over HTTP, controls RAMS wake/standby windows through Koyeb, and persists scheduler state in Cloudflare R2.
