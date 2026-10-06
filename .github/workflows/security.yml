@@ -139,6 +139,18 @@ jobs:
       - name: Validate GitHub Actions workflows
         run: |
           "${{ runner.temp }}/ci-bin/actionlint" -color
+      - name: Validate Kilo machine repair contract wiring
+        env:
+          GH_TOKEN: ci-placeholder
+          DEFAULT_BRANCH: main
+          GITHUB_EVENT_NAME: workflow_run
+        run: |
+          PYTHONPATH=.github/scripts python3 - <<'PY'
+          from pr_repair_router import machine_contract
+          contract = machine_contract()
+          assert "Do not ask for human confirmation" in contract
+          assert "Do not merge" in contract
+          PY
       - name: Audit GitHub Actions security posture with zizmor
         uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
         with:
