@@ -7,7 +7,8 @@
   "dependencyDashboard": true,
   "timezone": "Europe/London",
   "schedule": [
-    "after 8:00pm and before 10:30pm on friday"
+    "* 22-23 * * 5",
+    "* 0 * * 6"
   ],
   "rangeStrategy": "replace",
   "platformAutomerge": false,
@@ -24,7 +25,8 @@
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": [
-      "after 8:00pm and before 10:30pm on friday"
+      "* 22-23 * * 5",
+      "* 0 * * 6"
     ],
     "automerge": false,
     "labels": [
