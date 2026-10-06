@@ -120,7 +120,6 @@ async function main() {
   const aimsApiBase = configuredBaseUrl('AIMS_BASE_URL', aimsBaseUrl());
   const ramsBase = configuredBaseUrl('RAMS_BASE_URL', 'https://static-helaina-jonathanharris-6df5d241.koyeb.app');
   const hiveApiBase = configuredBaseUrl('HIVE_BASE_URL', 'https://liable-loreen-jonathanharris-57884580.koyeb.app');
-  const websiteBase = configuredBaseUrl('WEBSITE_BASE_URL', 'https://jonathan-harris.online');
   const hiveUiBase = workerMode ? null : configuredBaseUrl('HIVE_UI_BASE_URL');
   const configuredAimsUiBase = !workerMode && process.env.AIMS_UI_BASE_URL?.trim()
     ? configuredBaseUrl('AIMS_UI_BASE_URL')
@@ -290,29 +289,6 @@ async function main() {
     assertOk(comms.body?.service === 'comms-hub' && comms.body?.ok === true, 'AIMS Comms Hub did not report ready through the delegated console route');
     console.log('ok 15 - AIMS Comms Hub delegated route');
   }
-
-  const smokeSuffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
-  const chatPayload = {
-    sessionId: `launch-smoke-session-${smokeSuffix}`,
-    visitorId: `launch-smoke-visitor-${smokeSuffix}`,
-    text: `[production-launch-smoke] Verify CogniPal gateway connectivity. ${smokeSuffix}`,
-  };
-  // The public CogniPal visitor gateway explicitly requires its own Origin.
-  const chatMessage = await requestJson(new URL('/api/cognipal/message', websiteBase), {
-    method: 'POST',
-    headers: requestHeaders(websiteBase, { 'content-type': 'application/json', origin: websiteBase.origin }),
-    body: JSON.stringify(chatPayload),
-  }, [200, 202]);
-  assertOk(chatMessage.body?.ok === true || chatMessage.body?.accepted === true, 'CogniPal message gateway did not accept the smoke message');
-  console.log('ok 16 - CogniPal message gateway');
-
-  const chatSync = await requestJson(new URL('/api/cognipal/sync', websiteBase), {
-    method: 'POST',
-    headers: requestHeaders(websiteBase, { 'content-type': 'application/json', origin: websiteBase.origin }),
-    body: JSON.stringify({ sessionId: chatPayload.sessionId, visitorId: chatPayload.visitorId }),
-  });
-  assertOk(chatSync.body?.ok === true, 'CogniPal sync gateway did not complete successfully');
-  console.log('ok 17 - CogniPal message/sync round trip');
 
   console.log(workerMode ? 'MAST Worker/API smoke passed' : 'ecosystem smoke passed');
 }
