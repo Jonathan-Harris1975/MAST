@@ -61,16 +61,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          repos=(
-            "AIMS"
-            "AIMS-UI"
-            "HIVE"
-            "HIVE-UI"
-            "IRS"
-            "MAST"
-            "RAMS"
-            "jonathan-harris-website"
-          )
           python3 - <<'PY'
           import json
           import os
