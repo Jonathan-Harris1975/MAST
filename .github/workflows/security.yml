@@ -19,8 +19,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2
+        with:
+          egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: Repository secret policy scan
         run: python3 scripts/secret_scan.py
@@ -134,6 +139,39 @@ jobs:
       - name: Validate GitHub Actions workflows
         run: |
           "${{ runner.temp }}/ci-bin/actionlint" -color
+      - name: Validate Kilo machine repair contract wiring
+        env:
+          GH_TOKEN: ci-placeholder
+          DEFAULT_BRANCH: main
+          GITHUB_EVENT_NAME: workflow_run
+        run: |
+          PYTHONPATH=.github/scripts python3 - <<'PY'
+          from pr_repair_router import machine_contract
+          contract = machine_contract()
+          assert "Do not ask for human confirmation" in contract
+          assert "Do not merge" in contract
+          PY
+      - name: Audit GitHub Actions security posture with zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          inputs: .github/workflows
+          version: 1.30.1
+          advanced-security: false
+          annotations: true
+          min-severity: medium
+          min-confidence: medium
+          online-audits: false
+      - name: Review dependency changes
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+        with:
+          fail-on-severity: high
+      - name: Set up Node.js for Renovate validation
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+      - name: Validate Renovate configuration
+        run: npx --yes --ignore-scripts --package=renovate@44.133.0 renovate-config-validator --strict renovate.json
       - name: Trivy filesystem vulnerability and misconfiguration scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
