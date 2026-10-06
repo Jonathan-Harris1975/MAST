@@ -136,6 +136,28 @@ jobs:
           GITLEAKS_OUTCOME: ${{ steps.gitleaks.outcome }}
         run: test "$GITLEAKS_OUTCOME" = success
 
+      - name: Prove actionlint rejects a seeded workflow defect
+        shell: bash
+        run: |
+          set -euo pipefail
+          fixture="$(mktemp -d)"
+          trap 'rm -rf "$fixture"' EXIT
+          cat > "$fixture/invalid-workflow.yml" <<'YAML'
+          name: Seeded actionlint defect
+          on: push
+          jobs:
+            invalid:
+              steps:
+                - run: echo "missing runs-on"
+          YAML
+          set +e
+          "${{ runner.temp }}/ci-bin/actionlint" "$fixture/invalid-workflow.yml"
+          status=$?
+          set -e
+          test "$status" -ne 0 || {
+            echo "::error::Seeded invalid workflow unexpectedly passed actionlint."
+            exit 1
+          }
       - name: Validate GitHub Actions workflows
         run: |
           "${{ runner.temp }}/ci-bin/actionlint" -color
@@ -170,6 +192,21 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24.21.0
+      - name: Prove malformed Renovate configuration fails strict validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          malformed="$(mktemp)"
+          trap 'rm -f "$malformed"' EXIT
+          printf '%s\n' '{"platformAutomerge":"not-a-boolean"}' > "$malformed"
+          set +e
+          npx --yes --ignore-scripts --package=renovate@44.133.0 renovate-config-validator --strict "$malformed"
+          status=$?
+          set -e
+          test "$status" -ne 0 || {
+            echo "::error::Malformed Renovate configuration unexpectedly passed strict validation."
+            exit 1
+          }
       - name: Validate Renovate configuration
         run: npx --yes --ignore-scripts --package=renovate@44.133.0 renovate-config-validator --strict renovate.json
       - name: Trivy filesystem vulnerability and misconfiguration scan
