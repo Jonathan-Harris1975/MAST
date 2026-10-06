@@ -12,7 +12,7 @@ on:
 
 concurrency:
   group: item6-hardening-${{ github.repository }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -78,7 +78,7 @@ jobs:
         with:
           node-version: 24.21.0
       - name: Validate Renovate configuration
-        run: npx --yes --package=renovate@44.133.0 renovate-config-validator --strict renovate.json
+        run: npx --yes --ignore-scripts --package=renovate@44.133.0 renovate-config-validator --strict renovate.json
 
 # Artifact provenance/SBOM is intentionally N/A in this workflow. MAST is deployed by
 # Koyeb's git-driven build and this repository does not publish an immutable, addressable
