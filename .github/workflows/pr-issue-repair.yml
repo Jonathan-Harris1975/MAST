@@ -71,7 +71,6 @@ jobs:
             stream.write('trusted=' + str(trusted).lower() + '\n')
         PYCODE
   route_verified_issue:
-    needs: authenticate_actor
     if: ${{ needs.authenticate_actor.outputs.trusted == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -87,7 +86,6 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        KILO_REPAIR_TRIGGER_URL: ${{ secrets.KILO_REPAIR_TRIGGER_URL }}
         KILO_REPAIR_PR_LOGIN: ${{ vars.KILO_REPAIR_PR_LOGIN }}
         REPAIR_APP_LOGIN: ${{ needs.authenticate_actor.outputs.repair_app_login }}
       run: python3 .github/scripts/pr_repair_router.py
@@ -95,7 +93,6 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        KILO_REPAIR_TRIGGER_URL: ${{ secrets.KILO_REPAIR_TRIGGER_URL }}
         KILO_REPAIR_PR_LOGIN: ${{ vars.KILO_REPAIR_PR_LOGIN }}
         REPAIR_APP_LOGIN: ${{ needs.authenticate_actor.outputs.repair_app_login }}
       run: python3 .github/scripts/pr_blocker_recovery.py
@@ -107,6 +104,7 @@ jobs:
         path: pr-blocker-recovery.json
         retention-days: 30
         if-no-files-found: warn
+    needs: authenticate_actor
     permissions:
       actions: read
       checks: read
