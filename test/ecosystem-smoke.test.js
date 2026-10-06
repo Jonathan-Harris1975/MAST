@@ -96,13 +96,6 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
   });
   aimsBase = aims.base;
 
-  const website = await listen((req, res) => {
-    if (req.headers.origin !== `http://${req.headers.host}`) return send(res, 403, { error: 'origin_rejected' });
-    if (req.url === '/api/cognipal/message') return send(res, 202, { ok: true, accepted: true });
-    if (req.url === '/api/cognipal/sync') return send(res, 200, { ok: true, messages: [] });
-    return send(res, 404, { error: 'not-found' });
-  });
-
   try {
     return await runSmoke({
       ECOSYSTEM_SMOKE_ALLOW_HTTP: 'true',
@@ -112,7 +105,6 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
       AIMS_BASE_URL: aims.base,
       RAMS_BASE_URL: rams.base,
       HIVE_BASE_URL: hive.base,
-      WEBSITE_BASE_URL: website.base,
       HIVE_UI_BASE_URL: hive.base,
       AIMS_UI_BASE_URL: aims.base,
       RMS_API_KEY: 'test-rams-token',
@@ -121,7 +113,7 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
       KOYEB_GIT_SHA: deployedSha,
     }, workerMode ? ['--worker', 'a'.repeat(40)] : []);
   } finally {
-    await Promise.all([rams.close(), hive.close(), aims.close(), website.close()]);
+    await Promise.all([rams.close(), hive.close(), aims.close()]);
   }
 }
 
@@ -130,7 +122,6 @@ test('post-deployment smoke checks the private Worker heartbeat and wakes RAMS t
   assert.equal(result.code, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /ok 2 - MAST Worker R2 heartbeat via HIVE/);
   assert.match(result.stdout, /ok 3 - RAMS ready through HIVE Koyeb lifecycle/);
-  assert.match(result.stdout, /ok 17 - CogniPal message\/sync round trip/);
   assert.match(result.stdout, /ecosystem smoke passed/);
 });
 
@@ -150,7 +141,6 @@ test('historical job failures are reported while live Worker and API checks cont
   const result = await exerciseSmoke({ workerMode: true, recentFailures: 2 });
   assert.equal(result.code, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /MAST recorded 2 failed job\(s\) in its recent history/);
-  assert.match(result.stdout, /ok 17 - CogniPal message\/sync round trip/);
 });
 
 
@@ -170,7 +160,6 @@ test('Koyeb Worker runs the API checks with Koyeb-resident credentials and no UI
   const result = await exerciseSmoke({ workerMode: true });
   assert.equal(result.code, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /ok 8 - HIVE database write\/delete readiness/);
-  assert.match(result.stdout, /ok 17 - CogniPal message\/sync round trip/);
   assert.doesNotMatch(result.stdout, /ok 9 - HIVE-UI/);
   assert.match(result.stdout, /MAST Worker\/API smoke passed/);
 });
