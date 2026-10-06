@@ -5,6 +5,7 @@ Runs from the trusted default-branch workflow. It never checks out or executes P
 """
 from __future__ import annotations
 
+import functools
 import json
 import os
 import re
@@ -37,6 +38,7 @@ URL_END = r"(?![A-Za-z0-9/_-])"
 KILO_SENSITIVE_PREFIXES = (
     ".github/workflows/",
     ".github/actions/",
+    ".github/scripts/",
     ".github/CODEOWNERS",
     ".github/dependabot.yml",
     ".mergify.yml",
@@ -47,6 +49,7 @@ KILO_SENSITIVE_PREFIXES = (
     "CI_SETUP.txt",
 )
 KILO_SENSITIVE_EXACT = {
+    "kilo.jsonc",
     "scripts/secret_scan.py",
     "scripts/install_ci_tools.py",
     "scripts/verify_ci_tool_checksums.py",
@@ -130,6 +133,7 @@ def current_weekend_bounds(now: datetime | None = None) -> tuple[datetime, datet
     return None
 
 
+@functools.lru_cache(maxsize=1)
 def council_evidence_freeze() -> tuple[bool, str]:
     """Freeze routine merges after exact-SHA weekend CI until Council succeeds."""
     bounds = current_weekend_bounds()
@@ -549,7 +553,7 @@ def reconcile_pr(pr: dict[str, Any]) -> None:
         # Renovate eligibility is explicit metadata; manual/unlabelled updates remain human merge decisions.
         return
 
-    if kind in {"renovate", "branch-pr"}:
+    if kind in {"renovate", "branch-pr", "kilo"}:
         frozen, freeze_reason = council_evidence_freeze()
         number = int(pr["number"])
         if frozen:
@@ -563,10 +567,10 @@ def reconcile_pr(pr: dict[str, Any]) -> None:
             remove_label(number, COUNCIL_FREEZE_LABEL)
             log(f"PR #{number} ({kind}) released from Council evidence freeze: {freeze_reason}.")
 
-    if kind in {"kilo", "branch-pr"}:
+    if kind in {"kilo", "branch-pr", "renovate"}:
         sensitive = [path for path in pr_files(int(pr["number"])) if sensitive_file(path)]
         if sensitive:
-            source = "repair" if kind == "kilo" else "managed branch"
+            source = {"kilo": "repair", "branch-pr": "managed branch", "renovate": "Renovate"}[kind]
             place_human_hold(
                 pr,
                 f"the {source} PR changes governance/security automation files: " + ", ".join(sensitive[:8]),
