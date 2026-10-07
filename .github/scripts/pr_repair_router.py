@@ -219,10 +219,6 @@ def dispatch(pr: dict, kind: str, findings: list[str]) -> str:
     if sum(f":{kind} -->" in c["body"] for c in markers) >= 2:
         print(f"::warning::PR #{number} exhausted its two {kind} repair attempts; inspect the repair agent's results.")
         return "attempt-limit"
-    url = os.environ.get("KILO_REPAIR_TRIGGER_URL", "")
-    if not valid_kilo_webhook_url(url):
-        raise RuntimeError("Configure KILO_REPAIR_TRIGGER_URL with this repository's Kilo Cloud Agent webhook trigger")
-
     source = pr["html_url"]
     existing_kilo_pr = pr.get("user", {}).get("login") == KILO_IMPLEMENTER
     destination = ("Update this existing Kilo PR branch; do not open a replacement PR. " if existing_kilo_pr else
@@ -262,6 +258,9 @@ def dispatch(pr: dict, kind: str, findings: list[str]) -> str:
         "without opening a speculative PR."
     )
     instruction = machine_contract() + "\n\n" + instruction
+    url = os.environ.get("KILO_REPAIR_TRIGGER_URL", "")
+    if not valid_kilo_webhook_url(url):
+        raise RuntimeError("Configure KILO_REPAIR_TRIGGER_URL with this repository's Kilo Cloud Agent webhook trigger")
     payload = {"repository": REPO, "source_pr": source, "source_sha": sha,
                "kind": kind, "task": instruction, "findings": findings[:12]}
     request = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST",
