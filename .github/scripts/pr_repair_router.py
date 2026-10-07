@@ -239,7 +239,7 @@ def dispatch(pr: dict, kind: str, findings: list[str]) -> str:
         destination = (
             f"Update the existing source PR branch {pr['head']['ref']} in place. "
             f"Fetch current source head {sha} and target base {base_sha}; refuse if either moved. "
-            "For a merge conflict or behind branch, merge the target base and preserve both changes' intent. "
+            "For a merge conflict or behind branch, merge the target base and preserve both changes' intent. Never force-push, overwrite unrelated work, or open a replacement PR. "
             "For review blockers, inspect every linked bot thread against current code and live configuration. "
             "Implement any missing fix first. Do not resolve human-authored threads. "
             "After verifying an addressed bot thread, post one receipt comment using "
