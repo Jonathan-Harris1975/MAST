@@ -86,16 +86,20 @@ test("CI scans the actual built MAST image and retains a readable report", async
 });
 
 
-test("full Production Manager smoke runs only after the deployment workflow succeeds", async () => {
+test("full Production Manager smoke is dispatched with the exact deployed SHA", async () => {
   const watcher = await readFile(WATCHER_PATH, "utf8");
   const smoke = await readFile(new URL("../.github/workflows/ecosystem-smoke.yml", import.meta.url), "utf8");
+  const runner = await readFile(new URL("../scripts/run_koyeb_worker_smoke.sh", import.meta.url), "utf8");
 
   assert.match(watcher, /run_koyeb_worker_smoke\.sh --skip-production-manager/);
-  assert.match(smoke, /workflow_run:/);
-  assert.match(smoke, /workflows: \["Koyeb production deployment watch"\]/);
-  assert.match(smoke, /github\.event\.workflow_run\.conclusion == 'success'/);
-  assert.match(smoke, /github\.event\.workflow_run\.head_branch == 'main'/);
-  assert.match(smoke, /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/);
-  assert.match(smoke, /EXPECTED_DEPLOYMENT_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/);
+  assert.match(watcher, /actions: write/);
+  assert.match(watcher, /gh workflow run ecosystem-smoke\.yml/);
+  assert.match(watcher, /-f source_sha="\$DEPLOYED_SHA"/);
+  assert.match(smoke, /workflow_dispatch:/);
+  assert.doesNotMatch(smoke, /workflow_run:/);
+  assert.match(smoke, /ref: \$\{\{ inputs\.source_sha \|\| github\.sha \}\}/);
+  assert.match(smoke, /EXPECTED_DEPLOYMENT_SHA: \$\{\{ inputs\.source_sha \|\| github\.sha \}\}/);
   assert.doesNotMatch(smoke, /run_koyeb_worker_smoke\.sh --skip-production-manager/);
+  assert.match(runner, /ECOSYSTEM_SMOKE_RETRY_ATTEMPTS=/);
+  assert.match(runner, /ECOSYSTEM_SMOKE_RETRY_DELAY_MS=/);
 });
