@@ -8,7 +8,6 @@ on: # zizmor: ignore[dangerous-triggers] guarded to successful same-repository m
 
 permissions:
   contents: read
-  actions: write
 
 concurrency:
   group: koyeb-deployment-watch-MAST
@@ -89,14 +88,30 @@ jobs:
             deployment-attestation.json
           if-no-files-found: warn
           retention-days: 90
-      - name: Dispatch final HIVE governance smoke
+
+
+
+  dispatch_governance_smoke:
+    name: Dispatch final HIVE governance smoke
+    needs: [watch]
+    if: ${{ needs.watch.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2
+        with:
+          egress-policy: audit
+      - name: Dispatch exact-SHA governance smoke
         env:
           GH_TOKEN: ${{ github.token }}
           DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
           for attempt in 1 2 3; do
-            if gh workflow run ecosystem-smoke.yml               --ref main               -f source_repository="$GITHUB_REPOSITORY"               -f source_sha="$DEPLOYED_SHA"; then
+            if gh workflow run ecosystem-smoke.yml --ref main -f source_repository="$GITHUB_REPOSITORY" -f source_sha="$DEPLOYED_SHA"; then
               echo "Final governance smoke dispatched for exact SHA $DEPLOYED_SHA."
               exit 0
             fi
@@ -106,7 +121,6 @@ jobs:
           done
           echo "::error::Could not dispatch final governance smoke for $DEPLOYED_SHA." >&2
           exit 1
-
 
   open_renovate_revert:
     name: Open validated Renovate revert PR
