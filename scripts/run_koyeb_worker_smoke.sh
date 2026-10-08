@@ -21,4 +21,11 @@ fi
 # Quoting the command here keeps the service and SHA as shell variables in the
 # child process, never as interpolated shell source or printed credentials.
 # The Worker reads its HIVE/RAMS keys from Koyeb and checks its Git SHA first.
-script -q -e -c 'koyeb services exec "$KOYEB_SERVICE" node -- /app/scripts/ecosystemSmoke.js --worker "$EXPECTED_DEPLOYMENT_SHA"' /dev/null < /dev/null
+if [ "${1:-}" = "--skip-production-manager" ]; then
+  script -q -e -c 'koyeb services exec "$KOYEB_SERVICE" node -- /app/scripts/ecosystemSmoke.js --worker "$EXPECTED_DEPLOYMENT_SHA" --skip-production-manager' /dev/null < /dev/null
+elif [ "$#" -eq 0 ]; then
+  script -q -e -c 'koyeb services exec "$KOYEB_SERVICE" node -- /app/scripts/ecosystemSmoke.js --worker "$EXPECTED_DEPLOYMENT_SHA"' /dev/null < /dev/null
+else
+  echo "::error::Usage: run_koyeb_worker_smoke.sh [--skip-production-manager]" >&2
+  exit 2
+fi
