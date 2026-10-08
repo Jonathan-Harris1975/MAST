@@ -750,6 +750,19 @@ function hiveJob({
 
 const hiveGovernanceDailyJobs = [
   hiveJob({
+    id: "hive-production-manager-check",
+    group: "hive-governance",
+    description: "Require HIVE's ecosystem Production Manager to certify the governed estate GREEN/ALLOW each day.",
+    schedule: { type: "weekly", days: EVERY_DAY, time: "06:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
+    targetPath: "/v1/system/production-manager?force_refresh=true",
+    responsePolicy: {
+      checks: [
+        { type: "equals", path: "state", value: "GREEN", message: "HIVE Production Manager did not certify the ecosystem GREEN." },
+        { type: "equals", path: "release_decision", value: "ALLOW", message: "HIVE Production Manager is holding or blocking ecosystem release." },
+      ],
+    },
+  }),
+  hiveJob({
     id: "hive-readiness-check",
     group: "hive-governance",
     description: "Check HIVE's full runtime readiness (providers, storage, config) once a day.",
@@ -779,6 +792,21 @@ const hiveGovernanceDailyJobs = [
     description: "Pull the last day of redacted HIVE operational events for the executive/ops trail.",
     schedule: { type: "weekly", days: EVERY_DAY, time: "06:15", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
     targetPath: "/v1/system/ops-events?limit=100",
+  }),
+  hiveJob({
+    id: "hive-ai-council-freshness",
+    group: "hive-governance",
+    description: "Keep monthly model governance visibly unhealthy until the current month's AI Council and AIMS/RAMS propagation are verified.",
+    schedule: { type: "weekly", days: EVERY_DAY, time: "23:50", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 10 },
+    targetPath: "/v1/ai-council/status",
+    responsePolicy: {
+      checks: [
+        { type: "equals", path: "ok", value: true, message: "HIVE AI Council governance is not verified for the current month." },
+        { type: "equals", path: "fresh", value: true, message: "HIVE AI Council governance is stale for the current month." },
+        { type: "equals", path: "downstream_sync_enabled", value: true, message: "HIVE monthly model governance did not enable AIMS/RAMS propagation." },
+        { type: "equals", path: "downstream_sync_ok", value: true, message: "HIVE monthly model governance did not verify AIMS/RAMS propagation." },
+      ],
+    },
   }),
 ];
 
