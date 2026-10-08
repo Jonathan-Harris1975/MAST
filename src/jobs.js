@@ -773,20 +773,6 @@ const hiveGovernanceDailyJobs = [
     },
   }),
   hiveJob({
-    id: "hive-ai-council-freshness-check",
-    group: "hive-governance",
-    description: "Verify the current month's AI Council cycle completed and propagated governed model defaults to AIMS/RAMS.",
-    schedule: { type: "weekly", days: EVERY_DAY, time: "08:30", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
-    targetPath: "/v1/ai-council/status",
-    responsePolicy: {
-      checks: [
-        { type: "equals", path: "ok", value: true, message: "HIVE monthly AI Council governance is not verified current." },
-        { type: "equals", path: "fresh", value: true, message: "HIVE monthly AI Council governance is stale." },
-        { type: "equals", path: "downstream_sync_ok", value: true, message: "HIVE model governance did not verify propagation to AIMS/RAMS." },
-      ],
-    },
-  }),
-  hiveJob({
     id: "hive-repo-health-check",
     group: "hive-governance",
     description: "Fetch HIVE's governed repo-ecosystem liveness/readiness report (Repository Health Review).",
@@ -942,10 +928,26 @@ const hiveRepositoryMonthlyRefresh = hiveJob({
   },
 });
 
+const hiveAiCouncilFreshnessJob = hiveJob({
+  id: "hive-ai-council-freshness-check",
+  group: "hive-governance",
+  description: "Verify the current month's AI Council cycle completed and propagated governed model defaults to AIMS/RAMS.",
+  schedule: { type: "weekly", days: EVERY_DAY, time: "08:30", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
+  targetPath: "/v1/ai-council/status",
+  responsePolicy: {
+    checks: [
+      { type: "equals", path: "ok", value: true, message: "HIVE monthly AI Council governance is not verified current." },
+      { type: "equals", path: "fresh", value: true, message: "HIVE monthly AI Council governance is stale." },
+      { type: "equals", path: "downstream_sync_ok", value: true, message: "HIVE model governance did not verify propagation to AIMS/RAMS." },
+    ],
+  },
+});
+
 const hiveGovernanceJobs = [
   ...hiveGovernanceDailyJobs,
   ...hiveGovernanceWeeklyJobs,
   ...hiveGovernanceMonthlyJobs,
+  hiveAiCouncilFreshnessJob,
   hiveRepositoryMonthlyRefresh,
 ];
 
