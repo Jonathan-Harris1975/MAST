@@ -8,6 +8,7 @@ on: # zizmor: ignore[dangerous-triggers] guarded to successful same-repository m
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: koyeb-deployment-watch-MAST
@@ -88,6 +89,23 @@ jobs:
             deployment-attestation.json
           if-no-files-found: warn
           retention-days: 90
+      - name: Dispatch final HIVE governance smoke
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if gh workflow run ecosystem-smoke.yml               --ref main               -f source_repository="$GITHUB_REPOSITORY"               -f source_sha="$DEPLOYED_SHA"; then
+              echo "Final governance smoke dispatched for exact SHA $DEPLOYED_SHA."
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 5))
+            fi
+          done
+          echo "::error::Could not dispatch final governance smoke for $DEPLOYED_SHA." >&2
+          exit 1
 
 
   open_renovate_revert:
