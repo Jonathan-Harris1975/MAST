@@ -36,7 +36,8 @@ test("Koyeb Worker/API smoke fails closed and keeps downstream keys off GitHub r
     assert.doesNotMatch(file, /secrets\.(?:RMS_API_KEY|HIVE_ADMIN_BEARER_TOKEN|HIVE_UI_ACCESS_KEY)/);
   }
   assert.match(runner, /for name in KOYEB_TOKEN KOYEB_SERVICE EXPECTED_DEPLOYMENT_SHA/);
-  assert.match(runner, /script -q -e -c 'koyeb services exec "\$KOYEB_SERVICE" node -- \/app\/scripts\/ecosystemSmoke\.js --worker "\$EXPECTED_DEPLOYMENT_SHA"' \/dev\/null < \/dev\/null/);
+  assert.match(runner, /--skip-production-manager/);
+  assert.match(runner, /ecosystemSmoke\.js --worker "\$EXPECTED_DEPLOYMENT_SHA"/);
   assert.match(runner, /exit 1/);
   assert.match(dockerfile, /COPY --chown=mast:mast scripts\/ecosystemSmoke\.js \.\/scripts\/ecosystemSmoke\.js/);
 });
@@ -82,4 +83,23 @@ test("CI scans the actual built MAST image and retains a readable report", async
   assert.match(scan, /ignore-unfixed: true/);
   assert.match(evidence, /trivy-mast-image\.txt/);
   assert.match(evidence, /if: always\(\)/);
+});
+
+
+test("full Production Manager smoke is dispatched with the exact deployed SHA", async () => {
+  const watcher = await readFile(WATCHER_PATH, "utf8");
+  const smoke = await readFile(new URL("../.github/workflows/ecosystem-smoke.yml", import.meta.url), "utf8");
+  const runner = await readFile(new URL("../scripts/run_koyeb_worker_smoke.sh", import.meta.url), "utf8");
+
+  assert.match(watcher, /run_koyeb_worker_smoke\.sh --skip-production-manager/);
+  assert.match(watcher, /actions: write/);
+  assert.match(watcher, /gh workflow run ecosystem-smoke\.yml/);
+  assert.match(watcher, /-f source_sha="\$DEPLOYED_SHA"/);
+  assert.match(smoke, /workflow_dispatch:/);
+  assert.doesNotMatch(smoke, /workflow_run:/);
+  assert.match(smoke, /ref: \$\{\{ inputs\.source_sha \}\}/);
+  assert.match(smoke, /EXPECTED_DEPLOYMENT_SHA: \$\{\{ inputs\.source_sha \}\}/);
+  assert.doesNotMatch(smoke, /run_koyeb_worker_smoke\.sh --skip-production-manager/);
+  assert.match(runner, /ECOSYSTEM_SMOKE_RETRY_ATTEMPTS=/);
+  assert.match(runner, /ECOSYSTEM_SMOKE_RETRY_DELAY_MS=/);
 });

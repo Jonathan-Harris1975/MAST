@@ -107,8 +107,10 @@ function assertOk(condition, message) {
 
 async function main() {
   const workerMode = process.argv[2] === '--worker';
-  if (process.argv.length !== (workerMode ? 4 : 2)) {
-    throw new Error('Usage: ecosystemSmoke.js [--worker EXPECTED_MAST_SHA]');
+  const skipProductionManager = workerMode && process.argv[4] === '--skip-production-manager';
+  const expectedArgc = workerMode ? (skipProductionManager ? 5 : 4) : 2;
+  if (process.argv.length !== expectedArgc) {
+    throw new Error('Usage: ecosystemSmoke.js [--worker EXPECTED_MAST_SHA [--skip-production-manager]]');
   }
   if (workerMode) {
     const expectedSha = process.argv[3];
@@ -217,16 +219,26 @@ async function main() {
   assertOk(providers.every((provider) => provider?.ok === true), 'One or more HIVE providers failed their health probe');
   console.log('ok 7 - HIVE provider health');
 
-  const productionManager = await requestJson(
-    new URL('/v1/system/production-manager?force_refresh=true', hiveApiBase),
-    { headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)) },
-  );
-  assertOk(
-    productionManager.body?.state === 'GREEN'
-      && productionManager.body?.release_decision === 'ALLOW',
-    `HIVE Production Manager did not certify GREEN/ALLOW (state=${productionManager.body?.state || 'missing'}, release_decision=${productionManager.body?.release_decision || 'missing'})`,
-  );
-  console.log('ok 8 - HIVE Production Manager GREEN/ALLOW');
+  if (!skipProductionManager) {
+    let productionManager;
+    try {
+      productionManager = await waitForJson(
+        new URL('/v1/system/production-manager?force_refresh=true', hiveApiBase),
+        { headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)) },
+        (body) => body?.state === 'GREEN' && body?.release_decision === 'ALLOW',
+      );
+    } catch (error) {
+      throw new Error(`HIVE Production Manager did not certify GREEN/ALLOW: ${error?.message || String(error)}`);
+    }
+    assertOk(
+      productionManager.body?.state === 'GREEN'
+        && productionManager.body?.release_decision === 'ALLOW',
+      `HIVE Production Manager did not certify GREEN/ALLOW (state=${productionManager.body?.state || 'missing'}, release_decision=${productionManager.body?.release_decision || 'missing'})`,
+    );
+    console.log('ok 8 - HIVE Production Manager GREEN/ALLOW');
+  } else {
+    console.log('skip - HIVE Production Manager check deferred until deployment workflow completes');
+  }
 
   const councilStatus = await requestJson(new URL('/v1/ai-council/status', hiveApiBase), {
     headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)),
