@@ -697,8 +697,9 @@ const koyebPowerJobs = koyebPowerManagementEnabled()
 // --- HIVE governance jobs (read-only ecosystem checks + AI Council) --------------
 //
 // HIVE exposes a set of admin-authenticated diagnostic/report endpoints (see
-// backend/app/api/system.py, env_audit.py, ai_council.py, providers.py, skills.py,
-// vectorize.py, buckets.py, connectors.py, model_registry.py, optimisation_engine.py)
+// backend/app/api/system.py, env_audit.py, ai_council.py, providers.py,
+// vectorize.py, buckets.py, connectors.py, model_registry.py, optimisation_engine.py,
+// monthly_review.py and repositories.py)
 // that were previously never called by anything except a human opening HIVE-UI.
 // HIVE remains always-on; its liveness probe is separate from these governance checks.
 // Repository snapshots are rehydrated from R2 after HIVE restarts. After both monthly
