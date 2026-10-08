@@ -36,7 +36,7 @@ async function runSmoke(env, args = []) {
   });
 }
 
-async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', councilFresh = true } = {}) {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', councilFresh = true, skipProductionManager = false } = {}) {
   let aimsBase = '';
 
   let ramsBusyRemaining = ramsBusyResponses;
@@ -123,7 +123,7 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
       HIVE_ADMIN_BEARER_TOKEN: hiveToken,
       HIVE_UI_ACCESS_KEY: workerMode ? '' : 'test-ui-key',
       KOYEB_GIT_SHA: deployedSha,
-    }, workerMode ? ['--worker', 'a'.repeat(40)] : []);
+    }, workerMode ? ['--worker', 'a'.repeat(40), ...(skipProductionManager ? ['--skip-production-manager'] : [])] : []);
   } finally {
     await Promise.all([rams.close(), hive.close(), aims.close()]);
   }
@@ -200,6 +200,29 @@ test('smoke fails when HIVE Production Manager is not GREEN/ALLOW', async () => 
 
 test('smoke fails when monthly HIVE model governance is stale', async () => {
   const result = await exerciseSmoke({ councilFresh: false });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /monthly model governance is not fresh and verified/);
+});
+
+
+test('deployment-phase Worker smoke can defer only the self-referential Production Manager check', async () => {
+  const result = await exerciseSmoke({
+    workerMode: true,
+    skipProductionManager: true,
+    productionState: 'DEGRADED',
+    releaseDecision: 'HOLD',
+  });
+  assert.equal(result.code, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /Production Manager check deferred until deployment workflow completes/);
+  assert.match(result.stdout, /monthly model governance fresh and propagated/);
+});
+
+test('deployment-phase deferral never bypasses stale monthly model governance', async () => {
+  const result = await exerciseSmoke({
+    workerMode: true,
+    skipProductionManager: true,
+    councilFresh: false,
+  });
   assert.equal(result.code, 1);
   assert.match(result.stderr, /monthly model governance is not fresh and verified/);
 });
