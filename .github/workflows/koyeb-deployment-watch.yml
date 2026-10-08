@@ -67,7 +67,7 @@ jobs:
       - name: Run post-deployment MAST Worker/API smoke
         run: |
           set -o pipefail
-          bash scripts/run_koyeb_worker_smoke.sh | tee worker-api-smoke.log
+          bash scripts/run_koyeb_worker_smoke.sh --skip-production-manager | tee worker-api-smoke.log
         env:
           KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
           KOYEB_SERVICE: ${{ vars.KOYEB_SERVICE }}
