@@ -36,7 +36,7 @@ async function runSmoke(env, args = []) {
   });
 }
 
-async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0 } = {}) {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', councilFresh = true } = {}) {
   let aimsBase = '';
 
   let ramsBusyRemaining = ramsBusyResponses;
@@ -74,6 +74,18 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
       return send(res, 200, { ready: true, configuration_ready: true, dependency_probes: [{ required: true, status: 'ok' }] });
     }
     if (req.url === '/v1/providers/health') return send(res, 200, { provider_count: 1, providers: [{ provider: 'mock', ok: true }] });
+    if (req.url === '/v1/system/production-manager?force_refresh=true') {
+      return send(res, 200, { state: productionState, release_decision: releaseDecision });
+    }
+    if (req.url === '/v1/ai-council/status') {
+      return send(res, 200, {
+        ok: councilFresh,
+        fresh: councilFresh,
+        downstream_sync_enabled: councilFresh,
+        downstream_sync_ok: councilFresh,
+        reason: councilFresh ? null : 'current monthly governance is stale',
+      });
+    }
     if (req.url === '/v1/db/ping-write') return send(res, 200, { ok: true, sql: { ok: true }, d1: { ok: true } });
     if (req.url === '/health') return send(res, 200, { ok: true, service: 'HIVE UI' });
     if (req.url === '/api/auth/login') return send(res, 200, { authenticated: true }, { 'set-cookie': '__Host-hive_session=test; Path=/; HttpOnly; SameSite=Strict' });
@@ -159,7 +171,7 @@ test('smoke rejects a failed RAMS wake ticket', async () => {
 test('Koyeb Worker runs the API checks with Koyeb-resident credentials and no UI key', async () => {
   const result = await exerciseSmoke({ workerMode: true });
   assert.equal(result.code, 0, result.stderr || result.stdout);
-  assert.match(result.stdout, /ok 8 - HIVE database write\/delete readiness/);
+  assert.match(result.stdout, /ok 10 - HIVE database write\/delete readiness/);
   assert.doesNotMatch(result.stdout, /ok 9 - HIVE-UI/);
   assert.match(result.stdout, /MAST Worker\/API smoke passed/);
 });
@@ -177,4 +189,17 @@ test('Worker smoke fails closed when its HIVE credential is absent', async () =>
   const result = await exerciseSmoke({ workerMode: true, hiveToken: '' });
   assert.equal(result.code, 1);
   assert.match(result.stderr, /HIVE_ADMIN_BEARER_TOKEN is required/);
+});
+
+
+test('smoke fails when HIVE Production Manager is not GREEN/ALLOW', async () => {
+  const result = await exerciseSmoke({ productionState: 'DEGRADED', releaseDecision: 'HOLD' });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Production Manager did not certify GREEN\/ALLOW/);
+});
+
+test('smoke fails when monthly HIVE model governance is stale', async () => {
+  const result = await exerciseSmoke({ councilFresh: false });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /monthly model governance is not fresh and verified/);
 });
