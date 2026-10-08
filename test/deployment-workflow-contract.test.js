@@ -36,7 +36,8 @@ test("Koyeb Worker/API smoke fails closed and keeps downstream keys off GitHub r
     assert.doesNotMatch(file, /secrets\.(?:RMS_API_KEY|HIVE_ADMIN_BEARER_TOKEN|HIVE_UI_ACCESS_KEY)/);
   }
   assert.match(runner, /for name in KOYEB_TOKEN KOYEB_SERVICE EXPECTED_DEPLOYMENT_SHA/);
-  assert.match(runner, /script -q -e -c 'koyeb services exec "\$KOYEB_SERVICE" node -- \/app\/scripts\/ecosystemSmoke\.js --worker "\$EXPECTED_DEPLOYMENT_SHA"' \/dev\/null < \/dev\/null/);
+  assert.match(runner, /--skip-production-manager/);
+  assert.match(runner, /ecosystemSmoke\.js --worker "\$EXPECTED_DEPLOYMENT_SHA"/);
   assert.match(runner, /exit 1/);
   assert.match(dockerfile, /COPY --chown=mast:mast scripts\/ecosystemSmoke\.js \.\/scripts\/ecosystemSmoke\.js/);
 });
@@ -82,4 +83,19 @@ test("CI scans the actual built MAST image and retains a readable report", async
   assert.match(scan, /ignore-unfixed: true/);
   assert.match(evidence, /trivy-mast-image\.txt/);
   assert.match(evidence, /if: always\(\)/);
+});
+
+
+test("full Production Manager smoke runs only after the deployment workflow succeeds", async () => {
+  const watcher = await readFile(WATCHER_PATH, "utf8");
+  const smoke = await readFile(new URL("../.github/workflows/ecosystem-smoke.yml", import.meta.url), "utf8");
+
+  assert.match(watcher, /run_koyeb_worker_smoke\.sh --skip-production-manager/);
+  assert.match(smoke, /workflow_run:/);
+  assert.match(smoke, /workflows: \["Koyeb production deployment watch"\]/);
+  assert.match(smoke, /github\.event\.workflow_run\.conclusion == 'success'/);
+  assert.match(smoke, /github\.event\.workflow_run\.head_branch == 'main'/);
+  assert.match(smoke, /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/);
+  assert.match(smoke, /EXPECTED_DEPLOYMENT_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/);
+  assert.doesNotMatch(smoke, /run_koyeb_worker_smoke\.sh --skip-production-manager/);
 });
