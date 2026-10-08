@@ -169,6 +169,8 @@ test("manual Blotato recovery uses governed schedule routes, never immediate pub
 test("HIVE governance and optimisation schedules are fully wired", () => {
   const expected = new Map([
     ["hive-readiness-check", ["weekly", "06:20", "/v1/runtime/readiness"]],
+    ["hive-production-manager-check", ["weekly", "06:22", "/v1/system/production-manager"]],
+    ["hive-ai-council-freshness-check", ["weekly", "08:30", "/v1/ai-council/status"]],
     ["hive-repo-health-check", ["weekly", "06:05", "/v1/system/repo-health"]],
     ["hive-provider-health-check", ["weekly", "06:10", "/v1/providers/health"]],
     ["hive-env-audit", ["weekly", "06:25", "/v1/environment/audit"]],
@@ -193,6 +195,13 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
         : Number(process.env.MAST_HIVE_WEEKLY_CATCH_UP_MINUTES || 360));
     assert.equal(job.schedule.catchUpMinutes, expectedCatchUp);
   }
+
+  const productionManager = baseJobs.find((job) => job.id === "hive-production-manager-check");
+  const councilFreshness = baseJobs.find((job) => job.id === "hive-ai-council-freshness-check");
+  assert.equal(productionManager.responsePolicy.checks.find((check) => check.path === "state").value, "GREEN");
+  assert.equal(productionManager.responsePolicy.checks.find((check) => check.path === "release_decision").value, "ALLOW");
+  assert.equal(councilFreshness.responsePolicy.checks.find((check) => check.path === "fresh").value, true);
+  assert.equal(councilFreshness.responsePolicy.checks.find((check) => check.path === "downstream_sync_ok").value, true);
 
   const council = baseJobs.find((job) => job.id === "hive-ai-council-run");
   const optimisation = baseJobs.find((job) => job.id === "hive-optimisation-stats-snapshot");
