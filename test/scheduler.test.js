@@ -168,6 +168,7 @@ test("manual Blotato recovery uses governed schedule routes, never immediate pub
 
 test("HIVE governance and optimisation schedules are fully wired", () => {
   const expected = new Map([
+    ["hive-production-manager-check", ["weekly", "06:00", "/v1/system/production-manager?force_refresh=true"]],
     ["hive-readiness-check", ["weekly", "06:20", "/v1/runtime/readiness"]],
     ["hive-repo-health-check", ["weekly", "06:05", "/v1/system/repo-health"]],
     ["hive-provider-health-check", ["weekly", "06:10", "/v1/providers/health"]],
@@ -193,6 +194,34 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
         : Number(process.env.MAST_HIVE_WEEKLY_CATCH_UP_MINUTES || 360));
     assert.equal(job.schedule.catchUpMinutes, expectedCatchUp);
   }
+
+  const productionManager = baseJobs.find((job) => job.id === "hive-production-manager-check");
+  assert.deepEqual(
+    productionManager.responsePolicy.checks.map((check) => [check.path, check.value]),
+    [["state", "GREEN"], ["release_decision", "ALLOW"]],
+  );
+
+  const councilFreshness = baseJobs.find((job) => job.id === "hive-ai-council-freshness");
+  assert.ok(councilFreshness);
+  assert.deepEqual(councilFreshness.schedule, {
+    type: "weekly",
+    days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+    time: "23:50",
+    timezone: "Europe/London",
+    catchUpMinutes: 10,
+  });
+  assert.equal(councilFreshness.targetPath, "/v1/ai-council/status");
+  assert.equal(councilFreshness.authEnv, "HIVE_ADMIN_BEARER_TOKEN");
+  assert.deepEqual(councilFreshness.requiredServices, ["hive"]);
+  assert.deepEqual(
+    councilFreshness.responsePolicy.checks.map((check) => [check.path, check.value]),
+    [
+      ["ok", true],
+      ["fresh", true],
+      ["downstream_sync_enabled", true],
+      ["downstream_sync_ok", true],
+    ],
+  );
 
   const council = baseJobs.find((job) => job.id === "hive-ai-council-run");
   const optimisation = baseJobs.find((job) => job.id === "hive-optimisation-stats-snapshot");
