@@ -217,6 +217,29 @@ async function main() {
   assertOk(providers.every((provider) => provider?.ok === true), 'One or more HIVE providers failed their health probe');
   console.log('ok 7 - HIVE provider health');
 
+  const productionManager = await requestJson(
+    new URL('/v1/system/production-manager?force_refresh=true', hiveApiBase),
+    { headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)) },
+  );
+  assertOk(
+    productionManager.body?.state === 'GREEN'
+      && productionManager.body?.release_decision === 'ALLOW',
+    `HIVE Production Manager did not certify GREEN/ALLOW (state=${productionManager.body?.state || 'missing'}, release_decision=${productionManager.body?.release_decision || 'missing'})`,
+  );
+  console.log('ok 8 - HIVE Production Manager GREEN/ALLOW');
+
+  const councilStatus = await requestJson(new URL('/v1/ai-council/status', hiveApiBase), {
+    headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)),
+  });
+  assertOk(
+    councilStatus.body?.ok === true
+      && councilStatus.body?.fresh === true
+      && councilStatus.body?.downstream_sync_enabled === true
+      && councilStatus.body?.downstream_sync_ok === true,
+    `HIVE monthly model governance is not fresh and verified: ${councilStatus.body?.reason || 'unknown reason'}`,
+  );
+  console.log('ok 9 - HIVE monthly model governance fresh and propagated');
+
   const dbPing = await requestJson(new URL('/v1/db/ping-write', hiveApiBase), {
     method: 'POST',
     headers: requestHeaders(hiveApiBase, {
@@ -226,14 +249,14 @@ async function main() {
     body: '{}',
   });
   assertOk(dbPing.body?.ok === true, 'HIVE SQL/D1 write-delete readiness probe failed');
-  console.log('ok 8 - HIVE database write/delete readiness');
+  console.log('ok 10 - HIVE database write/delete readiness');
 
   if (!workerMode) {
     const hiveHealth = await requestJson(new URL('/health', hiveUiBase), {
       headers: requestHeaders(hiveUiBase),
     });
     assertOk(String(hiveHealth.body?.service || '').toLowerCase().includes('hive'), 'HIVE-UI health response did not identify the HIVE UI service');
-    console.log('ok 9 - HIVE-UI health');
+    console.log('ok 11 - HIVE-UI health');
 
     const login = await requestJson(new URL('/api/auth/login', hiveUiBase), {
       method: 'POST',
@@ -242,13 +265,13 @@ async function main() {
     });
     assertOk(login.body?.authenticated === true, 'HIVE-UI login did not establish an authenticated session');
     const hiveCookie = cookiePair(login.response);
-    console.log('ok 10 - HIVE-UI authenticated session');
+    console.log('ok 12 - HIVE-UI authenticated session');
 
     const session = await requestJson(new URL('/api/auth/session', hiveUiBase), {
       headers: requestHeaders(hiveUiBase, { cookie: hiveCookie }),
     });
     assertOk(session.body?.authenticated === true, 'HIVE-UI session verification failed');
-    console.log('ok 11 - HIVE session verified');
+    console.log('ok 13 - HIVE session verified');
 
     const handoff = await requestJson(new URL('/api/auth/comms-handoff?format=json', hiveUiBase), {
       headers: requestHeaders(hiveUiBase, { cookie: hiveCookie }),
@@ -257,13 +280,13 @@ async function main() {
     const hashParams = new URLSearchParams(communicationsUrl.hash.replace(/^#/, ''));
     const handoffToken = hashParams.get('handoff') || '';
     assertOk(Boolean(handoffToken), 'HIVE-UI communications handoff did not return a signed handoff token');
-    console.log('ok 12 - HIVE-UI communications handoff issued');
+    console.log('ok 14 - HIVE-UI communications handoff issued');
 
     const identity = await requestJson(new URL('/api/auth/comms-identity', hiveUiBase), {
       headers: requestHeaders(hiveUiBase, { authorization: `Bearer ${handoffToken}` }),
     });
     assertOk(Boolean(identity.body?.actor && identity.body?.role), 'HIVE communications identity response is incomplete');
-    console.log(`ok 13 - HIVE identity verified (${identity.body.role})`);
+    console.log(`ok 15 - HIVE identity verified (${identity.body.role})`);
 
     const aimsUiBase = configuredAimsUiBase || new URL(communicationsUrl.origin);
     if (configuredAimsUiBase && configuredAimsUiBase.origin !== communicationsUrl.origin) {
@@ -281,13 +304,13 @@ async function main() {
       'AIMS-UI handoff exchange did not preserve the HIVE identity',
     );
     const aimsCookie = cookiePair(exchange.response);
-    console.log('ok 14 - AIMS-UI handoff exchange');
+    console.log('ok 16 - AIMS-UI handoff exchange');
 
     const comms = await requestJson(new URL('/console/api/health', aimsUiBase), {
       headers: requestHeaders(aimsUiBase, { cookie: aimsCookie }),
     });
     assertOk(comms.body?.service === 'comms-hub' && comms.body?.ok === true, 'AIMS Comms Hub did not report ready through the delegated console route');
-    console.log('ok 15 - AIMS Comms Hub delegated route');
+    console.log('ok 17 - AIMS Comms Hub delegated route');
   }
 
   console.log(workerMode ? 'MAST Worker/API smoke passed' : 'ecosystem smoke passed');
