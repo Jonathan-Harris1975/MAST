@@ -220,11 +220,16 @@ async function main() {
   console.log('ok 7 - HIVE provider health');
 
   if (!skipProductionManager) {
-    const productionManager = await waitForJson(
-      new URL('/v1/system/production-manager?force_refresh=true', hiveApiBase),
-      { headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)) },
-      (body) => body?.state === 'GREEN' && body?.release_decision === 'ALLOW',
-    );
+    let productionManager;
+    try {
+      productionManager = await waitForJson(
+        new URL('/v1/system/production-manager?force_refresh=true', hiveApiBase),
+        { headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)) },
+        (body) => body?.state === 'GREEN' && body?.release_decision === 'ALLOW',
+      );
+    } catch (error) {
+      throw new Error(`HIVE Production Manager did not certify GREEN/ALLOW: ${error?.message || String(error)}`);
+    }
     assertOk(
       productionManager.body?.state === 'GREEN'
         && productionManager.body?.release_decision === 'ALLOW',
