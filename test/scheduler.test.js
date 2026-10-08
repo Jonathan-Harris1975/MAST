@@ -203,6 +203,12 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
   assert.equal(councilFreshness.responsePolicy.checks.find((check) => check.path === "fresh").value, true);
   assert.equal(councilFreshness.responsePolicy.checks.find((check) => check.path === "downstream_sync_ok").value, true);
 
+  assert.ok(
+    baseJobs.findIndex((job) => job.id === "hive-ai-council-run")
+      < baseJobs.findIndex((job) => job.id === "hive-ai-council-freshness-check"),
+    "monthly Council must run before freshness verification when catch-up windows overlap",
+  );
+
   const council = baseJobs.find((job) => job.id === "hive-ai-council-run");
   const optimisation = baseJobs.find((job) => job.id === "hive-optimisation-stats-snapshot");
   const monthlyReview = baseJobs.find((job) => job.id === "hive-monthly-review-generate");
