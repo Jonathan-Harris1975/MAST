@@ -758,6 +758,34 @@ const hiveGovernanceDailyJobs = [
     responsePolicy: { checks: [{ type: "equals", path: "ready", value: true, message: "HIVE runtime readiness reported ready=false." }] },
   }),
   hiveJob({
+    id: "hive-production-manager-check",
+    group: "hive-governance",
+    description: "Verify HIVE's authoritative ecosystem production state and release decision.",
+    schedule: { type: "weekly", days: EVERY_DAY, time: "06:22", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
+    targetPath: "/v1/system/production-manager",
+    responsePolicy: {
+      checks: [
+        { type: "equals", path: "manager", value: "HIVE", message: "HIVE production-manager identity is invalid." },
+        { type: "equals", path: "state", value: "GREEN", message: "HIVE ecosystem production state is not GREEN." },
+        { type: "equals", path: "release_decision", value: "ALLOW", message: "HIVE ecosystem release decision is not ALLOW." },
+      ],
+    },
+  }),
+  hiveJob({
+    id: "hive-ai-council-freshness-check",
+    group: "hive-governance",
+    description: "Verify the current month's AI Council cycle completed and propagated governed model defaults to AIMS/RAMS.",
+    schedule: { type: "weekly", days: EVERY_DAY, time: "08:30", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
+    targetPath: "/v1/ai-council/status",
+    responsePolicy: {
+      checks: [
+        { type: "equals", path: "ok", value: true, message: "HIVE monthly AI Council governance is not verified current." },
+        { type: "equals", path: "fresh", value: true, message: "HIVE monthly AI Council governance is stale." },
+        { type: "equals", path: "downstream_sync_ok", value: true, message: "HIVE model governance did not verify propagation to AIMS/RAMS." },
+      ],
+    },
+  }),
+  hiveJob({
     id: "hive-repo-health-check",
     group: "hive-governance",
     description: "Fetch HIVE's governed repo-ecosystem liveness/readiness report (Repository Health Review).",
