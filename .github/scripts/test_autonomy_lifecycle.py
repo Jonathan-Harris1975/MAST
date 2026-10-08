@@ -1,7 +1,9 @@
 """Regression checks for repair retirement; all GitHub writes are mocked."""
 import copy
 import inspect
+import json
 import os
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -171,6 +173,16 @@ class ManagedBranchOwnershipTests(unittest.TestCase):
 
         hold.assert_called_once()
         admit.assert_not_called()
+
+
+class ProductionGovernanceProtectionTests(unittest.TestCase):
+    def test_contract_is_sensitive_and_kilo_cannot_mutate_it(self):
+        path = ".github/production-governance.json"
+        self.assertTrue(automation.sensitive_file(path))
+        root = Path(__file__).resolve().parents[2]
+        policy = json.loads((root / "kilo.jsonc").read_text(encoding="utf-8"))
+        for tool in ("edit", "write", "apply_patch"):
+            self.assertEqual(policy["permission"][tool][path], "deny")
 
 
 if __name__ == "__main__":

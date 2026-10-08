@@ -15,7 +15,8 @@
       ".gitleaks*": "deny",
       "SECURITY.md": "deny",
       "AUTONOMY.md": "deny",
-      "CI_SETUP.txt": "deny"
+      "CI_SETUP.txt": "deny",
+      ".github/production-governance.json": "deny"
     },
     "write": {
       "*": "allow",
@@ -30,7 +31,8 @@
       ".gitleaks*": "deny",
       "SECURITY.md": "deny",
       "AUTONOMY.md": "deny",
-      "CI_SETUP.txt": "deny"
+      "CI_SETUP.txt": "deny",
+      ".github/production-governance.json": "deny"
     },
     "apply_patch": {
       "*": "allow",
@@ -45,7 +47,8 @@
       ".gitleaks*": "deny",
       "SECURITY.md": "deny",
       "AUTONOMY.md": "deny",
-      "CI_SETUP.txt": "deny"
+      "CI_SETUP.txt": "deny",
+      ".github/production-governance.json": "deny"
     },
     "external_directory": "deny",
     "question": "deny",
