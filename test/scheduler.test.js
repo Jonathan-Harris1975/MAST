@@ -234,27 +234,17 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
   assert.equal(optimisation.responsePolicy.checks[0].path, "ok");
 });
 
-test("HIVE catalogue checks monitor the repository-local API without a bucket dependency", () => {
-  const expectedPaths = new Map([
-    ["hive-skills-integrity-check", "/v1/skills/integrity"],
-    ["hive-skills-duplicates-check", "/v1/skills/duplicates"],
-    ["hive-skills-orphans-check", "/v1/skills/orphans"],
-    ["hive-skills-missing-check", "/v1/skills/missing"],
-  ]);
-
-  for (const [id, targetPath] of expectedPaths) {
-    const job = baseJobs.find((item) => item.id === id);
-    assert.ok(job, `${id} should remain scheduled for HIVE's local catalogue`);
-    assert.equal(job.targetPath, targetPath);
-    assert.equal(job.authEnv, "HIVE_ADMIN_BEARER_TOKEN");
-    assert.deepEqual(job.requiredServices, ["hive"]);
-    assert.match(job.description, /local capability|repository-local/i);
-    const serialised = JSON.stringify(job).toLowerCase();
-    const retiredReferences = [
-      "r2://" + "hive-" + "skills",
-    ];
-    for (const reference of retiredReferences) assert.equal(serialised.includes(reference), false);
+test("retired HIVE skills endpoints are not scheduled", () => {
+  const retired = [
+    "hive-skills-integrity-check",
+    "hive-skills-duplicates-check",
+    "hive-skills-orphans-check",
+    "hive-skills-missing-check",
+  ];
+  for (const id of retired) {
+    assert.equal(baseJobs.some((job) => job.id === id), false, `${id} must stay retired`);
   }
+  assert.equal(baseJobs.some((job) => String(job.targetPath || "").startsWith("/v1/skills/")), false);
 });
 
 test("Friday PM starts the podcast at 17:00 while AIMS remains always-on", () => {
