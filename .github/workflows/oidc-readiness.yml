@@ -54,7 +54,9 @@ jobs:
               if claims.get(key) != value:
                   raise RuntimeError(f"OIDC claim {key!r} did not match the expected value")
           safe_claims = {k: claims.get(k) for k in ("iss","aud","repository","repository_id","repository_owner","ref","sha","workflow","job_workflow_ref","event_name","run_id","run_attempt")}
-          safe_claims["verified"] = True
+          safe_claims["claims_checked"] = True
+          safe_claims["signature_verified"] = False
+          safe_claims["verification_scope"] = "unverified JWT payload claims; signature not cryptographically validated"
           with open("oidc-readiness.json", "w", encoding="utf-8") as handle:
               json.dump(safe_claims, handle, indent=2, sort_keys=True)
               handle.write("\n")
