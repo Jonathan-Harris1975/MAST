@@ -54,6 +54,18 @@ Every **Saturday at 08:00 Europe/London**, MAST requests the separate quarantine
 
 AIMS owns downstream councils and RAMS hand-off. MAST waits for terminal completion and does not separately schedule individual RAMS remediation pipelines.
 
+### HIVE monthly governance ownership
+
+MAST no longer schedules the legacy `POST /v1/ai-council/run` or
+`POST /v1/monthly-review/generate` calls. Those could duplicate writes
+outside the standalone HIVE worker's atomic D1 claim. The HIVE worker must
+be deployed and scheduled independently using
+`python -m app.monthly_governance_worker --previous-month`.
+This repository change alone **does not** deploy or enable that worker.
+The MAST monthly optimisation statistics read remains scheduled.
+Verify the deployed MAST revision before enabling the worker scheduler;
+reconcile any ambiguous prior 504 downstream writes before first execution.
+
 ### HIVE governance
 
 MAST runs seven-day HIVE readiness/repository/provider checks plus weekly and monthly governance jobs. HIVE remains online continuously and scheduled HIVE jobs are readiness-gated before execution. Daily governance also verifies HIVE's authoritative `/v1/system/production-manager?force_refresh=true` state is `GREEN / ALLOW`, while a 23:50 Europe/London freshness check keeps monthly AI Council governance visibly unhealthy until the current month's cycle and AIMS/RAMS propagation are verified. Retired `/v1/skills/*` routes are intentionally not scheduled. After the second-Saturday AIMS audit completes, MAST triggers HIVE's asynchronous `/v1/repositories/refresh-all` workflow and polls `/v1/repositories/refresh-jobs/{job_id}` to terminal completion. A refresh is accepted as successful only when HIVE reports the exact governed catalogue (`HIVE`, `HIVE-UI`, `AIMS`, `AIMS-UI`, `RAMS`, `MAST`, `IRS`, `Website`), all eight results are complete, and none failed. Duplicate scheduler execution cannot start a second in-process refresh for the same job, and the monthly window is consumed after a terminal/transport failure so the expensive full-estate POST is not replayed every tick.
