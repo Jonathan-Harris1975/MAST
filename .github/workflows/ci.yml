@@ -33,8 +33,8 @@ jobs:
         run: python3 scripts/secret_scan.py
       - name: Verify pinned Node/npm toolchain
         run: |
-          test "$(node --version)" = "v22.23.2"
-          test "$(npm --version)" = "10.9.8"
+          test "$(node --version)" = "v22.23.3"
+          test "$(npm --version)" = "10.9.9"
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run verify
       - name: Enforce health endpoint performance SLO
