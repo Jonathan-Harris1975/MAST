@@ -93,7 +93,7 @@ jobs:
           safe.claims_checked = true;
           safe.signature_verified = true;
           safe.verification_scope = "RS256 signature verified against issuer JWKS; lifetime and identity checked";
-          writeFileSync("oidc-readiness.json", JSON.stringify(safe, null, 2) + "\\n");
+          writeFileSync("oidc-readiness.json", JSON.stringify(safe, null, 2) + "\n");
           NODE
 
       - name: Verify all governed repositories are online
