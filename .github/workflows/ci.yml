@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.23.2
+          node-version: 22.23.3
           cache: npm
       - name: Reject committed literal secrets
         run: python3 scripts/secret_scan.py
@@ -82,7 +82,7 @@ jobs:
           severity: CRITICAL,HIGH
       - name: Retain production image vulnerability report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mast-image-vulnerability-report-${{ github.sha }}
           path: trivy-mast-image.txt
@@ -140,7 +140,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           printf '{"repository":"%s","sha":"%s","workflow_run":"%s","status":"green"}\n' "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$GITHUB_RUN_ID" > release-attestation.json
       - name: Retain exact-SHA release attestation
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-attestation-${{ github.sha }}
           path: release-attestation.json
