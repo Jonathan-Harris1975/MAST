@@ -103,3 +103,12 @@ test("full Production Manager smoke is dispatched with the exact deployed SHA", 
   assert.match(runner, /ECOSYSTEM_SMOKE_RETRY_ATTEMPTS=/);
   assert.match(runner, /ECOSYSTEM_SMOKE_RETRY_DELAY_MS=/);
 });
+
+test("standalone smoke rejects malformed source SHAs before checkout", async () => {
+  const smoke = await readFile(new URL("../.github/workflows/ecosystem-smoke.yml", import.meta.url), "utf8");
+  const validation = stepBody(smoke, "Validate MAST smoke source identity and commit");
+  assert.match(validation, /SOURCE_SHA: \\$\\{\\{ inputs\\.source_sha \\}\\}/);
+  assert.match(validation, /\\^\\[0-9a-fA-F\\]\\{40\\}\\$/);
+  assert.match(validation, /exit 1/);
+  assert.ok(smoke.indexOf("Validate MAST smoke source identity and commit") < smoke.indexOf("uses: actions/checkout@"));
+});
