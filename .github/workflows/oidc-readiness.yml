@@ -92,6 +92,7 @@ jobs:
           const safe = Object.fromEntries(fields.map(field => [field, claims[field] ?? null]));
           safe.claims_checked = true;
           safe.signature_verified = true;
+          safe.verification_method = "issuer-jwks-rs256";
           safe.verification_scope = "RS256 signature verified against issuer JWKS; lifetime and identity checked";
           writeFileSync("oidc-readiness.json", JSON.stringify(safe, null, 2) + "\n");
           NODE
