@@ -862,18 +862,9 @@ const hiveGovernanceWeeklyJobs = [
   }),
 ];
 
+// The standalone HIVE worker owns monthly Council and review writes. MAST must
+// never independently POST those endpoints: they bypass the worker D1 claim.
 const hiveGovernanceMonthlyJobs = [
-  hiveJob({
-    id: "hive-ai-council-run",
-    group: "hive-ai-council",
-    description: "Run the AI Models Council: refresh provider model catalogues, score and auto-promote into the Model Registry.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "07:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
-    targetPath: "/v1/ai-council/run",
-    method: "POST",
-    requestRetries: 0,
-    consumeFailureWindow: true,
-    responsePolicy: { checks: [{ type: "equals", path: "ok", value: true, message: "HIVE AI Council did not complete a verified model-governance cycle." }] },
-  }),
   hiveJob({
     id: "hive-optimisation-stats-snapshot",
     group: "hive-governance-monthly",
@@ -883,27 +874,7 @@ const hiveGovernanceMonthlyJobs = [
     consumeFailureWindow: true,
     responsePolicy: { checks: [{ type: "equals", path: "ok", value: true, message: "HIVE optimisation ledger could not be read for the monthly snapshot." }] },
   }),
-  hiveJob({
-    id: "hive-monthly-review-generate",
-    group: "hive-governance-monthly",
-    description: [
-      "Generate, archive and index the consolidated Monthly Review report (system health, AI Council/model registry,",
-      "optimisation stats, execution review posture, token usage and cost) for the month",
-      "that just finished. Runs after the other hive-governance-monthly jobs so their data is fresh.",
-    ].join(" "),
-    schedule: { type: "monthly", dayOfMonth: 1, time: "07:25", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
-    targetPath: "/v1/monthly-review/generate",
-    method: "POST",
-    requestRetries: 0,
-    consumeFailureWindow: true,
-    responsePolicy: {
-      checks: [
-        { type: "fieldsEqual", leftPath: "sections_ok", rightPath: "sections_total", message: "HIVE Monthly Review completed with one or more failed sections." },
-        { type: "equals", path: "r2_object.ok", value: true, message: "HIVE Monthly Review was generated but its R2 archive was not confirmed." },
-        { type: "equals", path: "d1_index.ok", value: true, message: "HIVE Monthly Review was generated but its D1 index write was not confirmed." },
-      ],
-    },
-  }),
+
 ];
 
 const hiveRepositoryMonthlyRefresh = hiveJob({
