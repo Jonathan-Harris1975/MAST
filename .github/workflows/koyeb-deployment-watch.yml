@@ -11,7 +11,8 @@ permissions:
 
 concurrency:
   group: koyeb-deployment-watch-MAST
-  cancel-in-progress: true
+  # Preserve in-flight production worker verification and its failure alert.
+  cancel-in-progress: false
 
 jobs:
   watch:
