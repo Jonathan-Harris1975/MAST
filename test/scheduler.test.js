@@ -229,14 +229,11 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
     ],
   );
 
-  const council = baseJobs.find((job) => job.id === "hive-ai-council-run");
+  // The retired write-producing jobs must not be accessed as active schedules.
+  // Their absence is asserted above; only the read-only snapshot remains.
   const optimisation = baseJobs.find((job) => job.id === "hive-optimisation-stats-snapshot");
-  const monthlyReview = baseJobs.find((job) => job.id === "hive-monthly-review-generate");
-  assert.equal(council.requestRetries, 0, "AI Council POST must not be replayed by generic HTTP retry");
-  assert.equal(monthlyReview.requestRetries, 0, "Monthly Review POST must not be replayed by generic HTTP retry");
-  assert.equal(council.consumeFailureWindow, true);
-  assert.equal(monthlyReview.consumeFailureWindow, true);
-  assert.equal(council.responsePolicy.checks[0].path, "ok");
+  assert.ok(optimisation);
+  assert.equal(optimisation.method, "GET");
   assert.equal(optimisation.responsePolicy.checks[0].path, "ok");
 });
 
