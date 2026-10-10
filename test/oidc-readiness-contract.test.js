@@ -14,10 +14,10 @@ test("MAST OIDC readiness binds token to owner, subject, repository, ref and SHA
 
 test("MAST OIDC readiness rejects stale and overly long-lived JWTs", async () => {
   const source = await readFile(workflow, "utf8");
-  assert.match(source, /claims\.iat < now - 600/);
-  assert.match(source, /claims\.exp - claims\.iat > 600/);
+  assert.match(source, /claims\.iat\s*<\s*now\s*-\s*600/);
+  assert.match(source, /claims\.exp\s*-\s*claims\.iat\s*>\s*600/);
   assert.match(source, /claims\.exp <= now/);
-  assert.match(source, /signature invalid/);
+  assert.match(source, /OIDC JWT signature invalid/);
 });
 
 test("OIDC artifact explicitly excludes provider trust certification", async () => {
