@@ -17,6 +17,7 @@ permissions:
 
 jobs:
   smoke:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: Koyeb
     timeout-minutes: 10
@@ -32,10 +33,16 @@ jobs:
             echo "::error::source_sha must be a full 40-character Git commit SHA." >&2
             exit 1
           fi
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check out MAST smoke implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.source_sha }}
           persist-credentials: false
+      - name: Reject stale source and MAST commits
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_REPOSITORY: ${{ inputs.source_repository || github.repository }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: node scripts/validateSmokeIdentity.js
       - name: Install verified Koyeb CLI
         run: bash scripts/install_koyeb_cli.sh
       - name: Production MAST Worker/API smoke
@@ -45,7 +52,7 @@ jobs:
         env:
           KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
           KOYEB_SERVICE: ${{ vars.KOYEB_SERVICE }}
-          EXPECTED_DEPLOYMENT_SHA: ${{ inputs.source_sha }}
+          EXPECTED_DEPLOYMENT_SHA: ${{ github.sha }}
           ECOSYSTEM_SMOKE_RETRY_ATTEMPTS: "24"
           ECOSYSTEM_SMOKE_RETRY_DELAY_MS: "5000"
       - name: Record Worker/API-smoke attestation
@@ -54,8 +61,17 @@ jobs:
           SOURCE_REPOSITORY: ${{ inputs.source_repository || github.repository }}
           SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
-          printf '{"orchestrator_repository":"%s","orchestrator_sha":"%s","source_repository":"%s","source_sha":"%s","workflow_run":"%s","status":"worker-api-smoke-green"}\n' \
-            "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$SOURCE_REPOSITORY" "$SOURCE_SHA" "$GITHUB_RUN_ID" > worker-api-smoke-attestation.json
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from "node:fs";
+          const e = process.env;
+          writeFileSync("worker-api-smoke-attestation.json", JSON.stringify({
+            orchestrator_repository: e.GITHUB_REPOSITORY, orchestrator_sha: e.GITHUB_SHA,
+            deployed_mast_sha: e.GITHUB_SHA, source_repository: e.SOURCE_REPOSITORY,
+            source_sha: e.SOURCE_SHA, workflow_run: e.GITHUB_RUN_ID,
+            run_attempt: e.GITHUB_RUN_ATTEMPT, status: "worker-api-smoke-green",
+            scope: "MAST deployment and downstream functional health; caller deployment is not attested",
+          }) + "\n");
+          NODE
       - name: Retain Worker/API-smoke launch evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
