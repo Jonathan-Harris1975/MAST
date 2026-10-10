@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: mast-${{ github.ref }}
-  cancel-in-progress: true
+  group: mast-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   verify:
