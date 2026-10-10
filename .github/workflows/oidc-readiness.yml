@@ -34,6 +34,7 @@ jobs:
           EXPECTED_REPOSITORY: ${{ github.repository }}
           EXPECTED_REF: refs/heads/main
           EXPECTED_OWNER: ${{ github.repository_owner }}
+          EXPECTED_REPOSITORY_ID: ${{ github.repository_id }}
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
@@ -78,12 +79,14 @@ jobs:
           const now = Math.floor(Date.now() / 1000);
           if (!Number.isInteger(claims.exp) || claims.exp <= now ||
               !Number.isInteger(claims.iat) || claims.iat > now + 60 ||
+              // Allow 60 seconds of future clock skew, but reject tokens issued over 10 minutes ago.
               claims.iat < now - 600 || claims.exp - claims.iat > 600 ||
               (claims.nbf !== undefined && (!Number.isInteger(claims.nbf) || claims.nbf > now + 60))) {
             throw new Error("OIDC JWT lifetime invalid");
           }
           const expected = { iss: issuer, aud: audience,
             repository: process.env.EXPECTED_REPOSITORY, repository_owner: process.env.EXPECTED_OWNER,
+            repository_id: process.env.EXPECTED_REPOSITORY_ID,
             sub: `repo:${process.env.EXPECTED_REPOSITORY}:ref:${process.env.EXPECTED_REF}`,
             ref: process.env.EXPECTED_REF,
             sha: process.env.GITHUB_SHA };
