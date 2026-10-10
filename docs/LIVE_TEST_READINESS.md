@@ -36,3 +36,31 @@ Updated: 2026-10-10 UTC. Status: **NOT READY**. Do not promote or run autonomous
 | Failed health probe or rollback | Stop promotion, disable recovery and page operator |
 
 This ledger records observed evidence and blockers, not a completion percentage or approval to conduct live testing.
+
+## 2026-10-10 implementation update
+
+Current baseline: `416d50382b6e895816fc935b0e4eda928eb1334e`. PR #96 and #97 merged.
+Main CI https://github.com/Jonathan-Harris1975/MAST/actions/runs/38025753373,
+CodeQL https://github.com/Jonathan-Harris1975/MAST/actions/runs/38025753375 and
+security https://github.com/Jonathan-Harris1975/MAST/actions/runs/38025753378 succeeded.
+These results do not verify subsequent PR commits or provider readiness.
+
+PR #98 additionally separates caller `source_sha` from the deployed MAST SHA,
+rejects stale caller/MAST HEADs and ungoverned callers, checks only MAST main,
+and serialises the attestation with JSON.stringify. `source_sha` is a correlation
+identity, never a claim that the caller deployment passed. Smoke remains a
+functional MAST/downstream check, not the authoritative OIDC readiness gate.
+
+`node --test test/smoke-identity.test.js test/deployment-workflow-contract.test.js`: 14/14 passed.
+
+Repair authentication is externally blocked: run
+https://github.com/Jonathan-Harris1975/MAST/actions/runs/38026520754 failed at
+Mint autonomous repair GitHub App token with `AUTONOMY_REPAIR_APP_ID` empty.
+Repository administrator must set the ID of the installed repair app, verify its
+private key matches, then manually dispatch `autonomous-repair.yml` (its manual
+path authenticates only, creates no repair PR). Do not restore the fallback ID.
+
+Ruleset `24425908` requires ci-gate, CodeQL security alert gate, Trivy/Gitleaks/actionlint,
+Analyze(actions), Analyze(python), up-to-date branch and resolved review threads.
+No bypass or self-approval is authorised. Provider trust policies and a
+non-production rehearsal remain unverified. Verdict: **NOT READY**.

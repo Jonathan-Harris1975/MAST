@@ -96,9 +96,9 @@ test("full Production Manager smoke is dispatched with the exact deployed SHA", 
   assert.match(watcher, /gh workflow run ecosystem-smoke\.yml/);
   assert.match(watcher, /-f source_sha="\$DEPLOYED_SHA"/);
   assert.match(smoke, /workflow_dispatch:/);
-  assert.doesNotMatch(smoke, /workflow_run:/);
-  assert.match(smoke, /ref: \$\{\{ inputs\.source_sha \}\}/);
-  assert.match(smoke, /EXPECTED_DEPLOYMENT_SHA: \$\{\{ inputs\.source_sha \}\}/);
+  assert.doesNotMatch(smoke, /^  workflow_run:/m);
+  assert.doesNotMatch(smoke, /ref: \$\{\{ inputs\.source_sha \}\}/);
+  assert.match(smoke, /EXPECTED_DEPLOYMENT_SHA: \$\{\{ github\.sha \}\}/);
   assert.doesNotMatch(smoke, /run_koyeb_worker_smoke\.sh --skip-production-manager/);
   assert.match(runner, /ECOSYSTEM_SMOKE_RETRY_ATTEMPTS=/);
   assert.match(runner, /ECOSYSTEM_SMOKE_RETRY_DELAY_MS=/);
