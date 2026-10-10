@@ -32,9 +32,9 @@ jobs:
             echo "::error::source_sha must be a full 40-character Git commit SHA." >&2
             exit 1
           fi
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check out MAST smoke implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.source_sha }}
           persist-credentials: false
       - name: Install verified Koyeb CLI
         run: bash scripts/install_koyeb_cli.sh
