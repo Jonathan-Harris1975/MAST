@@ -28,7 +28,7 @@ jobs:
       - name: Mint autonomous repair GitHub App token
         id: app_token
         env:
-          APP_ID: ${{ vars.AUTONOMY_REPAIR_APP_ID || '5112339' }}
+          APP_ID: ${{ vars.AUTONOMY_REPAIR_APP_ID }}
           APP_PRIVATE_KEY: ${{ secrets.AUTONOMY_REPAIR_APP_PRIVATE_KEY }}
           REPO: ${{ github.repository }}
         shell: bash
