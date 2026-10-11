@@ -112,3 +112,16 @@ test("standalone smoke rejects malformed source SHAs before checkout", async () 
   assert.match(validation, /exit 1/);
   assert.ok(smoke.indexOf("Validate MAST smoke source identity and commit") < smoke.indexOf("uses: actions/checkout@"));
 });
+
+
+test("trusted automation requires an explicit repair App ID", async () => {
+  const workflow = await readFile(
+    new URL("../.github/workflows/trusted-automation.yml", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(workflow, /APP_ID: \\$\\{\\{ vars\\.AUTONOMY_REPAIR_APP_ID \\}\\}/);
+  assert.match(workflow, /test -n "\\$\\{APP_ID:-\\}"/);
+  assert.match(workflow, /AUTONOMY_REPAIR_APP_ID is required/);
+  assert.doesNotMatch(workflow, /AUTONOMY_REPAIR_APP_ID\\s*\\|\\|/);
+});
