@@ -4,10 +4,14 @@ import test from "node:test";
 
 const workflow = new URL("../.github/workflows/oidc-readiness.yml", import.meta.url);
 
-test("MAST OIDC readiness binds token to owner, subject, repository, ref and SHA", async () => {
+test("MAST OIDC readiness binds both default subject formats to immutable repository identity", async () => {
   const source = await readFile(workflow, "utf8");
-  assert.match(source, /sub: `repo:\$\{process\.env\.EXPECTED_REPOSITORY\}:ref:\$\{process\.env\.EXPECTED_REF\}`/);
   assert.match(source, /repository_owner: process\.env\.EXPECTED_OWNER/);
+  assert.match(source, /repository_owner_id: process\.env\.EXPECTED_OWNER_ID/);
+  assert.match(source, /repository_id: process\.env\.EXPECTED_REPOSITORY_ID/);
+  assert.match(source, /const legacySubject = `repo:\$\{process\.env\.EXPECTED_REPOSITORY\}:ref:\$\{process\.env\.EXPECTED_REF\}`/);
+  assert.match(source, /const immutableSubject = `repo:\$\{process\.env\.EXPECTED_OWNER\}@\$\{process\.env\.EXPECTED_OWNER_ID\}\/\$\{process\.env\.EXPECTED_REPOSITORY\.split\("\/"\)\[1\]\}@\$\{process\.env\.EXPECTED_REPOSITORY_ID\}:ref:\$\{process\.env\.EXPECTED_REF\}`/);
+  assert.match(source, /claims\.sub !== legacySubject && claims\.sub !== immutableSubject/);
   assert.match(source, /sha: process\.env\.GITHUB_SHA/);
   assert.match(source, /claims\[name\] !== value/);
 });
