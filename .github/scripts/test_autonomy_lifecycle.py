@@ -14,6 +14,18 @@ import branch_pr_automation as branch_controller  # noqa: E402
 import trusted_automation as automation  # noqa: E402
 
 
+class RepairAppIdentityContractTests(unittest.TestCase):
+    def test_repair_and_admission_workflows_use_same_verified_app_id_fallback(self):
+        root = Path(__file__).resolve().parents[2]
+        expected = "APP_ID: ${{ vars.AUTONOMY_REPAIR_APP_ID || '5112339' }}"
+        for path in (
+            root / ".github/workflows/autonomous-repair.yml",
+            root / ".github/workflows/trusted-automation.yml",
+        ):
+            with self.subTest(workflow=path.name):
+                self.assertIn(expected, path.read_text(encoding="utf-8"))
+
+
 class RepairRetirementTests(unittest.TestCase):
     def setUp(self):
         self.current = "a" * 40
@@ -187,3 +199,4 @@ class ProductionGovernanceProtectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
