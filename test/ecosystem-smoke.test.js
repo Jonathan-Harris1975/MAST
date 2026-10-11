@@ -233,6 +233,33 @@ test('Production Manager failure reports bounded per-repository gate evidence wi
   assert.doesNotMatch(result.stderr, /must-not-be-printed|unfiltered diagnostic/);
 });
 
+test('Production Manager diagnostics cap workflow evidence and report omissions', async () => {
+  const workflows = Object.fromEntries(Array.from({ length: 100 }, (_, index) => [
+    `workflow-${index}`,
+    { state: 'DEGRADED', status: 'missing', run_id: index + 1 },
+  ]));
+  const result = await exerciseSmoke({
+    productionManagerBody: {
+      state: 'DEGRADED',
+      release_decision: 'HOLD',
+      repositories: [{
+        repository_id: 'RAMS',
+        state: 'DEGRADED',
+        gate_evidence: { required_workflows: workflows },
+      }],
+    },
+  });
+  assert.equal(result.code, 1);
+  const match = result.stderr.match(/diagnostics=(\{[^\r\n]*\})/);
+  assert.ok(match, result.stderr);
+  const diagnostics = JSON.parse(match[1]);
+  const repo = diagnostics.repositories[0];
+  assert.equal(Object.keys(repo.required_workflows).length, 12);
+  assert.equal(repo.omitted_workflow_count, 88);
+  assert.ok(Object.hasOwn(repo.required_workflows, 'workflow-11'));
+  assert.equal(Object.hasOwn(repo.required_workflows, 'workflow-12'), false);
+});
+
 test('smoke fails when monthly HIVE model governance is stale', async () => {
   const result = await exerciseSmoke({ councilFresh: false });
   assert.equal(result.code, 1);
