@@ -75,11 +75,15 @@ jobs:
             if (!latest) {
               throw new Error(`${repository.name}: no OIDC readiness run exists for current main ${sha}`);
             }
+            const completedAt = Date.parse(latest.updated_at || latest.created_at || "");
+            const ageMs = Date.now() - completedAt;
+            const maxEvidenceAgeMs = 7 * 24 * 60 * 60 * 1000;
             if (latest.head_sha !== sha || latest.status !== "completed" ||
                 latest.conclusion !== "success" ||
-                !["push", "schedule", "workflow_dispatch"].includes(latest.event)) {
+                !["push", "schedule", "workflow_dispatch"].includes(latest.event) ||
+                !Number.isFinite(completedAt) || ageMs < -60_000 || ageMs > maxEvidenceAgeMs) {
               throw new Error(
-                `${repository.name}: latest readiness run ${latest.id} for current main ${sha} is ${latest.status}/${latest.conclusion}`,
+                `${repository.name}: latest readiness run ${latest.id} for current main ${sha} is ${latest.status}/${latest.conclusion}; evidence age is ${Number.isFinite(ageMs) ? Math.round(ageMs / 60000) + "m" : "unknown"}`,
               );
             }
             results.push({
