@@ -290,11 +290,44 @@ def main() -> None:
         print("No verified, actionable, current PR issue to route.")
 
 
+def routing_error(exc: Exception) -> tuple[str, str]:
+    """Classify known agent configuration/provider failures without printing secrets."""
+    message = str(exc)
+    if message.startswith("Configure KILO_REPAIR_TRIGGER_URL") or message.startswith(
+        "Kilo machine repair contract is unavailable"
+    ) or message == "Kilo machine repair contract is empty":
+        return (
+            "repair-agent-configuration",
+            "Configure and verify this repository's Kilo webhook and machine repair contract.",
+        )
+    if message == "Kilo trigger could not be reached":
+        return (
+            "repair-agent-unavailable",
+            "Check Kilo provider availability and retry only after the trigger endpoint is healthy.",
+        )
+    if message.startswith("Kilo trigger returned HTTP"):
+        return (
+            "repair-agent-provider-error",
+            "Check the Kilo webhook response and repository integration configuration.",
+        )
+    return (
+        "repair-routing-error",
+        "Inspect the trusted router's GitHub/API operation; raw exception details are withheld.",
+    )
+
+
+def fail_routing(exc: Exception) -> None:
+    code, guidance = routing_error(exc)
+    print(
+        f"::error::PR repair routing failed: {code} ({type(exc).__name__}). {guidance} "
+        "The source CI/security result remains authoritative.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+
 if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
-        print(f"::warning::PR repair routing unavailable ({type(exc).__name__}); "
-              "check Kilo webhook configuration and the linked run. "
-              "The source CI/security result remains authoritative.", file=sys.stderr)
-        sys.exit(0)
+        fail_routing(exc)
