@@ -36,7 +36,7 @@ async function runSmoke(env, args = []) {
   });
 }
 
-async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', councilFresh = true, skipProductionManager = false } = {}) {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, councilFresh = true, skipProductionManager = false } = {}) {
   let aimsBase = '';
 
   let ramsBusyRemaining = ramsBusyResponses;
@@ -75,7 +75,7 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
     }
     if (req.url === '/v1/providers/health') return send(res, 200, { provider_count: 1, providers: [{ provider: 'mock', ok: true }] });
     if (req.url === '/v1/system/production-manager?force_refresh=true') {
-      return send(res, 200, { state: productionState, release_decision: releaseDecision });
+      return send(res, 200, productionManagerBody || { state: productionState, release_decision: releaseDecision });
     }
     if (req.url === '/v1/ai-council/status') {
       return send(res, 200, {
@@ -198,6 +198,41 @@ test('smoke fails when HIVE Production Manager is not GREEN/ALLOW', async () => 
   assert.match(result.stderr, /Production Manager did not certify GREEN\/ALLOW/);
 });
 
+test('Production Manager failure reports bounded per-repository gate evidence without arbitrary payload fields', async () => {
+  const result = await exerciseSmoke({
+    productionState: 'DEGRADED',
+    releaseDecision: 'HOLD',
+    productionManagerBody: {
+      state: 'DEGRADED',
+      release_decision: 'HOLD',
+      reason: 'One or more governed repositories need verification.',
+      summary: { total: 8, green: 7, degraded: 1, blocked: 0 },
+      secret: 'must-not-be-printed',
+      repositories: [{
+        repository_id: 'RAMS',
+        state: 'DEGRADED',
+        runtime_state: 'GREEN',
+        health_status: 'healthy',
+        readiness_status: 'ready',
+        detail: 'unfiltered diagnostic that must not be printed',
+        gate_evidence: {
+          reason: 'Required exact-SHA workflow evidence is incomplete.',
+          required_workflows: {
+            CI: { state: 'GREEN', status: 'success', run_id: 10 },
+            'Security and repository quality': { state: 'DEGRADED', status: 'missing', run_id: null },
+          },
+          deployment: { state: 'GREEN', status: 'success', run_id: 11 },
+        },
+      }],
+    },
+  });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /repository_id\":\"RAMS/);
+  assert.match(result.stderr, /Security and repository quality/);
+  assert.match(result.stderr, /\"status\":\"missing/);
+  assert.doesNotMatch(result.stderr, /must-not-be-printed|unfiltered diagnostic/);
+});
+
 test('smoke fails when monthly HIVE model governance is stale', async () => {
   const result = await exerciseSmoke({ councilFresh: false });
   assert.equal(result.code, 1);
@@ -226,3 +261,4 @@ test('deployment-phase deferral never bypasses stale monthly model governance', 
   assert.equal(result.code, 1);
   assert.match(result.stderr, /monthly model governance is not fresh and verified/);
 });
+
