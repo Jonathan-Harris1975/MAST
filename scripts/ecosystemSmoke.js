@@ -105,6 +105,54 @@ function assertOk(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function productionManagerDiagnostics(body) {
+  const text = (value, limit = 240) => typeof value === 'string' ? value.slice(0, limit) : undefined;
+  const repositories = Array.isArray(body?.repositories)
+    ? body.repositories
+      .filter((repo) => repo && typeof repo === 'object' && repo.state !== 'GREEN')
+      .map((repo) => {
+        const gate = repo.gate_evidence && typeof repo.gate_evidence === 'object' ? repo.gate_evidence : {};
+        const workflows = gate.required_workflows && typeof gate.required_workflows === 'object'
+          ? Object.fromEntries(Object.entries(gate.required_workflows)
+            .filter(([, result]) => result && typeof result === 'object' && result.state !== 'GREEN')
+            .map(([name, result]) => [String(name).slice(0, 100), {
+              state: text(result.state, 40),
+              status: text(result.status, 60),
+              run_id: Number.isSafeInteger(result.run_id) ? result.run_id : undefined,
+            }]))
+          : undefined;
+        const deployment = gate.deployment && typeof gate.deployment === 'object' ? gate.deployment : {};
+        return {
+          repository_id: text(repo.repository_id, 80),
+          state: text(repo.state, 40),
+          runtime_state: text(repo.runtime_state, 40),
+          health_status: text(repo.health_status, 60),
+          readiness_status: text(repo.readiness_status, 60),
+          reason: text(gate.reason, 240),
+          required_workflows: workflows,
+          deployment: {
+            state: text(deployment.state, 40),
+            status: text(deployment.status, 60),
+            run_id: Number.isSafeInteger(deployment.run_id) ? deployment.run_id : undefined,
+          },
+        };
+      })
+      .slice(0, 8)
+    : [];
+  const summary = body?.summary && typeof body.summary === 'object'
+    ? Object.fromEntries(['total', 'green', 'degraded', 'blocked']
+      .filter((key) => Number.isSafeInteger(body.summary[key]))
+      .map((key) => [key, body.summary[key]]))
+    : undefined;
+  return JSON.stringify({
+    state: text(body?.state, 40),
+    release_decision: text(body?.release_decision, 40),
+    reason: text(body?.reason, 240),
+    summary,
+    repositories,
+  });
+}
+
 async function main() {
   const workerMode = process.argv[2] === '--worker';
   const skipProductionManager = workerMode && process.argv[4] === '--skip-production-manager';
@@ -221,14 +269,21 @@ async function main() {
 
   if (!skipProductionManager) {
     let productionManager;
+    let lastProductionManagerBody = null;
     try {
       productionManager = await waitForJson(
         new URL('/v1/system/production-manager?force_refresh=true', hiveApiBase),
         { headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)) },
-        (body) => body?.state === 'GREEN' && body?.release_decision === 'ALLOW',
+        (body) => {
+          lastProductionManagerBody = body;
+          return body?.state === 'GREEN' && body?.release_decision === 'ALLOW';
+        },
       );
     } catch (error) {
-      throw new Error(`HIVE Production Manager did not certify GREEN/ALLOW: ${error?.message || String(error)}`);
+      const diagnostics = productionManagerDiagnostics(lastProductionManagerBody);
+      throw new Error(
+        `HIVE Production Manager did not certify GREEN/ALLOW: ${error?.message || error?.name || 'request failed'}; diagnostics=${diagnostics}`,
+      );
     }
     assertOk(
       productionManager.body?.state === 'GREEN'
@@ -332,3 +387,4 @@ main().catch((error) => {
   console.error(`ecosystem smoke failed: ${error?.message || String(error)}`);
   process.exitCode = 1;
 });
+
