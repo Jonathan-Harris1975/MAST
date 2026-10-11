@@ -76,7 +76,8 @@ jobs:
               throw new Error(`${repository.name}: no OIDC readiness run exists for current main ${sha}`);
             }
             if (latest.head_sha !== sha || latest.status !== "completed" ||
-                latest.conclusion !== "success") {
+                latest.conclusion !== "success" ||
+                !["push", "schedule", "workflow_dispatch"].includes(latest.event)) {
               throw new Error(
                 `${repository.name}: latest readiness run ${latest.id} for current main ${sha} is ${latest.status}/${latest.conclusion}`,
               );
