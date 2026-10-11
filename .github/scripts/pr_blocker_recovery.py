@@ -269,6 +269,23 @@ def describe_error(exc):
             "error_code": "metadata-limit",
             "guidance": "Review the PR manually; metadata exceeded the bounded recovery limit.",
         }
+    if message.startswith("Configure KILO_REPAIR_TRIGGER_URL") or message.startswith(
+        "Kilo machine repair contract is unavailable"
+    ) or message == "Kilo machine repair contract is empty":
+        return {
+            "error_code": "repair-agent-configuration",
+            "guidance": "Configure and verify this repository's Kilo webhook and machine repair contract before retrying.",
+        }
+    if message == "Kilo trigger could not be reached":
+        return {
+            "error_code": "repair-agent-unavailable",
+            "guidance": "Check Kilo provider availability; retry only after the trigger endpoint is healthy.",
+        }
+    if message.startswith("Kilo trigger returned HTTP"):
+        return {
+            "error_code": "repair-agent-provider-error",
+            "guidance": "Check the Kilo webhook response and repository integration configuration.",
+        }
     return {
         "error_code": "unexpected-recovery-error",
         "guidance": "Inspect the trusted recovery code and API operation; raw exception details are withheld.",
