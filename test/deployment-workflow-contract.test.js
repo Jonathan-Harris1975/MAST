@@ -120,8 +120,8 @@ test("trusted automation requires an explicit repair App ID", async () => {
     "utf8",
   );
 
-  assert.match(workflow, /APP_ID: \\$\\{\\{ vars\\.AUTONOMY_REPAIR_APP_ID \\}\\}/);
-  assert.match(workflow, /test -n "\\$\\{APP_ID:-\\}"/);
-  assert.match(workflow, /AUTONOMY_REPAIR_APP_ID is required/);
-  assert.doesNotMatch(workflow, /AUTONOMY_REPAIR_APP_ID\\s*\\|\\|/);
+  assert.ok(workflow.includes("APP_ID: ${{ vars.AUTONOMY_REPAIR_APP_ID }}"));
+  assert.ok(workflow.includes('test -n "${APP_ID:-}"'));
+  assert.ok(workflow.includes("AUTONOMY_REPAIR_APP_ID is required"));
+  assert.doesNotMatch(workflow, /vars\.AUTONOMY_REPAIR_APP_ID\s*\|\|/);
 });
