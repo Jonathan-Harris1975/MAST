@@ -2,6 +2,7 @@
 
 import copy
 import json
+from io import StringIO
 import os
 from pathlib import Path
 import sys
@@ -439,6 +440,22 @@ class Recovery(unittest.TestCase):
             finally:
                 os.chdir(previous)
 
+    def test_repair_router_errors_fail_and_classify_without_exposing_details(self):
+        error = RuntimeError("Configure KILO_REPAIR_TRIGGER_URL https://hook.invalid/?token=secret-value")
+        self.assertEqual(
+            m.router.routing_error(error),
+            (
+                "repair-agent-configuration",
+                "Configure and verify this repository's Kilo webhook and machine repair contract.",
+            ),
+        )
+        with patch("sys.stderr", new_callable=StringIO) as error_log:
+            with self.assertRaises(SystemExit) as raised:
+                m.router.fail_routing(error)
+        self.assertEqual(raised.exception.code, 1)
+        self.assertIn("repair-agent-configuration", error_log.getvalue())
+        self.assertNotIn("secret-value", error_log.getvalue())
+
     def test_operational_errors_are_actionable_without_exposing_secrets(self):
         cases = [
             (
@@ -455,6 +472,12 @@ class Recovery(unittest.TestCase):
                 RuntimeError("https://private.invalid?token=secret-value"),
                 "unexpected-recovery-error",
             ),
+            (
+                RuntimeError("Configure KILO_REPAIR_TRIGGER_URL https://hook.invalid/?token=secret-value"),
+                "repair-agent-configuration",
+            ),
+            (RuntimeError("Kilo trigger could not be reached"), "repair-agent-unavailable"),
+            (RuntimeError("Kilo trigger returned HTTP 503"), "repair-agent-provider-error"),
         ]
         for error, code in cases:
             result = m.describe_error(error)
