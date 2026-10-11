@@ -109,3 +109,47 @@ jobs:
           path: oidc-estate-readiness.json
           if-no-files-found: error
           retention-days: 90
+
+  notify-failure:
+    name: Notify central operations when estate OIDC evidence fails
+    needs: [verify-estate]
+    if: ${{ always() && needs.verify-estate.result == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Require operational alert credential
+        env:
+          OPS_ALERT_WEBHOOK_TOKEN: ${{ secrets.OPS_ALERT_WEBHOOK_TOKEN || secrets.OPS_EVENT_INGEST_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$OPS_ALERT_WEBHOOK_TOKEN" ]; then
+            echo "::error::OIDC estate verification failed and no central operations webhook credential is configured."
+            exit 1
+          fi
+
+      - name: Route OIDC estate failure to central operations
+        env:
+          OPS_ALERT_WEBHOOK_URL: ${{ vars.OPS_ALERT_WEBHOOK_URL || secrets.OPS_ALERT_WEBHOOK_URL || 'https://liable-loreen-jonathanharris-57884580.koyeb.app/v1/ops/events' }}
+          OPS_ALERT_WEBHOOK_TOKEN: ${{ secrets.OPS_ALERT_WEBHOOK_TOKEN || secrets.OPS_EVENT_INGEST_TOKEN }}
+        run: |
+          set -euo pipefail
+          python scripts/ops_notify.py \
+            --service MAST \
+            --event-type oidc_estate_readiness_failed \
+            --title "Estate OIDC readiness verification failed" \
+            --summary "At least one repository lacks successful GitHub OIDC readiness evidence for its exact current main SHA. Inspect the linked MAST run for the repository, SHA and workflow run ID." \
+            --severity critical \
+            --event-id "github:${{ github.repository }}:${{ github.run_id }}:${{ github.run_attempt }}" \
+            --release-id "${{ github.sha }}" \
+            --url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
