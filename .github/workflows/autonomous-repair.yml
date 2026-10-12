@@ -143,7 +143,7 @@ jobs:
           fi
 
           dispatch_kilo() {
-            local repair_pr="$1" marker marker_rows latest_state rejected_attempts payload status patch_attempt
+            local repair_pr="$1" marker marker_rows latest_state rejected_attempts payload status patch_attempt rejected_body accepted_body
             marker="<!-- kilo-main-repair:${RUN_ID} -->"
             marker_rows="$(gh api --paginate "repos/${REPO}/issues/${repair_pr}/comments" | \
               jq -r --arg login "$REPAIR_APP_LOGIN" --arg marker "$marker" \
@@ -199,7 +199,7 @@ jobs:
                   fi
                 done
               fi
-              echo "::error::Kilo main repair trigger returned HTTP $status for run $RUN_ID."
+              echo "::error::Kilo Cloud Agent trigger returned HTTP $status for run $RUN_ID."
               exit 1
             fi
             accepted_body="$marker dispatch-state: accepted Kilo accepted the repair request for $RUN_URL."
