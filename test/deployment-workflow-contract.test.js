@@ -114,10 +114,15 @@ test("standalone smoke rejects malformed source SHAs before checkout", async () 
 });
 
 
-test("OIDC estate verification reruns after local readiness completes", async () => {
-  const workflow = await readFile(new URL("../.github/workflows/oidc-estate-readiness.yml", import.meta.url), "utf8");
-  assert.match(workflow, /workflow_run:\n    workflows: \["OIDC readiness"\]\n    types: \[completed\]\n    branches: \[main\]/);
-  assert.match(workflow, /schedule:/);
-  assert.match(workflow, /workflow_dispatch:/);
-  assert.match(workflow, /exact current main SHA/);
-});
+test("OIDC estate verification is safely dispatched after local readiness succeeds", async () => {
+  const estate = await readFile(new URL("../.github/workflows/oidc-estate-readiness.yml", import.meta.url), "utf8");
+  const readiness = await readFile(new URL("../.github/workflows/oidc-readiness.yml", import.meta.url), "utf8");
+  assert.doesNotMatch(estate, /^  workflow_run:/m);
+  assert.match(estate, /schedule:/);
+  assert.match(estate, /workflow_dispatch:/);
+  assert.match(estate, /exact current main SHA/);
+  assert.match(readiness, /dispatch-estate-readiness:[\s\S]*?needs: \[github-oidc\]/);
+  assert.match(readiness, /actions: write/);
+  assert.match(readiness, /gh workflow run oidc-estate-readiness\.yml --ref main/);
+  assert.match(readiness, /needs\.github-oidc\.result == 'success'/);
+});;
