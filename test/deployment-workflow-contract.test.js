@@ -126,3 +126,14 @@ test("OIDC estate verification is safely dispatched after local readiness succee
   assert.match(readiness, /gh workflow run oidc-estate-readiness\.yml --ref main/);
   assert.match(readiness, /needs\.github-oidc\.result == 'success'/);
 });;
+test("trusted automation requires an explicit repair App ID", async () => {
+  const workflow = await readFile(
+    new URL("../.github/workflows/trusted-automation.yml", import.meta.url),
+    "utf8",
+  );
+
+  assert.ok(workflow.includes("APP_ID: ${{ vars.AUTONOMY_REPAIR_APP_ID }}"));
+  assert.ok(workflow.includes('test -n "${APP_ID:-}"'));
+  assert.ok(workflow.includes("AUTONOMY_REPAIR_APP_ID is required"));
+  assert.doesNotMatch(workflow, /vars\.AUTONOMY_REPAIR_APP_ID\s*\|\|/);
+});
