@@ -2,6 +2,7 @@
 
 import copy
 import json
+from io import StringIO
 import os
 from pathlib import Path
 import sys
@@ -387,6 +388,8 @@ class Recovery(unittest.TestCase):
                 return {"sha": "b" * 40}
             if method == "POST" and path.endswith("/issues/7/comments"):
                 posted.append(payload["body"])
+                return {"id": 99}
+            if method == "PATCH" and path.endswith("/issues/comments/99"):
                 return {}
             raise AssertionError((method, path, payload))
 
@@ -440,6 +443,22 @@ class Recovery(unittest.TestCase):
             finally:
                 os.chdir(previous)
 
+    def test_repair_router_errors_fail_and_classify_without_exposing_details(self):
+        error = m.router.RepairAgentConfigurationError("configuration unavailable")
+        self.assertEqual(
+            m.router.routing_error(error),
+            (
+                "repair-agent-configuration",
+                "Configure and verify this repository's Kilo webhook and machine repair contract.",
+            ),
+        )
+        with patch("sys.stderr", new_callable=StringIO) as error_log:
+            with self.assertRaises(SystemExit) as raised:
+                m.router.fail_routing(error)
+        self.assertEqual(raised.exception.code, 1)
+        self.assertIn("repair-agent-configuration", error_log.getvalue())
+        self.assertNotIn("secret-value", error_log.getvalue())
+
     def test_operational_errors_are_actionable_without_exposing_secrets(self):
         cases = [
             (
@@ -456,6 +475,9 @@ class Recovery(unittest.TestCase):
                 RuntimeError("https://private.invalid?token=secret-value"),
                 "unexpected-recovery-error",
             ),
+            (m.router.RepairAgentConfigurationError("configuration unavailable"), "repair-agent-configuration"),
+            (m.router.RepairAgentUnavailableError("network unavailable"), "repair-agent-unavailable"),
+            (m.router.RepairAgentProviderError(503), "repair-agent-provider-error"),
         ]
         for error, code in cases:
             result = m.describe_error(error)
@@ -474,6 +496,8 @@ class Recovery(unittest.TestCase):
                 return {"sha": "b" * 40}
             if method == "POST" and path.endswith("/issues/7/comments"):
                 posted.append(payload["body"])
+                return {"id": 99}
+            if method == "PATCH" and path.endswith("/issues/comments/99"):
                 return {}
             raise AssertionError((method, path, payload))
 
@@ -542,6 +566,66 @@ class Recovery(unittest.TestCase):
             m.router.dispatch(self.pr, "merge-conflict-" + "b" * 40, ["conflict"])
         api.assert_not_called()
 
+
+
+    def test_shared_repair_agent_classification_is_typed_and_distinguishes_retryable_http(self):
+        config = m.router.RepairAgentConfigurationError("secret-url must not be echoed")
+        unavailable = m.router.RepairAgentUnavailableError("hidden network detail")
+        self.assertEqual(m.router.routing_error(config)[0], "repair-agent-configuration")
+        self.assertEqual(m.router.routing_error(unavailable)[0], "repair-agent-unavailable")
+        self.assertEqual(m.describe_error(config)["error_code"], "repair-agent-configuration")
+        self.assertEqual(m.describe_error(unavailable)["error_code"], "repair-agent-unavailable")
+        for status, retryable in [(400, False), (429, True), (503, True)]:
+            error = m.router.RepairAgentProviderError(status)
+            code, guidance, classified_retryable = m.router.classify_repair_error(error)
+            self.assertEqual(code, "repair-agent-provider-error")
+            self.assertEqual(classified_retryable, retryable)
+            self.assertIn(str(status), guidance)
+            detail = m.describe_error(error)
+            self.assertEqual(detail["http_status"], status)
+            self.assertEqual(detail["retryable"], retryable)
+            self.assertEqual(detail["error_code"], code)
+
+
+    def test_repair_handoff_reserves_and_retries_only_explicit_rejection(self):
+        comments = []
+        events = []
+        def api(method, path, payload=None):
+            if method == "POST" and path.endswith("/comments"):
+                comments.append({"user": {"login": "github-actions[bot]"}, "body": payload["body"]})
+                events.append("reserve")
+                return {"id": len(comments)}
+            if method == "PATCH" and path.endswith("/issues/comments/1"):
+                comments[0]["body"] = payload["body"]
+                events.append("mark-rejected")
+                return {}
+            if method == "PATCH" and path.endswith("/issues/comments/2"):
+                comments[1]["body"] = payload["body"]
+                events.append("ack")
+                return {}
+            raise AssertionError((method, path, payload))
+
+        accepted = MagicMock()
+        accepted.__enter__.return_value.status = 202
+        rejected = m.router.urllib.error.HTTPError(
+            "https://example.invalid/repair", 429, "rate limited", {}, None
+        )
+        with (
+            patch.object(m.router, "all_pages", side_effect=[[], comments]),
+            patch.object(m.router, "api", side_effect=api),
+            patch.object(m.router, "valid_kilo_webhook_url", return_value=True),
+            patch.object(m.router, "machine_contract", return_value="machine contract"),
+            patch.object(m.router.urllib.request, "urlopen", side_effect=[rejected, accepted]),
+            patch.dict(os.environ, {"KILO_REPAIR_TRIGGER_URL": "https://example.invalid/repair"}),
+            patch("builtins.print"),
+        ):
+            with self.assertRaises(m.router.RepairAgentProviderError):
+                m.router.dispatch(self.pr, "review", ["finding"])
+            self.assertIn("dispatch-state: rejected-http-429", comments[0]["body"])
+            self.assertEqual(m.router.dispatch(self.pr, "review", ["finding"]), "requested")
+
+        self.assertEqual(events, ["reserve", "mark-rejected", "reserve", "ack"])
+        self.assertIn("dispatch-state: accepted", comments[1]["body"])
 
 if __name__ == "__main__":
     unittest.main()
