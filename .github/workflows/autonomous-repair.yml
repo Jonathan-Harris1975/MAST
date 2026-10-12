@@ -212,7 +212,6 @@ jobs:
                 echo "::error::Kilo accepted run $RUN_ID, but both attempts to acknowledge it failed; the pending marker remains to suppress duplicates and must be inspected." >&2
               fi
             done
-            fi
           }
 
           if [ "$RUN_CONCLUSION" = "success" ]; then
