@@ -441,7 +441,7 @@ class Recovery(unittest.TestCase):
                 os.chdir(previous)
 
     def test_repair_router_errors_fail_and_classify_without_exposing_details(self):
-        error = RuntimeError("Configure KILO_REPAIR_TRIGGER_URL https://hook.invalid/?token=secret-value")
+        error = m.router.RepairAgentConfigurationError("configuration unavailable")
         self.assertEqual(
             m.router.routing_error(error),
             (
@@ -472,12 +472,9 @@ class Recovery(unittest.TestCase):
                 RuntimeError("https://private.invalid?token=secret-value"),
                 "unexpected-recovery-error",
             ),
-            (
-                RuntimeError("Configure KILO_REPAIR_TRIGGER_URL https://hook.invalid/?token=secret-value"),
-                "repair-agent-configuration",
-            ),
-            (RuntimeError("Kilo trigger could not be reached"), "repair-agent-unavailable"),
-            (RuntimeError("Kilo trigger returned HTTP 503"), "repair-agent-provider-error"),
+            (m.router.RepairAgentConfigurationError("configuration unavailable"), "repair-agent-configuration"),
+            (m.router.RepairAgentUnavailableError("network unavailable"), "repair-agent-unavailable"),
+            (m.router.RepairAgentProviderError(503), "repair-agent-provider-error"),
         ]
         for error, code in cases:
             result = m.describe_error(error)
