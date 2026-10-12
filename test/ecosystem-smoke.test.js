@@ -36,7 +36,7 @@ async function runSmoke(env, args = []) {
   });
 }
 
-async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, councilFresh = true, skipProductionManager = false } = {}) {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, councilFresh = true, councilBody = null, skipProductionManager = false } = {}) {
   let aimsBase = '';
 
   let ramsBusyRemaining = ramsBusyResponses;
@@ -78,7 +78,7 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
       return send(res, 200, productionManagerBody || { state: productionState, release_decision: releaseDecision });
     }
     if (req.url === '/v1/ai-council/status') {
-      return send(res, 200, {
+      return send(res, 200, councilBody || {
         ok: councilFresh,
         fresh: councilFresh,
         downstream_sync_enabled: councilFresh,
@@ -266,6 +266,33 @@ test('smoke fails when monthly HIVE model governance is stale', async () => {
   assert.match(result.stderr, /monthly model governance is not fresh and verified/);
 });
 
+
+test('monthly governance failures identify stale evidence, downstream sync, or service status', async () => {
+  const cases = [
+    {
+      body: { ok: false, fresh: false, downstream_sync_enabled: true, downstream_sync_ok: true, reason: 'latest AI Council run is degraded', period: '2026-09', secret: 'hidden' },
+      classification: 'stale_governance_evidence',
+      reason: 'latest AI Council run is degraded',
+    },
+    {
+      body: { ok: true, fresh: true, downstream_sync_enabled: true, downstream_sync_ok: false, reason: 'RAMS sync pending' },
+      classification: 'downstream_sync',
+      reason: 'RAMS sync pending',
+    },
+    {
+      body: { ok: false, fresh: true, downstream_sync_enabled: true, downstream_sync_ok: true, reason: 'status endpoint unavailable' },
+      classification: 'service_status',
+      reason: 'status endpoint unavailable',
+    },
+  ];
+  for (const scenario of cases) {
+    const result = await exerciseSmoke({ councilBody: scenario.body });
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, new RegExp(`"classification":"${scenario.classification}"`));
+    assert.match(result.stderr, new RegExp(scenario.reason));
+    assert.doesNotMatch(result.stderr, /hidden/);
+  }
+});
 
 test('deployment-phase Worker smoke can defer only the self-referential Production Manager check', async () => {
   const result = await exerciseSmoke({
