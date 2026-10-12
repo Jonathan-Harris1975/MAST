@@ -101,6 +101,24 @@ async function waitForWake(url, options = {}) {
   throw new Error('HIVE RAMS wake did not complete within the smoke retry window');
 }
 
+function aiCouncilDiagnostics(body) {
+  const text = (value, limit = 240) => typeof value === 'string' ? value.slice(0, limit) : undefined;
+  let classification = 'service_status';
+  if (body?.fresh === false) classification = 'stale_governance_evidence';
+  else if (body?.downstream_sync_enabled !== true || body?.downstream_sync_ok !== true) classification = 'downstream_sync';
+  const detail = {
+    classification,
+    ok: typeof body?.ok === 'boolean' ? body.ok : undefined,
+    fresh: typeof body?.fresh === 'boolean' ? body.fresh : undefined,
+    downstream_sync_enabled: typeof body?.downstream_sync_enabled === 'boolean' ? body.downstream_sync_enabled : undefined,
+    downstream_sync_ok: typeof body?.downstream_sync_ok === 'boolean' ? body.downstream_sync_ok : undefined,
+    reason: text(body?.reason),
+    period: text(body?.period, 16),
+    run_id: text(body?.run_id, 80),
+  };
+  return JSON.stringify(Object.fromEntries(Object.entries(detail).filter(([, value]) => value !== undefined)));
+}
+
 function assertOk(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -301,12 +319,13 @@ async function main() {
   const councilStatus = await requestJson(new URL('/v1/ai-council/status', hiveApiBase), {
     headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)),
   });
+  const councilHealthy = councilStatus.body?.ok === true
+    && councilStatus.body?.fresh === true
+    && councilStatus.body?.downstream_sync_enabled === true
+    && councilStatus.body?.downstream_sync_ok === true;
   assertOk(
-    councilStatus.body?.ok === true
-      && councilStatus.body?.fresh === true
-      && councilStatus.body?.downstream_sync_enabled === true
-      && councilStatus.body?.downstream_sync_ok === true,
-    `HIVE monthly model governance is not fresh and verified: ${councilStatus.body?.reason || 'unknown reason'}`,
+    councilHealthy,
+    `HIVE monthly model governance is not fresh and verified: ${aiCouncilDiagnostics(councilStatus.body)}`,
   );
   console.log('ok 9 - HIVE monthly model governance fresh and propagated');
 
