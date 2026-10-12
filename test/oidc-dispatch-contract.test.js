@@ -8,5 +8,5 @@ test("MAST refreshes estate OIDC evidence without relying on a checked-out git r
   const source = await readFile(workflow, "utf8");
   const dispatchJob = source.split("dispatch-estate-readiness:")[1];
   assert.ok(dispatchJob, "the cross-repository OIDC refresh job must exist");
-  assert.match(dispatchJob, /gh workflow run oidc-estate-readiness\\.yml --ref main --repo "\\$GITHUB_REPOSITORY"/);
+  assert.match(dispatchJob, /gh workflow run oidc-estate-readiness\.yml --ref main --repo "\$GITHUB_REPOSITORY"/);
 });
