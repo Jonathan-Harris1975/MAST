@@ -199,4 +199,4 @@ jobs:
             echo "::notice::Superseded by newer main commit ${tip}; its readiness run will dispatch the estate verifier."
             exit 0
           fi
-          gh workflow run oidc-estate-readiness.yml --ref main
+          gh workflow run oidc-estate-readiness.yml --ref main --repo "$GITHUB_REPOSITORY"
