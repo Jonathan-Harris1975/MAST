@@ -269,6 +269,12 @@ def describe_error(exc):
             "error_code": "metadata-limit",
             "guidance": "Review the PR manually; metadata exceeded the bounded recovery limit.",
         }
+    if isinstance(exc, router.RepairAgentConfigurationError | router.RepairAgentUnavailableError | router.RepairAgentProviderError):
+        code, guidance, retryable = router.classify_repair_error(exc)
+        result = {"error_code": code, "guidance": guidance, "retryable": retryable}
+        if isinstance(exc, router.RepairAgentProviderError):
+            result["http_status"] = exc.status
+        return result
     if message.startswith("Configure KILO_REPAIR_TRIGGER_URL") or message.startswith(
         "Kilo machine repair contract is unavailable"
     ) or message == "Kilo machine repair contract is empty":
