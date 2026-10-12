@@ -112,3 +112,12 @@ test("standalone smoke rejects malformed source SHAs before checkout", async () 
   assert.match(validation, /exit 1/);
   assert.ok(smoke.indexOf("Validate MAST smoke source identity and commit") < smoke.indexOf("uses: actions/checkout@"));
 });
+
+
+test("OIDC estate verification reruns after local readiness completes", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/oidc-estate-readiness.yml", import.meta.url), "utf8");
+  assert.match(workflow, /workflow_run:\n    workflows: \["OIDC readiness"\]\n    types: \[completed\]\n    branches: \[main\]/);
+  assert.match(workflow, /schedule:/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /exact current main SHA/);
+});
