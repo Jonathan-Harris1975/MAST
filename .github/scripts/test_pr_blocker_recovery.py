@@ -387,6 +387,8 @@ class Recovery(unittest.TestCase):
                 return {"sha": "b" * 40}
             if method == "POST" and path.endswith("/issues/7/comments"):
                 posted.append(payload["body"])
+                return {"id": 99}
+            if method == "PATCH" and path.endswith("/issues/comments/99"):
                 return {}
             raise AssertionError((method, path, payload))
 
@@ -493,6 +495,8 @@ class Recovery(unittest.TestCase):
                 return {"sha": "b" * 40}
             if method == "POST" and path.endswith("/issues/7/comments"):
                 posted.append(payload["body"])
+                return {"id": 99}
+            if method == "PATCH" and path.endswith("/issues/comments/99"):
                 return {}
             raise AssertionError((method, path, payload))
 
