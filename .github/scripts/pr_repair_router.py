@@ -16,6 +16,7 @@ import urllib.request
 from pathlib import Path
 from kilo_webhook_url import valid_kilo_webhook_url
 from kilo_failure_classifier import repairable_failed_steps
+from repair_agent_errors import (RepairAgentConfigurationError, RepairAgentProviderError, RepairAgentUnavailableError, classify_repair_error)
 
 REPO = os.environ["GITHUB_REPOSITORY"]
 TOKEN = os.environ["GH_TOKEN"]
@@ -28,10 +29,10 @@ KILO_MACHINE_CONTRACT = Path(__file__).resolve().parents[1] / "kilo-machine-repa
 def machine_contract() -> str:
     try:
         contract = KILO_MACHINE_CONTRACT.read_text(encoding="utf-8").strip()
-    except OSError as exc:
-        raise RuntimeError(f"Kilo machine repair contract is unavailable: {exc}") from exc
+    except OSError:
+        raise RepairAgentConfigurationError("Kilo machine repair contract is unavailable") from None
     if not contract:
-        raise RuntimeError("Kilo machine repair contract is empty")
+        raise RepairAgentConfigurationError("Kilo machine repair contract is empty")
     return contract
 
 
@@ -260,7 +261,7 @@ def dispatch(pr: dict, kind: str, findings: list[str]) -> str:
     instruction = machine_contract() + "\n\n" + instruction
     url = os.environ.get("KILO_REPAIR_TRIGGER_URL", "")
     if not valid_kilo_webhook_url(url):
-        raise RuntimeError("Configure KILO_REPAIR_TRIGGER_URL with this repository's Kilo Cloud Agent webhook trigger")
+        raise RepairAgentConfigurationError("KILO_REPAIR_TRIGGER_URL is missing or invalid")
     payload = {"repository": REPO, "source_pr": source, "source_sha": sha,
                "kind": kind, "task": instruction, "findings": findings[:12]}
     request = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST",
@@ -268,11 +269,11 @@ def dispatch(pr: dict, kind: str, findings: list[str]) -> str:
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
             if response.status not in (200, 201, 202, 204):
-                raise RuntimeError(f"Kilo trigger returned HTTP {response.status}")
+                raise RepairAgentProviderError(response.status)
     except urllib.error.HTTPError as exc:
-        raise RuntimeError(f"Kilo trigger returned HTTP {exc.code}") from None
+        raise RepairAgentProviderError(exc.code) from None
     except urllib.error.URLError:
-        raise RuntimeError("Kilo trigger could not be reached") from None
+        raise RepairAgentUnavailableError("Kilo trigger could not be reached") from None
     api("POST", f"/repos/{REPO}/issues/{number}/comments", {"body":
         f"{marker}\nAutonomous Kilo repair requested for the current {kind} findings. "
         "The source PR remains governed by its normal checks."})
@@ -291,29 +292,9 @@ def main() -> None:
 
 
 def routing_error(exc: Exception) -> tuple[str, str]:
-    """Classify known agent configuration/provider failures without printing secrets."""
-    message = str(exc)
-    if message.startswith("Configure KILO_REPAIR_TRIGGER_URL") or message.startswith(
-        "Kilo machine repair contract is unavailable"
-    ) or message == "Kilo machine repair contract is empty":
-        return (
-            "repair-agent-configuration",
-            "Configure and verify this repository's Kilo webhook and machine repair contract.",
-        )
-    if message == "Kilo trigger could not be reached":
-        return (
-            "repair-agent-unavailable",
-            "Check Kilo provider availability and retry only after the trigger endpoint is healthy.",
-        )
-    if message.startswith("Kilo trigger returned HTTP"):
-        return (
-            "repair-agent-provider-error",
-            "Check the Kilo webhook response and repository integration configuration.",
-        )
-    return (
-        "repair-routing-error",
-        "Inspect the trusted router's GitHub/API operation; raw exception details are withheld.",
-    )
+    """Expose the shared safe classification without leaking provider details."""
+    code, guidance, _retryable = classify_repair_error(exc)
+    return code, guidance
 
 
 def fail_routing(exc: Exception) -> None:
