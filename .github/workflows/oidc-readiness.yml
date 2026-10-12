@@ -173,3 +173,23 @@ jobs:
           path: oidc-readiness.json
           if-no-files-found: error
           retention-days: 90
+
+  dispatch-estate-readiness:
+    name: Refresh cross-repository OIDC evidence
+    needs: [github-oidc]
+    if: ${{ needs.github-oidc.result == 'success' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2
+        with:
+          egress-policy: audit
+
+      - name: Dispatch MAST OIDC estate verifier
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run oidc-estate-readiness.yml --ref main
