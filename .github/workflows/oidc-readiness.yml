@@ -192,4 +192,11 @@ jobs:
       - name: Dispatch MAST OIDC estate verifier
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run oidc-estate-readiness.yml --ref main
+        run: |
+          set -euo pipefail
+          tip="$(gh api "repos/${GITHUB_REPOSITORY}/branches/main" --jq .commit.sha)"
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            echo "::notice::Superseded by newer main commit ${tip}; its readiness run will dispatch the estate verifier."
+            exit 0
+          fi
+          gh workflow run oidc-estate-readiness.yml --ref main
