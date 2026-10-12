@@ -7,5 +7,5 @@ const workflow = new URL("../.github/workflows/oidc-estate-readiness.yml", impor
 test("MAST refreshes exact-main OIDC estate evidence daily", async () => {
   const source = await readFile(workflow, "utf8");
   const schedule = source.split("schedule:")[1].split("workflow_dispatch:")[0];
-  assert.match(schedule, /cron: '17 2 \\* \\* \\*'/);
+  assert.match(schedule, /cron: '17 2 \* \* \*'/);
 });
