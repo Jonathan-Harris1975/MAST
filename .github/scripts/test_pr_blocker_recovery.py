@@ -551,5 +551,24 @@ class Recovery(unittest.TestCase):
         api.assert_not_called()
 
 
+
+    def test_shared_repair_agent_classification_is_typed_and_distinguishes_retryable_http(self):
+        config = m.router.RepairAgentConfigurationError("secret-url must not be echoed")
+        unavailable = m.router.RepairAgentUnavailableError("hidden network detail")
+        self.assertEqual(m.router.routing_error(config)[0], "repair-agent-configuration")
+        self.assertEqual(m.router.routing_error(unavailable)[0], "repair-agent-unavailable")
+        self.assertEqual(m.describe_error(config)["error_code"], "repair-agent-configuration")
+        self.assertEqual(m.describe_error(unavailable)["error_code"], "repair-agent-unavailable")
+        for status, retryable in [(400, False), (429, True), (503, True)]:
+            error = m.router.RepairAgentProviderError(status)
+            code, guidance, classified_retryable = m.router.classify_repair_error(error)
+            self.assertEqual(code, "repair-agent-provider-error")
+            self.assertEqual(classified_retryable, retryable)
+            self.assertIn(str(status), guidance)
+            detail = m.describe_error(error)
+            self.assertEqual(detail["http_status"], status)
+            self.assertEqual(detail["retryable"], retryable)
+            self.assertEqual(detail["error_code"], code)
+
 if __name__ == "__main__":
     unittest.main()
