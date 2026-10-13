@@ -36,8 +36,9 @@ async function runSmoke(env, args = []) {
   });
 }
 
-async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, councilFresh = true, councilBody = null, skipProductionManager = false, runtimeReadinessStatus = 200, runtimeReadinessBody = null, ramsConflictBody = null } = {}) {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, productionManagerDelayMs = 0, smokeTimeoutMs = 3000, councilFresh = true, councilBody = null, skipProductionManager = false, runtimeReadinessStatus = 200, runtimeReadinessBody = null, ramsConflictBody = null } = {}) {
   let aimsBase = '';
+  let productionManagerRequests = 0;
 
   let ramsBusyRemaining = ramsBusyResponses;
   const rams = await listen((req, res) => {
@@ -78,7 +79,12 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
     }
     if (req.url === '/v1/providers/health') return send(res, 200, { provider_count: 1, providers: [{ provider: 'mock', ok: true }] });
     if (req.url === '/v1/system/production-manager?force_refresh=true') {
-      return send(res, 200, productionManagerBody || { state: productionState, release_decision: releaseDecision });
+      productionManagerRequests += 1;
+      const body = productionManagerBody || { state: productionState, release_decision: releaseDecision };
+      if (productionManagerDelayMs > 0) {
+        return setTimeout(() => send(res, 200, body), productionManagerDelayMs);
+      }
+      return send(res, 200, body);
     }
     if (req.url === '/v1/ai-council/status') {
       return send(res, 200, councilBody || {
@@ -112,9 +118,9 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
   aimsBase = aims.base;
 
   try {
-    return await runSmoke({
+    const result = await runSmoke({
       ECOSYSTEM_SMOKE_ALLOW_HTTP: 'true',
-      ECOSYSTEM_SMOKE_TIMEOUT_MS: '3000',
+      ECOSYSTEM_SMOKE_TIMEOUT_MS: String(smokeTimeoutMs),
       ECOSYSTEM_SMOKE_RETRY_ATTEMPTS: '2',
       ECOSYSTEM_SMOKE_RETRY_DELAY_MS: '10',
       AIMS_BASE_URL: aims.base,
@@ -127,6 +133,8 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
       HIVE_UI_ACCESS_KEY: workerMode ? '' : 'test-ui-key',
       KOYEB_GIT_SHA: deployedSha,
     }, workerMode ? ['--worker', 'a'.repeat(40), ...(skipProductionManager ? ['--skip-production-manager'] : [])] : []);
+    result.productionManagerRequests = productionManagerRequests;
+    return result;
   } finally {
     await Promise.all([rams.close(), hive.close(), aims.close()]);
   }
@@ -215,10 +223,19 @@ test('Worker smoke fails closed when its HIVE credential is absent', async () =>
 });
 
 
-test('smoke fails when HIVE Production Manager is not GREEN/ALLOW', async () => {
+test('smoke fails after one forced HIVE Production Manager refresh when state is not GREEN/ALLOW', async () => {
   const result = await exerciseSmoke({ productionState: 'DEGRADED', releaseDecision: 'HOLD' });
   assert.equal(result.code, 1);
-  assert.match(result.stderr, /Production Manager did not certify GREEN\/ALLOW/);
+  assert.equal(result.productionManagerRequests, 1);
+  assert.match(result.stderr, /Production Manager did not certify GREEN\\/ALLOW/);
+});
+
+test('smoke does not repeat a timed-out HIVE Production Manager refresh', async () => {
+  const result = await exerciseSmoke({ productionManagerDelayMs: 100, smokeTimeoutMs: 20 });
+  assert.equal(result.code, 1);
+  assert.equal(result.productionManagerRequests, 1);
+  assert.match(result.stderr, /Production Manager did not certify GREEN\\/ALLOW/);
+  assert.match(result.stderr, /TimeoutError|timed out/i);
 });
 
 test('Production Manager failure reports bounded per-repository gate evidence without arbitrary payload fields', async () => {
