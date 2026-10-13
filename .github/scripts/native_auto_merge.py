@@ -15,8 +15,8 @@ import urllib.request
 from typing import Any
 
 API = "https://api.github.com"
-TOKEN = os.environ["NATIVE_MERGE_TOKEN"]
-REPO = os.environ["REPO"]
+TOKEN = os.environ.get("NATIVE_MERGE_TOKEN", "")
+REPO = os.environ.get("REPO", "")
 DEFAULT_BRANCH = os.environ.get("DEFAULT_BRANCH", "main")
 ADMISSION_CHECK = "Trusted autonomy admission"
 BLOCKING_LABELS = {
@@ -127,15 +127,16 @@ def reconcile(pr_summary: dict[str, Any]) -> None:
         return
 
     pr = request("GET", f"/repos/{REPO}/pulls/{number}")
+    current_labels = {label["name"] for label in pr.get("labels", [])}
     sha = str((pr.get("head") or {}).get("sha") or "")
     exact_admission, has_admission_evidence = admission_check(number, sha) if sha else (False, False)
-    blocked = bool(labels.intersection(BLOCKING_LABELS))
+    blocked = bool(current_labels.intersection(BLOCKING_LABELS))
     eligible = (
         pr.get("state") == "open"
         and not pr.get("draft")
         and pr.get("base", {}).get("ref") == DEFAULT_BRANCH
         and pr.get("mergeable") is True
-        and "autonomy:admitted" in labels
+        and "autonomy:admitted" in current_labels
         and not blocked
         and exact_admission
     )
@@ -148,7 +149,7 @@ def reconcile(pr_summary: dict[str, Any]) -> None:
     # Only cancel requests associated with an autonomy admission label or
     # exact-head admission evidence. This leaves unrelated user requests alone.
     if active_request is not None and (
-        "autonomy:admitted" in labels or has_admission_evidence
+        "autonomy:admitted" in current_labels or has_admission_evidence
     ):
         disable(node_id)
         print(f"Disabled GitHub native auto-merge for PR #{number}; admission or hold conditions no longer pass.")
