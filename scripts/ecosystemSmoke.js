@@ -91,7 +91,7 @@ async function waitForWake(url, options = {}) {
     const { body } = await requestJson(url, options);
     if (body?.status === 'ready' && body?.result?.ready === true) return;
     if (body?.status === 'failed' || body?.status === 'timeout') {
-      throw new Error(`HIVE RAMS wake failed: ${body.error || body.status}`);
+      throw new Error(`HIVE RAMS wake failed (${body.status})`);
     }
     if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
@@ -109,7 +109,7 @@ function aiCouncilDiagnostics(body) {
     fresh: typeof body?.fresh === 'boolean' ? body.fresh : undefined,
     downstream_sync_enabled: typeof body?.downstream_sync_enabled === 'boolean' ? body.downstream_sync_enabled : undefined,
     downstream_sync_ok: typeof body?.downstream_sync_ok === 'boolean' ? body.downstream_sync_ok : undefined,
-    reason: text(body?.reason),
+    reason: ['current monthly governance is stale', 'latest AI Council run is degraded', 'RAMS sync pending', 'status endpoint unavailable'].includes(body?.reason) ? body.reason : undefined,
     period: text(body?.period, 16),
     run_id: text(body?.run_id, 80),
   };
@@ -146,7 +146,6 @@ function productionManagerDiagnostics(body) {
       runtime_state: text(repo.runtime_state, 40),
       health_status: text(repo.health_status, 60),
       readiness_status: text(repo.readiness_status, 60),
-      reason: text(gate.reason, 240),
       required_workflows: workflows,
       omitted_workflow_count: Math.max(0, failedWorkflowEntries.length - 12),
       deployment: {
@@ -164,7 +163,6 @@ function productionManagerDiagnostics(body) {
   return JSON.stringify({
     state: text(body?.state, 40),
     release_decision: text(body?.release_decision, 40),
-    reason: text(body?.reason, 240),
     summary,
     repositories,
     omitted_repository_count: Math.max(0, failingRepositories.length - 8),
@@ -259,7 +257,7 @@ async function main() {
     }
     const busyMessage = String(result.body?.error || result.body?.detail || result.body?.message || '');
     if (!/pipeline already running/i.test(busyMessage)) {
-      throw new Error(`RAMS dry-run returned 409: ${busyMessage || 'unexpected conflict'}`);
+      throw new Error('RAMS dry-run returned 409 with an unrecognized conflict response');
     }
     if (attempt < ramsDryRunAttempts) await new Promise((resolve) => setTimeout(resolve, ramsDryRunDelayMs));
   }

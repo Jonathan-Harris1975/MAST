@@ -36,7 +36,7 @@ async function runSmoke(env, args = []) {
   });
 }
 
-async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, councilFresh = true, councilBody = null, skipProductionManager = false, runtimeReadinessStatus = 200, runtimeReadinessBody = null } = {}) {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, councilFresh = true, councilBody = null, skipProductionManager = false, runtimeReadinessStatus = 200, runtimeReadinessBody = null, ramsConflictBody = null } = {}) {
   let aimsBase = '';
 
   let ramsBusyRemaining = ramsBusyResponses;
@@ -45,7 +45,7 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
     if (req.url === '/rebuild/on-brand/run') {
       if (ramsBusyRemaining > 0) {
         ramsBusyRemaining -= 1;
-        return send(res, 409, { error: 'pipeline already running' });
+        return send(res, 409, ramsConflictBody || { error: 'pipeline already running' });
       }
       return send(res, 202, { runId: 'smoke-run', pipeline: 'on-brand', dryRun: true });
     }
@@ -138,6 +138,16 @@ test('post-deployment smoke checks the private Worker heartbeat and wakes RAMS t
   assert.match(result.stdout, /ok 2 - MAST Worker R2 heartbeat via HIVE/);
   assert.match(result.stdout, /ok 3 - RAMS ready through HIVE Koyeb lifecycle/);
   assert.match(result.stdout, /ecosystem smoke passed/);
+});
+
+test('smoke redacts an unrecognised accepted RAMS 409 response body', async () => {
+  const result = await exerciseSmoke({
+    ramsBusyResponses: 1,
+    ramsConflictBody: { detail: 'opaque-conflict-sentinel-DO_NOT_LOG' },
+  });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /RAMS dry-run returned 409 with an unrecognized conflict response/);
+  assert.doesNotMatch(result.stderr, /opaque-conflict-sentinel-DO_NOT_LOG/);
 });
 
 test('smoke reports HTTP status without echoing an error response body', async () => {
