@@ -62,10 +62,7 @@ async function requestJson(url, options = {}, expected = [200]) {
     try { body = JSON.parse(text); } catch { body = { raw: text.slice(0, 500) }; }
   }
   if (!expected.includes(response.status)) {
-    const errorCode = String(body?.error || body?.code || '').trim();
-    const message = String(body?.detail || body?.message || '').trim();
-    const detail = [errorCode, message].filter(Boolean).join(': ') || text.slice(0, 300) || 'no response body';
-    throw new Error(`${options.method || 'GET'} ${url} returned ${response.status}: ${detail}`);
+    throw new Error(`${options.method || 'GET'} request failed with HTTP ${response.status}`);
   }
   return { response, body };
 }

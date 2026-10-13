@@ -36,7 +36,7 @@ async function runSmoke(env, args = []) {
   });
 }
 
-async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, councilFresh = true, councilBody = null, skipProductionManager = false } = {}) {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, councilFresh = true, councilBody = null, skipProductionManager = false, runtimeReadinessStatus = 200, runtimeReadinessBody = null } = {}) {
   let aimsBase = '';
 
   let ramsBusyRemaining = ramsBusyResponses;
@@ -71,6 +71,9 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
       return send(res, 200, { status: wakeStatus, result: { ready: wakeStatus === 'ready' }, error: 'wake failed' });
     }
     if (req.url === '/v1/runtime/readiness') {
+      if (runtimeReadinessStatus !== 200) {
+        return send(res, runtimeReadinessStatus, runtimeReadinessBody || { detail: 'service unavailable' });
+      }
       return send(res, 200, { ready: true, configuration_ready: true, dependency_probes: [{ required: true, status: 'ok' }] });
     }
     if (req.url === '/v1/providers/health') return send(res, 200, { provider_count: 1, providers: [{ provider: 'mock', ok: true }] });
@@ -135,6 +138,16 @@ test('post-deployment smoke checks the private Worker heartbeat and wakes RAMS t
   assert.match(result.stdout, /ok 2 - MAST Worker R2 heartbeat via HIVE/);
   assert.match(result.stdout, /ok 3 - RAMS ready through HIVE Koyeb lifecycle/);
   assert.match(result.stdout, /ecosystem smoke passed/);
+});
+
+test('smoke reports HTTP status without echoing an error response body', async () => {
+  const result = await exerciseSmoke({
+    runtimeReadinessStatus: 503,
+    runtimeReadinessBody: { detail: 'opaque-sentinel-value-DO_NOT_LOG' },
+  });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /GET request failed with HTTP 503/);
+  assert.doesNotMatch(result.stderr, /opaque-sentinel-value-DO_NOT_LOG/);
 });
 
 test('smoke rejects Koyeb status when HIVE has no R2 heartbeat', async () => {
