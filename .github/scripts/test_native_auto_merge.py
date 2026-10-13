@@ -46,6 +46,7 @@ class NativeAutoMergePolicyTests(unittest.TestCase):
             "base": {"ref": "main"},
             "mergeable": True,
             "head": {"sha": self.sha},
+            "labels": [{"name": "autonomy:admitted"}],
         }
 
     def test_mast_routine_admission_does_not_require_owner_review(self):
