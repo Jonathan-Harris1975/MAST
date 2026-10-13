@@ -36,7 +36,7 @@ async function runSmoke(env, args = []) {
   });
 }
 
-async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, councilFresh = true, councilBody = null, skipProductionManager = false, runtimeReadinessStatus = 200, runtimeReadinessBody = null, ramsConflictBody = null } = {}) {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, councilFresh = true, councilBody = null, skipProductionManager = false, runtimeReadinessStatus = 200, runtimeReadinessBody = null, ramsConflictBody = null, productionManagerDelayMs = 0 } = {}) {
   let aimsBase = '';
 
   let ramsBusyRemaining = ramsBusyResponses;
@@ -78,7 +78,11 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
     }
     if (req.url === '/v1/providers/health') return send(res, 200, { provider_count: 1, providers: [{ provider: 'mock', ok: true }] });
     if (req.url === '/v1/system/production-manager?force_refresh=true') {
-      return send(res, 200, productionManagerBody || { state: productionState, release_decision: releaseDecision });
+      const body = productionManagerBody || { state: productionState, release_decision: releaseDecision };
+      if (productionManagerDelayMs > 0) {
+        return setTimeout(() => send(res, 200, body), productionManagerDelayMs);
+      }
+      return send(res, 200, body);
     }
     if (req.url === '/v1/ai-council/status') {
       return send(res, 200, councilBody || {
@@ -138,6 +142,12 @@ test('post-deployment smoke checks the private Worker heartbeat and wakes RAMS t
   assert.match(result.stdout, /ok 2 - MAST Worker R2 heartbeat via HIVE/);
   assert.match(result.stdout, /ok 3 - RAMS ready through HIVE Koyeb lifecycle/);
   assert.match(result.stdout, /ecosystem smoke passed/);
+});
+
+test('Production Manager request timeout allows HIVE evidence collection to finish', async () => {
+  const result = await exerciseSmoke({ productionManagerDelayMs: 3_100 });
+  assert.equal(result.code, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /ok 8 - HIVE Production Manager GREEN\/ALLOW/);
 });
 
 test('smoke redacts an unrecognised accepted RAMS 409 response body', async () => {
