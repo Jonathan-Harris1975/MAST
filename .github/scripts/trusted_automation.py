@@ -451,16 +451,25 @@ def approve_pr(number: int, sha: str) -> None:
     log(f"Approved PR #{number} at {sha[:12]} after trusted checks passed.")
 
 
-def admit_to_native_merge(number: int, expected_sha: str) -> None:
+def admit_to_mergify(number: int) -> None:
     pr = get(f"/repos/{REPO}/pulls/{number}")
-    if pr.get("state") != "open" or str(pr.get("head", {}).get("sha", "")) != expected_sha:
+    if pr.get("state") != "open":
+        return
+    sha = str(pr.get("head", {}).get("sha", ""))
+    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+        return
+    green, reason = all_required_checks_green(pr)
+    if not green:
+        log(f"PR #{number} changed or is no longer fully verified: {reason}.")
+        return
+    if current_head_unchanged(number, sha) is None:
         log(f"PR #{number} head changed before trusted admission evidence could be published.")
         return
     set_admission_check(
         number,
-        expected_sha,
+        sha,
         "success",
-        "The trusted default-branch workflow verified the PR identity, exact-head CI/security checks, current hold labels, and owner-review condition.",
+        "The trusted default-branch workflow verified the PR identity, exact-head CI/security checks, and current hold labels. Native merging also requires the configured owner approval.",
     )
     labels = issue_labels(pr)
     if "autonomy:admitted" in labels:
@@ -468,7 +477,6 @@ def admit_to_native_merge(number: int, expected_sha: str) -> None:
         return
     add_labels(number, ["autonomy:admitted"])
     log(f"Admitted PR #{number} to GitHub native auto-merge after exact-head CI, CodeQL and security verification.")
-
 
 def reconcile_stale_carriers(open_prs: list[dict[str, Any]]) -> None:
     """Close verified retired carriers directly, without waiting for GitHub native auto-merge.
@@ -558,7 +566,7 @@ def reconcile_pr(pr: dict[str, Any]) -> None:
         if current_head_unchanged(number, sha) is None:
             return
 
-    admit_to_native_merge(number, sha)
+    admit_to_mergify(number)
 
 
 def main() -> int:
