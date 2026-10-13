@@ -121,6 +121,7 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
     const result = await runSmoke({
       ECOSYSTEM_SMOKE_ALLOW_HTTP: 'true',
       ECOSYSTEM_SMOKE_TIMEOUT_MS: String(smokeTimeoutMs),
+      ECOSYSTEM_SMOKE_PRODUCTION_MANAGER_TIMEOUT_MS: String(smokeTimeoutMs),
       ECOSYSTEM_SMOKE_RETRY_ATTEMPTS: '2',
       ECOSYSTEM_SMOKE_RETRY_DELAY_MS: '10',
       AIMS_BASE_URL: aims.base,

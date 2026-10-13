@@ -4,6 +4,7 @@ import { aimsBaseUrl } from "../src/service-origins.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_RETRY_DELAY_MS = 5_000;
+const DEFAULT_PRODUCTION_MANAGER_TIMEOUT_MS = 60_000;
 
 function required(name) {
   const value = String(process.env[name] || '').trim();
@@ -49,8 +50,11 @@ function cookiePair(response) {
   return pairs.join('; ');
 }
 
-async function requestJson(url, options = {}, expected = [200]) {
-  const timeoutMs = Number(process.env.ECOSYSTEM_SMOKE_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+async function requestJson(url, options = {}, expected = [200], timeoutOverrideMs) {
+  const configuredTimeoutMs = Number(process.env.ECOSYSTEM_SMOKE_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  const timeoutMs = Number.isFinite(timeoutOverrideMs) && timeoutOverrideMs > 0
+    ? timeoutOverrideMs
+    : configuredTimeoutMs;
   const response = await fetch(url, {
     ...options,
     signal: AbortSignal.timeout(Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS),
@@ -271,9 +275,14 @@ async function main() {
     let lastProductionManagerBody = null;
     try {
       const productionManagerUrl = new URL('/v1/system/production-manager?force_refresh=true', hiveApiBase);
+      const productionManagerTimeoutMs = Number(
+        process.env.ECOSYSTEM_SMOKE_PRODUCTION_MANAGER_TIMEOUT_MS || DEFAULT_PRODUCTION_MANAGER_TIMEOUT_MS,
+      );
       productionManager = await requestJson(
         productionManagerUrl,
         { headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)) },
+        [200],
+        productionManagerTimeoutMs,
       );
       lastProductionManagerBody = productionManager.body;
       if (productionManager.body?.state !== 'GREEN' || productionManager.body?.release_decision !== 'ALLOW') {
