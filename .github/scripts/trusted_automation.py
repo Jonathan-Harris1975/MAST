@@ -469,7 +469,7 @@ def admit_to_mergify(number: int) -> None:
         number,
         sha,
         "success",
-        "The trusted default-branch workflow verified the PR identity, exact-head CI/security checks, and current hold labels. Native merging also requires the configured owner approval.",
+        "The trusted default-branch workflow verified the PR identity, exact-head CI/security checks, and current hold labels. High-risk changes remain blocked by the human-hold policy.",
     )
     labels = issue_labels(pr)
     if "autonomy:admitted" in labels:
