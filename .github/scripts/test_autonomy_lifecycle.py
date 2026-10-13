@@ -13,6 +13,9 @@ os.environ.setdefault("GITHUB_REPOSITORY", "owner/repo")
 import branch_pr_automation as branch_controller  # noqa: E402
 import trusted_automation as automation  # noqa: E402
 import autonomy_admission_check as admission_check  # noqa: E402
+os.environ.setdefault("REPO", "Jonathan-Harris1975/MAST")
+os.environ.setdefault("NATIVE_MERGE_TOKEN", "unit-test")
+import native_auto_merge as native_merge  # noqa: E402
 
 
 class RepairRetirementTests(unittest.TestCase):
@@ -384,3 +387,29 @@ class AdmissionRetryDelayTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NativeAutoMergePolicyTests(unittest.TestCase):
+    def test_mast_routine_admission_does_not_require_owner_review(self):
+        pr_summary = {
+            "number": 22,
+            "node_id": "PR_node",
+            "labels": [{"name": "autonomy:admitted"}],
+        }
+        pr = {
+            "state": "open",
+            "draft": False,
+            "base": {"ref": "main"},
+            "mergeable": True,
+            "head": {"sha": "a" * 40},
+        }
+
+        with (
+            patch.object(native_merge, "merge_request", return_value=None),
+            patch.object(native_merge, "request", return_value=pr),
+            patch.object(native_merge, "admission_check", return_value=(True, True)),
+            patch.object(native_merge, "enable") as enable,
+        ):
+            native_merge.reconcile(pr_summary)
+
+        enable.assert_called_once_with("PR_node")
