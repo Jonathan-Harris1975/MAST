@@ -36,7 +36,7 @@ async function runSmoke(env, args = []) {
   });
 }
 
-async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, productionManagerDelayMs = 0, smokeTimeoutMs = 3000, councilFresh = true, councilBody = null, skipProductionManager = false, runtimeReadinessStatus = 200, runtimeReadinessBody = null, ramsConflictBody = null } = {}) {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, councilFresh = true, councilBody = null, skipProductionManager = false, runtimeReadinessStatus = 200, runtimeReadinessBody = null, ramsConflictBody = null, productionManagerDelayMs = 0, smokeTimeoutMs = 3000 } = {}) {
   let aimsBase = '';
   let productionManagerRequests = 0;
 

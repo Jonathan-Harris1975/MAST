@@ -3,9 +3,9 @@
 import { aimsBaseUrl } from "../src/service-origins.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
-const DEFAULT_RETRY_DELAY_MS = 5_000;
 // HIVE bounds its exact-head refresh at 40 seconds; keep margin for the HTTP response.
 const DEFAULT_PRODUCTION_MANAGER_TIMEOUT_MS = 60_000;
+const DEFAULT_RETRY_DELAY_MS = 5_000;
 
 function required(name) {
   const value = String(process.env[name] || '').trim();
@@ -51,11 +51,8 @@ function cookiePair(response) {
   return pairs.join('; ');
 }
 
-async function requestJson(url, options = {}, expected = [200], timeoutOverrideMs) {
-  const configuredTimeoutMs = Number(process.env.ECOSYSTEM_SMOKE_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
-  const timeoutMs = Number.isFinite(timeoutOverrideMs) && timeoutOverrideMs > 0
-    ? timeoutOverrideMs
-    : configuredTimeoutMs;
+async function requestJson(url, options = {}, expected = [200], timeoutOverrideMs = null) {
+  const timeoutMs = Number(timeoutOverrideMs || process.env.ECOSYSTEM_SMOKE_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
   const response = await fetch(url, {
     ...options,
     signal: AbortSignal.timeout(Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS),
@@ -72,13 +69,15 @@ async function requestJson(url, options = {}, expected = [200], timeoutOverrideM
   return { response, body };
 }
 
-async function waitForJson(url, options = {}, predicate = () => true) {
-  const attempts = Math.max(1, Math.min(24, Number(process.env.ECOSYSTEM_SMOKE_RETRY_ATTEMPTS || 12)));
+async function waitForJson(url, options = {}, predicate = () => true, requestPolicy = {}) {
+  const configuredAttempts = Number(requestPolicy.attempts || process.env.ECOSYSTEM_SMOKE_RETRY_ATTEMPTS || 12);
+  const attempts = Math.max(1, Math.min(24, Number.isFinite(configuredAttempts) ? configuredAttempts : 12));
+  const timeoutOverrideMs = Number(requestPolicy.timeoutMs) > 0 ? Number(requestPolicy.timeoutMs) : null;
   const delayMs = Math.max(250, Number(process.env.ECOSYSTEM_SMOKE_RETRY_DELAY_MS || DEFAULT_RETRY_DELAY_MS));
   let lastError = null;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const result = await requestJson(url, options);
+      const result = await requestJson(url, options, [200], timeoutOverrideMs);
       if (predicate(result.body)) return result;
       lastError = new Error(`Readiness predicate was false for ${url}`);
     } catch (error) {
@@ -291,11 +290,11 @@ async function main() {
   if (!skipProductionManager) {
     let productionManager;
     let lastProductionManagerBody = null;
+    const productionManagerUrl = new URL('/v1/system/production-manager?force_refresh=true', hiveApiBase);
+    const productionManagerTimeoutMs = Number(
+      process.env.ECOSYSTEM_SMOKE_PRODUCTION_MANAGER_TIMEOUT_MS || DEFAULT_PRODUCTION_MANAGER_TIMEOUT_MS,
+    );
     try {
-      const productionManagerUrl = new URL('/v1/system/production-manager?force_refresh=true', hiveApiBase);
-      const productionManagerTimeoutMs = Number(
-        process.env.ECOSYSTEM_SMOKE_PRODUCTION_MANAGER_TIMEOUT_MS || DEFAULT_PRODUCTION_MANAGER_TIMEOUT_MS,
-      );
       productionManager = await requestJson(
         productionManagerUrl,
         { headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)) },
