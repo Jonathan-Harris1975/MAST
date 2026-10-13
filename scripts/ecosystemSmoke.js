@@ -4,6 +4,7 @@ import { aimsBaseUrl } from "../src/service-origins.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_RETRY_DELAY_MS = 5_000;
+// HIVE bounds its exact-head refresh at 40 seconds; keep margin for the HTTP response.
 const DEFAULT_PRODUCTION_MANAGER_TIMEOUT_MS = 60_000;
 
 function required(name) {
