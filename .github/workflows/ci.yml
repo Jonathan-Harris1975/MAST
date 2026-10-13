@@ -31,6 +31,9 @@ jobs:
           cache: npm
       - name: Reject committed literal secrets
         run: python3 scripts/secret_scan.py
+
+      - name: Test operational alert HTTP error handling
+        run: python3 -B -m unittest discover -s scripts -p 'test_ops_notify.py' -v
       - name: Verify pinned Node/npm toolchain
         run: |
           test "$(node --version)" = "v22.23.3"
