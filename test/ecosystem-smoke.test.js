@@ -227,14 +227,14 @@ test('smoke fails after one forced HIVE Production Manager refresh when state is
   const result = await exerciseSmoke({ productionState: 'DEGRADED', releaseDecision: 'HOLD' });
   assert.equal(result.code, 1);
   assert.equal(result.productionManagerRequests, 1);
-  assert.match(result.stderr, /Production Manager did not certify GREEN\\/ALLOW/);
+  assert.match(result.stderr, /Production Manager did not certify GREEN\/ALLOW/);
 });
 
 test('smoke does not repeat a timed-out HIVE Production Manager refresh', async () => {
   const result = await exerciseSmoke({ productionManagerDelayMs: 100, smokeTimeoutMs: 20 });
   assert.equal(result.code, 1);
   assert.equal(result.productionManagerRequests, 1);
-  assert.match(result.stderr, /Production Manager did not certify GREEN\\/ALLOW/);
+  assert.match(result.stderr, /Production Manager did not certify GREEN\/ALLOW/);
   assert.match(result.stderr, /TimeoutError|timed out/i);
 });
 
