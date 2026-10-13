@@ -71,6 +71,23 @@ async function requestJson(url, options = {}, expected = [200], timeoutOverrideM
   return { response, body };
 }
 
+async function waitForJson(url, options = {}, predicate = () => true) {
+  const attempts = Math.max(1, Math.min(24, Number(process.env.ECOSYSTEM_SMOKE_RETRY_ATTEMPTS || 12)));
+  const delayMs = Math.max(250, Number(process.env.ECOSYSTEM_SMOKE_RETRY_DELAY_MS || DEFAULT_RETRY_DELAY_MS));
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const result = await requestJson(url, options);
+      if (predicate(result.body)) return result;
+      lastError = new Error(`Readiness predicate was false for ${url}`);
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  throw lastError || new Error(`Timed out waiting for ${url}`);
+}
+
 async function waitForWake(url, options = {}) {
   const attempts = Math.max(1, Math.min(36, Number(process.env.ECOSYSTEM_SMOKE_RETRY_ATTEMPTS || 24)));
   const delayMs = Math.max(250, Number(process.env.ECOSYSTEM_SMOKE_RETRY_DELAY_MS || DEFAULT_RETRY_DELAY_MS));
