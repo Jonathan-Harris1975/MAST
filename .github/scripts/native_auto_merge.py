@@ -90,21 +90,6 @@ def admission_check(number: int, sha: str) -> tuple[bool, bool]:
     return success, bool(owned)
 
 
-def mast_owner_approval(number: int, sha: str) -> bool:
-    reviews = pages(f"/repos/{REPO}/pulls/{number}/reviews")
-    owner_reviews = [
-        review for review in reviews
-        if (review.get("user") or {}).get("login", "").casefold() == "jonathan-harris1975"
-    ]
-    owner_reviews.sort(key=lambda review: review.get("submitted_at") or "", reverse=True)
-    latest = owner_reviews[0] if owner_reviews else None
-    return bool(
-        latest
-        and latest.get("state") == "APPROVED"
-        and latest.get("commit_id") == sha
-    )
-
-
 def merge_request(pr_node_id: str) -> dict[str, Any] | None:
     result = graphql(
         "query($id: ID!) { node(id: $id) { ... on PullRequest { autoMergeRequest { enabledAt mergeMethod } } } }",
@@ -154,9 +139,6 @@ def reconcile(pr_summary: dict[str, Any]) -> None:
         and not blocked
         and exact_admission
     )
-    if eligible and REPO.casefold() == "jonathan-harris1975/mast":
-        eligible = mast_owner_approval(number, sha)
-
     if eligible:
         if active_request is None:
             enable(node_id)
