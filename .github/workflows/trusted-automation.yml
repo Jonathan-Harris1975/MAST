@@ -1,4 +1,4 @@
-name: Trusted automation admission for Mergify
+name: Trusted automation and native auto-merge
 
 on: # zizmor: ignore[dangerous-triggers] workflow_run is guarded and executes trusted default-branch automation only
   issue_comment:
@@ -19,9 +19,10 @@ on: # zizmor: ignore[dangerous-triggers] workflow_run is guarded and executes tr
 
 permissions:
   actions: read
-  checks: read
+  checks: write
   contents: read
   security-events: read
+  pull-requests: write
 
 concurrency:
   group: trusted-automation-${{ github.repository }}
@@ -105,6 +106,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app_token.outputs.token }}
           REPO: ${{ github.repository }}
+          ADMISSION_TOKEN: ${{ github.token }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REPAIR_APP_LOGIN: ${{ steps.app_token.outputs.repair_app_login }}
         run: python .github/scripts/branch_pr_automation.py
@@ -121,3 +123,10 @@ jobs:
           CURRENT_RUN_ID: ${{ github.run_id }}
           REQUIRED_WORKFLOWS: "MAST CI|CodeQL|Security and repository quality"
         run: python .github/scripts/trusted_automation.py
+
+      - name: Reconcile GitHub native auto-merge requests
+        env:
+          NATIVE_MERGE_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: python .github/scripts/native_auto_merge.py
