@@ -3,7 +3,8 @@
 import { aimsBaseUrl } from "../src/service-origins.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
-const PRODUCTION_MANAGER_TIMEOUT_MS = 60_000;
+// HIVE bounds its exact-head refresh at 40 seconds; keep margin for the HTTP response.
+const DEFAULT_PRODUCTION_MANAGER_TIMEOUT_MS = 60_000;
 const DEFAULT_RETRY_DELAY_MS = 5_000;
 
 function required(name) {
@@ -289,16 +290,21 @@ async function main() {
   if (!skipProductionManager) {
     let productionManager;
     let lastProductionManagerBody = null;
+    const productionManagerUrl = new URL('/v1/system/production-manager?force_refresh=true', hiveApiBase);
+    const productionManagerTimeoutMs = Number(
+      process.env.ECOSYSTEM_SMOKE_PRODUCTION_MANAGER_TIMEOUT_MS || DEFAULT_PRODUCTION_MANAGER_TIMEOUT_MS,
+    );
     try {
-      productionManager = await waitForJson(
-        new URL('/v1/system/production-manager?force_refresh=true', hiveApiBase),
+      productionManager = await requestJson(
+        productionManagerUrl,
         { headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)) },
-        (body) => {
-          lastProductionManagerBody = body;
-          return body?.state === 'GREEN' && body?.release_decision === 'ALLOW';
-        },
-        { attempts: 2, timeoutMs: PRODUCTION_MANAGER_TIMEOUT_MS },
+        [200],
+        productionManagerTimeoutMs,
       );
+      lastProductionManagerBody = productionManager.body;
+      if (productionManager.body?.state !== 'GREEN' || productionManager.body?.release_decision !== 'ALLOW') {
+        throw new Error(`Readiness predicate was false for ${productionManagerUrl}`);
+      }
     } catch (error) {
       const diagnostics = productionManagerDiagnostics(lastProductionManagerBody);
       throw new Error(
