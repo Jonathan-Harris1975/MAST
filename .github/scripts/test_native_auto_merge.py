@@ -81,9 +81,13 @@ class NativeAutoMergePolicyTests(unittest.TestCase):
             ],
         }
         active_request = {"enabledAt": "2026-10-13T00:00:00Z"}
+        held_pr = {
+            **self.pr,
+            "labels": [*self.pr["labels"], {"name": "autonomy:human-hold"}],
+        }
         with (
             patch.object(native_merge, "merge_request", return_value=active_request),
-            patch.object(native_merge, "request", return_value=self.pr),
+            patch.object(native_merge, "request", return_value=held_pr),
             patch.object(native_merge, "admission_check", return_value=(True, True)),
             patch.object(native_merge, "enable") as enable,
             patch.object(native_merge, "disable") as disable,
