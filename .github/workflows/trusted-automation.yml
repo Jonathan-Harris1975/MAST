@@ -106,7 +106,6 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app_token.outputs.token }}
           REPO: ${{ github.repository }}
-          ADMISSION_TOKEN: ${{ github.token }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REPAIR_APP_LOGIN: ${{ steps.app_token.outputs.repair_app_login }}
         run: python .github/scripts/branch_pr_automation.py
@@ -116,6 +115,7 @@ jobs:
           GH_TOKEN: ${{ steps.app_token.outputs.token }}
           READ_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          ADMISSION_TOKEN: ${{ github.token }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REPAIR_APP_LOGIN: ${{ steps.app_token.outputs.repair_app_login }}
           KILO_REPAIR_PR_LOGIN: ${{ vars.KILO_REPAIR_PR_LOGIN }}
