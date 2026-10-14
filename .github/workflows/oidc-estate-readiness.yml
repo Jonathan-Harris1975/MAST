@@ -68,12 +68,19 @@ jobs:
             if (!/^[0-9a-f]{40}$/.test(sha || "")) {
               throw new Error(`${repository.name}: current main SHA is unavailable`);
             }
-            const runs = await getJson(
-              `${root}/actions/workflows/oidc-readiness.yml/runs?branch=main&head_sha=${sha}&per_page=10`,
-            );
-            const latest = runs.workflow_runs?.[0];
+            const readinessDeadline = Date.now() + 60_000;
+            let latest;
+            while (Date.now() < readinessDeadline) {
+              const runs = await getJson(
+                `${root}/actions/workflows/oidc-readiness.yml/runs?branch=main&head_sha=${sha}&per_page=10`,
+              );
+              latest = runs.workflow_runs?.[0];
+              if (latest?.head_sha === sha && latest.status === "completed") break;
+              if (latest?.head_sha && latest.head_sha !== sha) break;
+              await new Promise(resolve => setTimeout(resolve, 5_000));
+            }
             if (!latest) {
-              throw new Error(`${repository.name}: no OIDC readiness run exists for current main ${sha}`);
+              throw new Error(`${repository.name}: no OIDC readiness run exists for current main ${sha} after bounded wait`);
             }
             const completedAt = Date.parse(latest.updated_at || latest.created_at || "");
             const ageMs = Date.now() - completedAt;
