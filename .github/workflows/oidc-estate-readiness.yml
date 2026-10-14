@@ -74,10 +74,18 @@ jobs:
               const runs = await getJson(
                 `${root}/actions/workflows/oidc-readiness.yml/runs?branch=main&head_sha=${sha}&per_page=10`,
               );
-              latest = runs.workflow_runs?.[0];
-              if (latest?.head_sha === sha && latest.status === "completed") break;
-              if (latest?.head_sha && latest.head_sha !== sha) break;
+              latest = runs.workflow_runs?.find(
+                run => run.head_sha === sha && run.status === "completed",
+              );
+              if (latest) break;
               await new Promise(resolve => setTimeout(resolve, 5_000));
+            }
+            const currentBranch = await getJson(`${root}/branches/main`);
+            const currentSha = currentBranch.commit?.sha;
+            if (currentSha !== sha) {
+              throw new Error(
+                `${repository.name}: main advanced from ${sha} to ${currentSha || "unknown"} while readiness was being collected; restart estate verification`,
+              );
             }
             if (!latest) {
               throw new Error(`${repository.name}: no OIDC readiness run exists for current main ${sha} after bounded wait`);
