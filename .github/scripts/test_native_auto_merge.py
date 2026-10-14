@@ -106,7 +106,7 @@ class HighRiskApprovalPolicyTests(unittest.TestCase):
         automation.risk_policy_contract_test()
         self.assertTrue(automation.sensitive_file("infra/production.tf"))
         self.assertTrue(automation.sensitive_file("src/auth/session.py"))
-        self.assertFalse(automation.sensitive_file("src/views/dashboard.py"))
+        self.assertFalse(automation.sensitive_file("docs/runbook.md"))
 
     def test_owner_approval_must_match_the_exact_current_head(self):
         sha = "c" * 40
@@ -125,15 +125,22 @@ class HighRiskApprovalPolicyTests(unittest.TestCase):
             self.assertFalse(automation.has_operator_risk_approval(22, "d" * 40))
 
     def test_native_merge_blocks_the_exact_risk_approval_label(self):
+        node_id = "PR_node"
+        sha = "b" * 40
         summary = {
-            **self.summary,
+            "number": 22,
+            "node_id": node_id,
             "labels": [
                 {"name": "autonomy:admitted"},
                 {"name": automation.RISK_APPROVAL_LABEL},
             ],
         }
         held_pr = {
-            **self.pr,
+            "state": "open",
+            "draft": False,
+            "base": {"ref": "main"},
+            "mergeable": True,
+            "head": {"sha": sha},
             "labels": [
                 {"name": "autonomy:admitted"},
                 {"name": automation.RISK_APPROVAL_LABEL},
@@ -149,7 +156,7 @@ class HighRiskApprovalPolicyTests(unittest.TestCase):
         ):
             native_merge.reconcile(summary)
         enable.assert_not_called()
-        disable.assert_called_once_with(self.node_id)
+        disable.assert_called_once_with(node_id)
 
 
 if __name__ == "__main__":
