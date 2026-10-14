@@ -7,11 +7,13 @@ import unittest
 from unittest.mock import patch
 
 os.environ.setdefault("REPO", "Jonathan-Harris1975/MAST")
+os.environ.setdefault("GH_TOKEN", "unit-test")
 os.environ.setdefault("NATIVE_MERGE_TOKEN", "unit-test")
 os.environ.setdefault("ADMISSION_TOKEN", "unit-test")
 
 import autonomy_admission_check as admission_check  # noqa: E402
 import native_auto_merge as native_merge  # noqa: E402
+import trusted_automation as automation  # noqa: E402
 
 
 class ExactHeadAdmissionTests(unittest.TestCase):
@@ -94,6 +96,58 @@ class NativeAutoMergePolicyTests(unittest.TestCase):
         ):
             native_merge.reconcile(summary)
 
+        enable.assert_not_called()
+        disable.assert_called_once_with(self.node_id)
+
+
+
+class HighRiskApprovalPolicyTests(unittest.TestCase):
+    def test_high_risk_paths_are_classified_and_routine_code_stays_unrestricted(self):
+        automation.risk_policy_contract_test()
+        self.assertTrue(automation.sensitive_file("infra/production.tf"))
+        self.assertTrue(automation.sensitive_file("src/auth/session.py"))
+        self.assertFalse(automation.sensitive_file("src/views/dashboard.py"))
+
+    def test_owner_approval_must_match_the_exact_current_head(self):
+        sha = "c" * 40
+        owner_review = {
+            "state": "APPROVED",
+            "commit_id": sha,
+            "submitted_at": "2026-10-14T00:00:00Z",
+            "user": {"login": "Jonathan-Harris1975"},
+        }
+        with patch.object(
+            automation,
+            "get",
+            side_effect=lambda endpoint: [owner_review] if "/reviews?" in endpoint else [],
+        ):
+            self.assertTrue(automation.has_operator_risk_approval(22, sha))
+            self.assertFalse(automation.has_operator_risk_approval(22, "d" * 40))
+
+    def test_native_merge_blocks_the_exact_risk_approval_label(self):
+        summary = {
+            **self.summary,
+            "labels": [
+                {"name": "autonomy:admitted"},
+                {"name": automation.RISK_APPROVAL_LABEL},
+            ],
+        }
+        held_pr = {
+            **self.pr,
+            "labels": [
+                {"name": "autonomy:admitted"},
+                {"name": automation.RISK_APPROVAL_LABEL},
+            ],
+        }
+        active_request = {"enabledAt": "2026-10-13T00:00:00Z"}
+        with (
+            patch.object(native_merge, "merge_request", return_value=active_request),
+            patch.object(native_merge, "request", return_value=held_pr),
+            patch.object(native_merge, "admission_check", return_value=(True, True)),
+            patch.object(native_merge, "enable") as enable,
+            patch.object(native_merge, "disable") as disable,
+        ):
+            native_merge.reconcile(summary)
         enable.assert_not_called()
         disable.assert_called_once_with(self.node_id)
 
