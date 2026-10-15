@@ -174,6 +174,7 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
     ["hive-provider-health-check", ["weekly", "06:10", "/v1/providers/health"]],
     ["hive-env-audit", ["weekly", "06:25", "/v1/environment/audit"]],
     ["hive-model-registry-snapshot", ["weekly", "06:55", "/v1/model-registry"]],
+    ["hive-weekly-lifecycle-report", ["weekly", "07:05", "/v1/system/lifecycle-reports/weekly"]],
     ["hive-optimisation-stats-snapshot", ["monthly", "07:16", "/v1/optimisation/stats"]],
   ]);
   for (const [id, [type, time, path]] of expected) {
