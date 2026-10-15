@@ -854,6 +854,20 @@ const hiveGovernanceWeeklyJobs = [
     targetPath: "/v1/connectors",
   }),
   hiveJob({
+    id: "hive-weekly-lifecycle-report",
+    group: "hive-governance-weekly",
+    description: "Ask HIVE to assemble and persist the deterministic eight-repository weekly lifecycle overview.",
+    schedule: { type: "weekly", days: ["monday"], time: "07:05", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
+    targetPath: "/v1/system/lifecycle-reports/weekly",
+    method: "POST",
+    body: {},
+    responsePolicy: {
+      checks: [
+        { type: "equals", path: "ok", value: true, message: "HIVE did not persist the lifecycle report." },
+      ],
+    },
+  }),
+  hiveJob({
     id: "hive-model-registry-snapshot",
     group: "hive-governance-weekly",
     description: "Check the current D1-backed Model Registry state and ranked defaults for unexpected resets or drift.",
