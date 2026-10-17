@@ -11,7 +11,7 @@
     "* 0 * * 6"
   ],
   "rangeStrategy": "replace",
-  "platformAutomerge": true,
+  "platformAutomerge": false,
   "minimumReleaseAge": "2 days",
   "internalChecksFilter": "strict",
   "vulnerabilityAlerts": {
@@ -42,7 +42,7 @@
         "lockFileMaintenance"
       ],
       "minimumReleaseAgeBehaviour": "timestamp-optional",
-      "automerge": true,
+      "automerge": false,
       "addLabels": [
         "dependency:auto-eligible"
       ]
@@ -54,7 +54,7 @@
         "minor",
         "digest"
       ],
-      "automerge": true,
+      "automerge": false,
       "addLabels": [
         "dependency:auto-eligible"
       ]
