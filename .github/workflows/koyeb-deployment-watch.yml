@@ -26,6 +26,19 @@ jobs:
     environment: Koyeb
     timeout-minutes: 20
     steps:
+      - name: Resolve Koyeb service from Environment or repository
+        env:
+          KOYEB_SERVICE: ${{ vars.KOYEB_SERVICE }}
+          KOYEB_SERVICE_SECRET: ${{ secrets.KOYEB_SERVICE || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          service="${KOYEB_SERVICE:-${KOYEB_SERVICE_SECRET:-}}"
+          if [ -z "$service" ]; then
+            echo "::error::KOYEB_SERVICE is required at the Koyeb Environment or repository scope."
+            exit 1
+          fi
+          printf 'KOYEB_SERVICE=%s\n' "$service" >> "$GITHUB_ENV"
       - name: Harden runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2
         with:
@@ -38,7 +51,6 @@ jobs:
         id: deployment_config
         env:
           KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
-          KOYEB_SERVICE: ${{ vars.KOYEB_SERVICE }}
         run: |
           set -euo pipefail
           missing=()
@@ -57,7 +69,6 @@ jobs:
       - name: Watch production deployment
         env:
           KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
-          KOYEB_SERVICE: ${{ vars.KOYEB_SERVICE }}
           SERVICE_DISPLAY_NAME: MAST
           OPS_ALERT_WEBHOOK_URL: ${{ secrets.OPS_ALERT_WEBHOOK_URL }}
           OPS_ALERT_WEBHOOK_TOKEN: ${{ secrets.OPS_ALERT_WEBHOOK_TOKEN }}
@@ -71,7 +82,6 @@ jobs:
           bash scripts/run_koyeb_worker_smoke.sh --skip-production-manager | tee worker-api-smoke.log
         env:
           KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
-          KOYEB_SERVICE: ${{ vars.KOYEB_SERVICE }}
           EXPECTED_DEPLOYMENT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Record final exact-SHA deployment and Worker/API-smoke attestation
         env:
