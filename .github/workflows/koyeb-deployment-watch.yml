@@ -28,12 +28,12 @@ jobs:
     steps:
       - name: Resolve Koyeb service from Environment or repository
         env:
-          KOYEB_SERVICE_REPOSITORY: ${{ vars.KOYEB_SERVICE || '' }}
+          KOYEB_SERVICE: ${{ vars.KOYEB_SERVICE }}
           KOYEB_SERVICE_SECRET: ${{ secrets.KOYEB_SERVICE || '' }}
         shell: bash
         run: |
           set -euo pipefail
-          service="${KOYEB_SERVICE:-${KOYEB_SERVICE_SECRET:-${KOYEB_SERVICE_REPOSITORY:-}}}"
+          service="${KOYEB_SERVICE:-${KOYEB_SERVICE_SECRET:-}}"
           if [ -z "$service" ]; then
             echo "::error::KOYEB_SERVICE is required at the Koyeb Environment or repository scope."
             exit 1
