@@ -38,7 +38,7 @@ jobs:
             echo "::error::KOYEB_SERVICE is required at the Koyeb Environment or repository scope."
             exit 1
           fi
-          printf 'KOYEB_SERVICE=%s\\n' "$service" >> "$GITHUB_ENV"
+          printf 'KOYEB_SERVICE=%s\n' "$service" >> "$GITHUB_ENV"
       - name: Harden runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2
         with:
