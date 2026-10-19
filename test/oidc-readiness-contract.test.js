@@ -12,6 +12,8 @@ test("MAST OIDC readiness binds both default subject formats to immutable reposi
   assert.match(source, /const legacySubject = `repo:\$\{process\.env\.EXPECTED_REPOSITORY\}:ref:\$\{process\.env\.EXPECTED_REF\}`/);
   assert.match(source, /const immutableSubject = `repo:\$\{process\.env\.EXPECTED_OWNER\}@\$\{process\.env\.EXPECTED_OWNER_ID\}\/\$\{process\.env\.EXPECTED_REPOSITORY\.split\("\/"\)\[1\]\}@\$\{process\.env\.EXPECTED_REPOSITORY_ID\}:ref:\$\{process\.env\.EXPECTED_REF\}`/);
   assert.match(source, /claims\.sub !== legacySubject && claims\.sub !== immutableSubject/);
+  assert.match(source, /workflow_ref: process\.env\.EXPECTED_WORKFLOW_REF/);
+  assert.match(source, /\.github\/workflows\/oidc-readiness\.yml@refs\/heads\/main/);
   assert.match(source, /sha: process\.env\.GITHUB_SHA/);
   assert.match(source, /claims\[name\] !== value/);
 });

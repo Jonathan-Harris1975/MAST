@@ -36,6 +36,8 @@ jobs:
         run: python3 -B -m unittest discover -s scripts -p 'test_ops_notify.py' -v
       - name: Test native auto-merge admission policy
         run: python3 -B .github/scripts/test_native_auto_merge.py
+      - name: Test Council evidence gate and replay controls
+        run: python3 -B .github/scripts/test_council_gate.py -v
       - name: Verify pinned Node/npm toolchain
         run: |
           test "$(node --version)" = "v22.23.3"
