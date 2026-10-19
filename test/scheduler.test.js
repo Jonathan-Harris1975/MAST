@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { baseJobs, HIVE_GOVERNED_REPOSITORIES, jobs, pretriggerJobs } from "../src/jobs.js";
+import { evaluateResponsePolicy } from "../src/response-policy.js";
 import { aimsBaseUrl } from "../src/service-origins.js";
 import { dueJobPriority, isTimedJobDue, jobScheduleDue, nextRunForJob, requiredServiceStates, requiredServicesReady, serviceHealthUrl } from "../src/scheduler.js";
 
@@ -207,6 +208,13 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
     productionManager.responsePolicy.checks.map((check) => [check.path, check.value]),
     [["state", "GREEN"], ["release_decision", "ALLOW"]],
   );
+
+  const lifecycle = baseJobs.find((job) => job.id === "hive-weekly-lifecycle-report");
+  assert.equal(evaluateResponsePolicy(lifecycle.responsePolicy, JSON.stringify({ ok: true })).ok, false);
+  assert.equal(evaluateResponsePolicy(lifecycle.responsePolicy, JSON.stringify({
+    ok: true, report: { scope: "current_heads_at_observation", evidence_complete: false,
+      overall_status: "UNKNOWN", repositories: [] },
+  })).ok, false);
 
   const councilFreshness = baseJobs.find((job) => job.id === "hive-ai-council-freshness");
   assert.ok(councilFreshness);
