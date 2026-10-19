@@ -77,7 +77,7 @@ jobs:
             const workflowSource = Buffer.from(workflowFile.content.replace(/\n/g, ""), "base64").toString("utf8");
             const workflowBindingPresent =
               /EXPECTED_WORKFLOW_REF:\s*\$\{\{\s*github\.repository\s*\}\}\/\.github\/workflows\/oidc-readiness\.yml@refs\/heads\/main/.test(workflowSource) &&
-              /workflow_ref:\s*process\.env\.EXPECTED_WORKFLOW_REF/.test(workflowSource) &&
+              /^\s*workflow_ref:\s*process\.env\.EXPECTED_WORKFLOW_REF\s*,?\s*$/m.test(workflowSource) &&
               /claims\[name\]\s*!==\s*value/.test(workflowSource);
             if (!workflowBindingPresent) {
               throw new Error(`${repository.name}: current-main OIDC readiness code does not enforce the canonical exact workflow_ref claim`);
