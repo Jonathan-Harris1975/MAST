@@ -42,3 +42,9 @@ HTTP execution uses bounded timeouts and retries. Jobs that must not be replayed
 Pause scheduling, inspect the failed downstream contract, run one deliberately selected job, then resume only after the job result and subsequent heartbeat are healthy. For Blotato lane recovery, MAST calls the governed `/blotato/shorts/:lane/schedule` route; it does not use `/publish-now` in production.
 
 Do not delete run keys during recovery. Full alerting, operator-control and deployment-watcher instructions are in [`OPERATIONAL_ALERTING.md`](OPERATIONAL_ALERTING.md).
+
+## Read-only production Worker smoke
+
+The Koyeb Worker smoke accepts only GET/HEAD requests. It checks MAST's exact deployed SHA and fresh R2 heartbeat, RAMS liveness/readiness plus its existing storage/admission policy, HIVE readiness/provider/governance state, and SQL/D1 read-only diagnostics. It does not wake a service, admit a remediation job, or run database write/delete probes. Missing or unhealthy dependencies fail visibly; no production recovery is inferred from runtime health alone. The deployment-phase Production Manager deferral remains limited to the existing self-referential release gate.
+
+The default full UI smoke also avoids business-data mutation; its existing login and handoff exchanges establish only bounded authentication sessions. The old functional wake/admission/write-delete probes remain available through the explicit `node scripts/ecosystemSmoke.js --functional-probes` diagnostic option, which the existing local CI checks exercise. The Worker mode rejects that option, and production workflows do not use it. No new environment values, services, credentials or recurring jobs are needed. OIDC remains smoke-only and does not establish provider trust or federation.

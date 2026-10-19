@@ -39,9 +39,17 @@ async function runSmoke(env, args = []) {
 async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, councilFresh = true, councilBody = null, skipProductionManager = false, runtimeReadinessStatus = 200, runtimeReadinessBody = null, ramsConflictBody = null, productionManagerDelayMs = 0, smokeTimeoutMs = 3000 } = {}) {
   let aimsBase = '';
   let productionManagerRequests = 0;
+  let mutationRequests = 0;
 
   let ramsBusyRemaining = ramsBusyResponses;
   const rams = await listen((req, res) => {
+    if (req.method !== 'GET') mutationRequests += 1;
+    if (req.url === '/health') return send(res, 200, { status: 'ok' });
+    if (req.url === '/ops/excellence') return send(res, 200, {
+      service: 'RAMS', status: 'healthy', auditStorage: { verified: true },
+      deploymentContract: { singleWorkerMode: true, configuredInstances: 1, processLocalIdempotencySafe: true, maxConcurrentPipelines: 1 },
+      liveWriteControls: { dryRunDefault: true, liveWriteEnabled: false, validateAfterEachTask: true, revertOnValidationFailure: true },
+    });
     if (req.url === '/readyz') return send(res, 200, { status: 'ready' });
     if (req.url === '/rebuild/on-brand/run') {
       if (ramsBusyRemaining > 0) {
@@ -54,6 +62,11 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
   });
 
   const hive = await listen((req, res) => {
+    if (req.method !== 'GET') mutationRequests += 1;
+    if (req.url === '/v1/db/diagnostics') return send(res, 200, {
+      ok: true, sql: { enabled: true, ok: true, probe: { ok: true } },
+      d1: { enabled: true, ok: true, probe: { ok: true } },
+    });
     if (req.url === '/v1/system/repo-health?force_refresh=true') {
       return send(res, 200, { repos: [{
         repo: 'MAST', category: 'background_worker', status: 'healthy',
@@ -133,8 +146,9 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
       HIVE_ADMIN_BEARER_TOKEN: hiveToken,
       HIVE_UI_ACCESS_KEY: workerMode ? '' : 'test-ui-key',
       KOYEB_GIT_SHA: deployedSha,
-    }, workerMode ? ['--worker', 'a'.repeat(40), ...(skipProductionManager ? ['--skip-production-manager'] : [])] : []);
+    }, workerMode ? ['--worker', 'a'.repeat(40), ...(skipProductionManager ? ['--skip-production-manager'] : [])] : ['--functional-probes']);
     result.productionManagerRequests = productionManagerRequests;
+    result.mutationRequests = mutationRequests;
     return result;
   } finally {
     await Promise.all([rams.close(), hive.close(), aims.close()]);
@@ -203,7 +217,8 @@ test('smoke rejects a failed RAMS wake ticket', async () => {
 test('Koyeb Worker runs the API checks with Koyeb-resident credentials and no UI key', async () => {
   const result = await exerciseSmoke({ workerMode: true });
   assert.equal(result.code, 0, result.stderr || result.stdout);
-  assert.match(result.stdout, /ok 10 - HIVE database write\/delete readiness/);
+  assert.match(result.stdout, /ok 10 - HIVE database read-only diagnostics/);
+  assert.equal(result.mutationRequests, 0);
   assert.doesNotMatch(result.stdout, /ok 9 - HIVE-UI/);
   assert.match(result.stdout, /MAST Worker\/API smoke passed/);
 });
