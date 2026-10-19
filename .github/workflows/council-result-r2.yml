@@ -69,14 +69,23 @@ jobs:
           set -euo pipefail
           [[ "$TARGET_SHA" =~ ^[0-9a-fA-F]{40}$ ]] || { echo "::error::Invalid exact SHA."; exit 1; }
           [[ "$SOURCE_COUNCIL_RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::Invalid source Council run ID."; exit 1; }
+          [[ "$SOURCE_COUNCIL_RUN_ATTEMPT" =~ ^[0-9]+$ ]] || { echo "::error::Invalid source Council run attempt."; exit 1; }
+          [[ "$DISPOSITION" =~ ^(READY_FOR_COUNCIL_ACCEPTANCE|HUMAN_HOLD|NOT_READY)$ ]] || { echo "::error::Invalid Council disposition."; exit 1; }
+          [[ -n "$REPORT_MD_B64" && -n "$REPORT_JSON_B64" ]] || { echo "::error::Council report payload is empty."; exit 1; }
           current="$(gh api "repos/$REPO/commits/$DEFAULT_BRANCH" --jq .sha)"
           test "$current" = "$TARGET_SHA" || { echo "::error::Returned Council result is stale; current default SHA is $current."; exit 1; }
-          source_name="$(gh api "repos/$REPO/actions/runs/$SOURCE_COUNCIL_RUN_ID" --jq .name)"
-          source_sha="$(gh api "repos/$REPO/actions/runs/$SOURCE_COUNCIL_RUN_ID" --jq .head_sha)"
-          source_attempt="$(gh api "repos/$REPO/actions/runs/$SOURCE_COUNCIL_RUN_ID" --jq .run_attempt)"
+          source_run="$(gh api "repos/$REPO/actions/runs/$SOURCE_COUNCIL_RUN_ID")"
+          source_name="$(jq -r .name <<< "$source_run")"
+          source_sha="$(jq -r .head_sha <<< "$source_run")"
+          source_attempt="$(jq -r .run_attempt <<< "$source_run")"
+          source_status="$(jq -r .status <<< "$source_run")"
+          source_conclusion="$(jq -r .conclusion <<< "$source_run")"
+          source_branch="$(jq -r .head_branch <<< "$source_run")"
           test "$source_name" = "Repository Council" || { echo "::error::Source run is not Repository Council."; exit 1; }
           test "$source_sha" = "$TARGET_SHA" || { echo "::error::Source Council run SHA does not match returned result."; exit 1; }
           test "$source_attempt" = "$SOURCE_COUNCIL_RUN_ATTEMPT" || { echo "::error::Source Council run attempt does not match returned result."; exit 1; }
+          test "$source_status" = "completed" && test "$source_conclusion" = "success" || { echo "::error::Source Council run is not successfully completed."; exit 1; }
+          test "$source_branch" = "$DEFAULT_BRANCH" || { echo "::error::Source Council run is not on the default branch."; exit 1; }
           mkdir -p "$RUNNER_TEMP/council-r2"
           printf '%s' "$REPORT_MD_B64" | base64 --decode > "$RUNNER_TEMP/council-r2/council-report.md"
           printf '%s' "$REPORT_JSON_B64" | base64 --decode > "$RUNNER_TEMP/council-r2/council-report.json"

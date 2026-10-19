@@ -72,3 +72,11 @@ Verified repository main HEAD: `14af184901c0211743ab2d5baf9891ec030cd8a0` (merge
 The OIDC readiness workflow currently verifies a **MAST-issued** GitHub JWT signature, issuer, audience, repository, ref, SHA and lifetime and independently records whether all eight governed default branches resolve. It does **not** verify token issuance in each other repository, any cloud-provider token exchange, cloud role scopes, provider-side subject restrictions or environment-specific trust. Its `oidc-estate-online.json` artifact must never be interpreted as provider trust readiness. An authoritative estate gate must fail closed on absent provider trust evidence before the readiness status can change.
 
 **Release decision remains NOT READY.** No production test authorisation is implied by the code fixes or this documentation update.
+
+## 2026-10-19 MAST production-readiness implementation
+
+Current default branch at inspection: `2b657eaabfccaede1b090043be393e4cef1def8e`, matching the audit snapshot; no later main-branch drift was present.
+
+Repository Council now classifies missing, stale, failing, and current exact-SHA evidence separately; persists the gate outcome and evidence digest; reserves one dispatch per repository/SHA in R2 before calling Kilo; blocks duplicate and ambiguous replays; retains a local Actions artifact when R2 persistence fails; and emits a central operations event on blocked or failed Council runs. These changes are locally tested only. The R2 credentials, access policy, Kilo webhook, operations route, and provider-side OIDC trust have not been verified from this repository session.
+
+See [`COUNCIL_EVIDENCE_LIFECYCLE.md`](COUNCIL_EVIDENCE_LIFECYCLE.md) for exact owner settings, ledger behaviour, and a safe live test checklist. Ecosystem smoke remains a functional service check and is not proof of GitHub OIDC or cloud-provider trust. Verdict: **NOT READY pending owner configuration and live verification**.

@@ -35,6 +35,9 @@ def request(method, endpoint, key, body=b"", ctype=None, expected_length=None):
                 remote = int(resp.headers.get("Content-Length", "-1"))
                 if remote != expected_length:
                     raise RuntimeError(f"R2 length mismatch: expected {expected_length}, got {remote}")
+            response_body = resp.read()
+            if method == "GET": return response_body
+            return None
     except urllib.error.HTTPError as e:
         raise RuntimeError(f"R2 {method} failed with HTTP {e.code}") from e
 def main():
@@ -77,6 +80,9 @@ def main():
         rel=f.relative_to(a.source).as_posix(); key=f"{prefix}/{rel}"; body=f.read_bytes()
         request("PUT",endpoint,key,body,mimetypes.guess_type(f.name)[0] or "application/octet-stream")
         request("HEAD",endpoint,key,expected_length=len(body))
+        remote = request("GET",endpoint,key)
+        if not isinstance(remote, bytes) or hashlib.sha256(remote).digest() != hashlib.sha256(body).digest():
+            raise RuntimeError(f"R2 content digest mismatch for {key}")
         objects.append({"key":key,"sha256":hashlib.sha256(body).hexdigest(),"bytes":len(body)})
     manifest = {
         "schema_version": 1,
@@ -87,12 +93,18 @@ def main():
         "workflow_run_attempt": attempt,
         "created_at": now.isoformat(),
         "status": os.environ.get("EVIDENCE_STATUS", "UNKNOWN"),
+        "evidence_digest": hashlib.sha256(
+            json.dumps(objects, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
         "objects": objects,
         "source_run": f"https://github.com/{repository}/actions/runs/{run}",
     }
     mb=(json.dumps(manifest,indent=2,sort_keys=True)+"\n").encode(); mkey=f"{prefix}/evidence-manifest.json"
     request("PUT",endpoint,mkey,mb,"application/json"); request("HEAD",endpoint,mkey,expected_length=len(mb))
+    remote_manifest = request("GET",endpoint,mkey)
+    if not isinstance(remote_manifest, bytes) or hashlib.sha256(remote_manifest).digest() != hashlib.sha256(mb).digest():
+        raise RuntimeError("R2 manifest content digest mismatch")
     print(json.dumps({"verified":True,"bucket":BUCKET,"prefix":prefix,"manifest_key":mkey,"objects":len(objects)+1},sort_keys=True))
     if os.environ.get("GITHUB_STEP_SUMMARY"):
-        with open(os.environ["GITHUB_STEP_SUMMARY"],"a",encoding="utf-8") as h: h.write(f"\nR2 evidence verified: \`r2://{BUCKET}/{prefix}/\`\n")
+        with open(os.environ["GITHUB_STEP_SUMMARY"],"a",encoding="utf-8") as h: h.write(f"\nR2 evidence verified: `r2://{BUCKET}/{prefix}/`\n")
 if __name__=="__main__": main()

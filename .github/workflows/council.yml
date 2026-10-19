@@ -15,7 +15,7 @@ permissions:
   security-events: read
 
 concurrency:
-  group: repository-council-${{ github.repository }}
+  group: repository-council-${{ github.repository }}-${{ inputs.target_sha || github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -27,75 +27,164 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
-      - name: Resolve exact target SHA
+
+      - name: Prepare evidence directory
+        run: mkdir -p "$RUNNER_TEMP/council-r2"
+
+      - name: Resolve exact Council revision
         id: target
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REQUESTED_SHA: ${{ inputs.target_sha || '' }}
+        shell: bash
         run: |
-          set -euo pipefail
-          current="$(gh api "repos/${REPO}/commits/${DEFAULT_BRANCH}" --jq .sha)"
+          set -uo pipefail
+          current=""
+          query_error=""
+          if ! current="$(gh api "repos/${REPO}/commits/${DEFAULT_BRANCH}" --jq .sha 2>/dev/null)"; then
+            query_error="default_branch_sha_query_failed"
+          fi
           target="${REQUESTED_SHA:-$current}"
-          test "$target" = "$current" || { echo "::error::Council target must be the current default-branch SHA."; exit 1; }
-          echo "sha=$target" >> "$GITHUB_OUTPUT"
-      - name: Require exact-SHA CI/security evidence
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          TARGET_SHA: ${{ steps.target.outputs.sha }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          REQUIRED_WORKFLOWS: "MAST CI|CodeQL|Security and repository quality"
-        run: |
-          set -euo pipefail
-          IFS='|' read -r -a required <<< "$REQUIRED_WORKFLOWS"
-          runs="$(gh api --paginate --slurp "repos/${REPO}/actions/runs?head_sha=${TARGET_SHA}&per_page=100" --jq 'map(.workflow_runs) | add')"
-          for workflow in "${required[@]}"; do
-            result="$(jq -r --arg name "$workflow" '[.[] | select(.name == $name and .event != "pull_request")] | sort_by(.run_number,.run_attempt) | last | if .status == "completed" then .conclusion else "missing" end' <<< "$runs")"
-            test "$result" = success || { echo "::error::$workflow exact-SHA evidence is $result"; exit 1; }
-          done
-      - name: Refuse unresolved autonomy state
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          blockers="$(gh pr list --state open --limit 1000 --json number,labels,url --jq '[.[] | select(any(.labels[]?; .name == "autonomy:human-hold") or (any(.labels[]?; .name == "autonomy:repair") and (any(.labels[]?; .name == "autonomy:obsolete" or .name == "autonomy:superseded") | not)))]')"
-          test "$(jq length <<< "$blockers")" -eq 0 || { jq . <<< "$blockers"; exit 1; }
-      - name: Validate Kilo Council trigger
-        env:
-          KILO_REPAIR_TRIGGER_URL: ${{ secrets.KILO_REPAIR_TRIGGER_URL }}
-        run: |
-          test -n "${KILO_REPAIR_TRIGGER_URL:-}"
-          python3 .github/scripts/kilo_webhook_url.py
-      - name: Dispatch Council contract to Kilo
-        id: dispatch
-        env:
-          REPO: ${{ github.repository }}
-          TARGET_SHA: ${{ steps.target.outputs.sha }}
-          KILO_REPAIR_TRIGGER_URL: ${{ secrets.KILO_REPAIR_TRIGGER_URL }}
-        run: |
-          set -euo pipefail
-          prompt="$(cat .council/council.md)"
-          task="Run the checked-in Council contract for $REPO@$TARGET_SHA. Do not create a cosmetic PR.\n\n$prompt"
-          payload="$(jq -n --arg repository "$REPO" --arg sha "$TARGET_SHA" --arg task "$task" '{repository:$repository,target_sha:$sha,kind:"repository-council",task:$task}')"
-          code="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 30 -X POST -H 'Content-Type: application/json' --data "$payload" "$KILO_REPAIR_TRIGGER_URL")"
-          [[ "$code" == 2?? ]] || { echo "::error::Kilo Council trigger returned HTTP $code"; exit 1; }
-
-          mkdir -p "$RUNNER_TEMP/council-r2"
-          prompt_sha256="$(printf '%s' "$task" | sha256sum | awk '{print $1}')"
-          run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          if [[ ! "$target" =~ ^[0-9a-fA-F]{40}$ ]]; then target=""; fi
           jq -n \
             --arg repository "$REPO" \
-            --arg sha "$TARGET_SHA" \
-            --arg run_id "$GITHUB_RUN_ID" \
-            --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
-            --arg run_url "$run_url" \
-            --arg prompt_sha256 "$prompt_sha256" \
-            '{repository:$repository,sha:$sha,workflow_run_id:$run_id,workflow_run_attempt:$run_attempt,council_run:$run_url,status:"DISPATCHED",final_result_persisted:false,prompt_sha256:$prompt_sha256}' \
-            > "$RUNNER_TEMP/council-r2/dispatch-evidence.json"
+            --arg default_branch "$DEFAULT_BRANCH" \
+            --arg target_sha "$target" \
+            --arg current_sha "$current" \
+            --arg source_run_id "$GITHUB_RUN_ID" \
+            --arg source_run_attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg query_error "$query_error" \
+            '{repository:$repository,default_branch:$default_branch,target_sha:$target_sha,current_sha:$current_sha,source_run_id:$source_run_id,source_run_attempt:$source_run_attempt,workflow_runs:[],blockers:[],query_error:(if $query_error == "" then null else $query_error end)}' \
+            > "$RUNNER_TEMP/council-r2/context.json"
+          echo "sha=$target" >> "$GITHUB_OUTPUT"
 
-      - name: Persist Council dispatch evidence to hive-repositories R2
+      - name: Collect exact-branch checks and autonomy blockers
+        id: collect
+        if: steps.target.outputs.sha != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          context="$RUNNER_TEMP/council-r2/context.json"
+          if ! gh api --paginate --slurp "repos/${REPO}/actions/runs?branch=${DEFAULT_BRANCH}&per_page=100" \
+              --jq 'map(.workflow_runs) | add' > "$RUNNER_TEMP/council-r2/workflow-runs.json"; then
+            jq '.query_error="workflow_run_query_failed"' "$context" > "$context.tmp" && mv "$context.tmp" "$context"
+          elif ! gh pr list --repo "$REPO" --state open --limit 1000 --json number,labels,url > "$RUNNER_TEMP/council-r2/open-prs.json"; then
+            jq '.query_error="open_pull_request_query_failed"' "$context" > "$context.tmp" && mv "$context.tmp" "$context"
+          else
+            jq --slurpfile runs "$RUNNER_TEMP/council-r2/workflow-runs.json" \
+               --slurpfile prs "$RUNNER_TEMP/council-r2/open-prs.json" \
+               '.workflow_runs=$runs[0] | .blockers=($prs[0] | map(select(any(.labels[]?; .name == "autonomy:human-hold") or (any(.labels[]?; .name == "autonomy:repair") and (any(.labels[]?; .name == "autonomy:obsolete" or .name == "autonomy:superseded") | not))) | {number, url, human_hold:any(.labels[]?; .name == "autonomy:human-hold"), repair_open:any(.labels[]?; .name == "autonomy:repair")}))' \
+              "$context" > "$context.tmp" && mv "$context.tmp" "$context"
+          fi
+
+      - name: Evaluate Council evidence gate
+        id: gate
+        if: always()
+        env:
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          set -euo pipefail
+          context="$RUNNER_TEMP/council-r2/context.json"
+          if [ ! -s "$context" ]; then
+            jq -n --arg repository "$GITHUB_REPOSITORY" --arg run "$GITHUB_RUN_ID" --arg attempt "$GITHUB_RUN_ATTEMPT" \
+              '{repository:$repository,target_sha:null,current_sha:null,source_run_id:$run,source_run_attempt:$attempt,query_error:"target_resolution_failed",workflow_runs:[],blockers:[]}' > "$context"
+          fi
+          python3 .github/scripts/council_gate.py "$context" \
+            --output "$RUNNER_TEMP/council-r2/gate-evidence.json" \
+            --github-output "$GITHUB_OUTPUT"
+          cp "$RUNNER_TEMP/council-r2/gate-evidence.json" "$RUNNER_TEMP/council-r2/dispatch-evidence.json"
+          jq '. + {dispatch_status:"not_attempted",dispatch_http_status:null,ledger_status:null}' \
+            "$RUNNER_TEMP/council-r2/dispatch-evidence.json" > "$RUNNER_TEMP/council-r2/dispatch-evidence.tmp"
+          mv "$RUNNER_TEMP/council-r2/dispatch-evidence.tmp" "$RUNNER_TEMP/council-r2/dispatch-evidence.json"
+
+      - name: Reserve revision dispatch and send the checked Council task
+        id: dispatch
+        if: steps.gate.outputs.status == 'gate_passed'
+        env:
+          REPO: ${{ github.repository }}
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+          KILO_REPAIR_TRIGGER_URL: ${{ secrets.KILO_REPAIR_TRIGGER_URL }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT || secrets.R2_ENDPOINT_URL }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          EVIDENCE_DIGEST: ${{ steps.gate.outputs.evidence_digest }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          evidence="$RUNNER_TEMP/council-r2/dispatch-evidence.json"
+          if ! python3 .github/scripts/kilo_webhook_url.py; then
+            jq '. + {status:"dispatch_configuration_failed",dispatch_status:"dispatch_configuration_failed"}' \
+              "$evidence" > "$evidence.tmp" && mv "$evidence.tmp" "$evidence"
+            echo "status=dispatch_configuration_failed" >> "$GITHUB_OUTPUT"
+            echo "::error::Kilo trigger configuration is missing or outside the approved HTTPS host allowlist."
+            exit 1
+          fi
+          decision=""
+          reserve_output=""
+          if reserve_output="$(python3 .github/scripts/council_dispatch_ledger.py reserve --repository "$REPO" --sha "$TARGET_SHA" --evidence-digest "$EVIDENCE_DIGEST" 2>&1)"; then
+            decision="$(jq -r .decision <<< "$reserve_output")"
+          else
+            jq '. + {status:"persistence_failed",dispatch_status:"persistence_failed",ledger_status:"reservation_write_failed"}' "$evidence" > "$evidence.tmp" && mv "$evidence.tmp" "$evidence"
+            echo "status=persistence_failed" >> "$GITHUB_OUTPUT"
+            echo "::error::Council dispatch reservation could not be read or written; dispatch was not attempted."
+            exit 1
+          fi
+          if [ "$decision" = "duplicate_replay" ]; then
+            jq '. + {status:"duplicate_replay",dispatch_status:"duplicate_replay",ledger_status:"dispatch_accepted"}' "$evidence" > "$evidence.tmp" && mv "$evidence.tmp" "$evidence"
+            echo "status=duplicate_replay" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$decision" != "reserved" ]; then
+            jq --arg state "$decision" '. + {status:"dispatch_reconciliation_required",dispatch_status:"dispatch_reconciliation_required",ledger_status:$state}' "$evidence" > "$evidence.tmp" && mv "$evidence.tmp" "$evidence"
+            echo "status=dispatch_reconciliation_required" >> "$GITHUB_OUTPUT"
+            echo "::error::An earlier Council attempt has a durable dispatch reservation; no replay was sent. Reconcile the exact revision first."
+            exit 1
+          fi
+          prompt="$(cat .council/council.md)"
+          task="Run the checked-in Council contract for $REPO@$TARGET_SHA. Do not create a cosmetic PR.\n\n$prompt"
+          payload="$(jq -n --arg repository "$REPO" --arg sha "$TARGET_SHA" --arg task "$task" \
+            --arg run_id "$GITHUB_RUN_ID" --arg attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg evidence_digest "$EVIDENCE_DIGEST" \
+            '{repository:$repository,target_sha:$sha,kind:"repository-council",workflow_run_id:$run_id,workflow_run_attempt:$attempt,evidence_digest:$evidence_digest,task:$task}')"
+          set +e
+          code="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --connect-timeout 10 --max-time 30 -X POST -H 'Content-Type: application/json' \
+            --data "$payload" "$KILO_REPAIR_TRIGGER_URL" 2>/dev/null)"
+          curl_exit=$?
+          set -e
+          if [ "$curl_exit" -ne 0 ]; then
+            delivery_status="dispatch_unknown"
+            ledger_status="dispatch_unknown"
+          elif [[ "$code" == 2?? ]]; then
+            delivery_status="dispatch_accepted"
+            ledger_status="dispatch_accepted"
+          else
+            delivery_status="dispatch_rejected"
+            ledger_status="dispatch_rejected"
+          fi
+          jq --arg delivery "$delivery_status" --arg http "$code" \
+            '. + {status:$delivery,dispatch_status:$delivery,dispatch_http_status:$http,ledger_status:"reserved"}' \
+            "$evidence" > "$evidence.tmp" && mv "$evidence.tmp" "$evidence"
+          if ! python3 .github/scripts/council_dispatch_ledger.py settle --repository "$REPO" --sha "$TARGET_SHA" \
+              --evidence-digest "$EVIDENCE_DIGEST" --status "$ledger_status"; then
+            jq '. + {status:"persistence_failed",dispatch_status:"persistence_failed",ledger_status:"settlement_write_failed"}' \
+              "$evidence" > "$evidence.tmp" && mv "$evidence.tmp" "$evidence"
+            echo "status=persistence_failed" >> "$GITHUB_OUTPUT"
+            echo "::error::Kilo request outcome is recorded locally, but R2 settlement failed; the reservation remains and replay is blocked."
+            exit 1
+          fi
+          jq --arg state "$ledger_status" '.ledger_status=$state' "$evidence" > "$evidence.tmp" && mv "$evidence.tmp" "$evidence"
+          echo "status=$delivery_status" >> "$GITHUB_OUTPUT"
+          [ "$delivery_status" = "dispatch_accepted" ] || { echo "::error::Council dispatch outcome: $delivery_status"; exit 1; }
+
+      - name: Persist Council lifecycle evidence to R2
+        id: persist
         if: always() && steps.target.outputs.sha != ''
         env:
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT || secrets.R2_ENDPOINT_URL }}
@@ -103,11 +192,60 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET_REPOSITORIES: hive-repositories
           TARGET_SHA: ${{ steps.target.outputs.sha }}
-        shell: bash
+          EVIDENCE_RUN_ID: ${{ github.run_id }}
+          EVIDENCE_RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVIDENCE_STATUS: ${{ steps.dispatch.outputs.status || steps.gate.outputs.status }}
         run: |
           set -euo pipefail
-          test -f "$RUNNER_TEMP/council-r2/dispatch-evidence.json" || {
-            echo "::error::Council was not successfully dispatched; no Council evidence will be fabricated."
-            exit 1
-          }
-          bash .github/scripts/persist_r2_evidence.sh council-dispatch "$TARGET_SHA" "$RUNNER_TEMP/council-r2"
+          python3 .github/scripts/persist_ci_report_r2.py council "$TARGET_SHA" "$RUNNER_TEMP/council-r2"
+
+      - name: Mark local evidence when R2 persistence failed
+        if: always() && steps.persist.outcome != 'success'
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/council-r2/dispatch-evidence.json"
+          if [ -f "$evidence" ]; then
+            jq '. + {status:"persistence_failed",persistence_status:"failed"}' "$evidence" > "$evidence.tmp"
+            mv "$evidence.tmp" "$evidence"
+          fi
+
+      - name: Retain local lifecycle evidence even if R2 persistence fails
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: council-lifecycle-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/council-r2/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Alert central operations about Council failure
+        if: always() && (steps.gate.outputs.status != 'gate_passed' || steps.persist.outcome != 'success' || (steps.dispatch.outcome != 'success' && steps.dispatch.outcome != 'skipped'))
+        env:
+          OPS_ALERT_WEBHOOK_URL: ${{ vars.OPS_ALERT_WEBHOOK_URL || secrets.OPS_ALERT_WEBHOOK_URL || 'https://liable-loreen-jonathanharris-57884580.koyeb.app/v1/ops/events' }}
+          OPS_ALERT_WEBHOOK_TOKEN: ${{ secrets.OPS_ALERT_WEBHOOK_TOKEN || secrets.OPS_EVENT_INGEST_TOKEN }}
+          GATE_STATUS: ${{ steps.gate.outputs.status || 'evidence_not_produced' }}
+          DELIVERY_STATUS: ${{ steps.dispatch.outputs.status || 'not_attempted' }}
+        run: |
+          set -euo pipefail
+          python scripts/ops_notify.py \
+            --service MAST \
+            --event-type repository_council_blocked \
+            --title "MAST Repository Council did not complete" \
+            --summary "Council gate=$GATE_STATUS; dispatch=$DELIVERY_STATUS; inspect the linked run and retained lifecycle evidence. No dispatch is inferred from a gate or persistence failure." \
+            --severity critical \
+            --event-id "github:${{ github.repository }}:${{ github.run_id }}:${{ github.run_attempt }}" \
+            --release-id "${{ steps.target.outputs.sha || github.sha }}" \
+            --url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Require successful gate, delivery, and evidence persistence
+        if: always()
+        env:
+          GATE_STATUS: ${{ steps.gate.outputs.status }}
+          DELIVERY_STATUS: ${{ steps.dispatch.outputs.status }}
+          PERSIST_RESULT: ${{ steps.persist.outcome }}
+        run: |
+          set -euo pipefail
+          test "$PERSIST_RESULT" = success
+          if [ "$GATE_STATUS" = "gate_passed" ] && [ "$DELIVERY_STATUS" = "duplicate_replay" ]; then exit 0; fi
+          test "$GATE_STATUS" = "gate_passed"
+          test "$DELIVERY_STATUS" = "dispatch_accepted"
