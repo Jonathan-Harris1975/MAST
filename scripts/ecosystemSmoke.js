@@ -6,6 +6,8 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 // HIVE bounds its exact-head refresh at 40 seconds; keep margin for the HTTP response.
 const DEFAULT_PRODUCTION_MANAGER_TIMEOUT_MS = 60_000;
 const DEFAULT_RETRY_DELAY_MS = 5_000;
+let readOnlyRequests = true;
+let allowSessionExchange = false;
 
 function required(name) {
   const value = String(process.env[name] || '').trim();
@@ -52,6 +54,12 @@ function cookiePair(response) {
 }
 
 async function requestJson(url, options = {}, expected = [200], timeoutOverrideMs = null) {
+  const method = String(options.method || 'GET').toUpperCase();
+  const sessionExchange = allowSessionExchange && method === 'POST'
+    && ['/api/auth/login', '/console/api/auth/handoff'].includes(url.pathname);
+  if (readOnlyRequests && !['GET', 'HEAD'].includes(method) && !sessionExchange) {
+    throw new Error('Read-only smoke refused a state-changing request');
+  }
   const timeoutMs = Number(timeoutOverrideMs || process.env.ECOSYSTEM_SMOKE_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
   const response = await fetch(url, {
     ...options,
@@ -176,10 +184,13 @@ function productionManagerDiagnostics(body) {
 async function main() {
   const workerMode = process.argv[2] === '--worker';
   const skipProductionManager = workerMode && process.argv[4] === '--skip-production-manager';
-  const expectedArgc = workerMode ? (skipProductionManager ? 5 : 4) : 2;
+  const functionalProbes = !workerMode && process.argv[2] === '--functional-probes';
+  const expectedArgc = workerMode ? (skipProductionManager ? 5 : 4) : (functionalProbes ? 3 : 2);
   if (process.argv.length !== expectedArgc) {
-    throw new Error('Usage: ecosystemSmoke.js [--worker EXPECTED_MAST_SHA [--skip-production-manager]]');
+    throw new Error('Usage: ecosystemSmoke.js [--functional-probes | --worker EXPECTED_MAST_SHA [--skip-production-manager]]');
   }
+  readOnlyRequests = !functionalProbes;
+  allowSessionExchange = !workerMode;
   if (workerMode) {
     const expectedSha = process.argv[3];
     const deployedSha = String(process.env.KOYEB_GIT_SHA || '').trim();
@@ -223,17 +234,25 @@ async function main() {
     console.log(`note - MAST recorded ${heartbeat.recent_failures} failed job(s) in its recent history; review durable results`);
   }
 
-  const wake = await requestJson(new URL('/v1/services/RAMS/ensure-ready', hiveApiBase), {
-    method: 'POST',
-    headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)),
-  }, [202]);
-  assertOk(wake.body?.ok === true && wake.body?.repo === 'RAMS'
-    && /^\/services\/RAMS\/ensure-ready\/[0-9a-f]{32}$/.test(wake.body?.poll_url || ''),
-  'HIVE did not create a RAMS wake ticket');
-  await waitForWake(new URL(`/v1${wake.body.poll_url}`, hiveApiBase), {
-    headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)),
-  });
-  console.log('ok 3 - RAMS ready through HIVE Koyeb lifecycle');
+  if (functionalProbes) {
+    const wake = await requestJson(new URL('/v1/services/RAMS/ensure-ready', hiveApiBase), {
+      method: 'POST',
+      headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)),
+    }, [202]);
+    assertOk(wake.body?.ok === true && wake.body?.repo === 'RAMS'
+      && /^\/services\/RAMS\/ensure-ready\/[0-9a-f]{32}$/.test(wake.body?.poll_url || ''),
+    'HIVE did not create a RAMS wake ticket');
+    await waitForWake(new URL(`/v1${wake.body.poll_url}`, hiveApiBase), {
+      headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)),
+    });
+    console.log('ok 3 - RAMS ready through HIVE Koyeb lifecycle');
+  } else {
+    const ramsHealth = await requestJson(new URL('/health', ramsBase), {
+      headers: requestHeaders(ramsBase, bearer(rmsApiKey)),
+    });
+    assertOk(ramsHealth.body?.status === 'ok', 'RAMS process liveness did not report ok');
+    console.log('ok 3 - RAMS read-only process liveness; lifecycle wake not requested');
+  }
 
   const ramsReady = await waitForJson(new URL('/readyz', ramsBase), {
     headers: requestHeaders(ramsBase, bearer(rmsApiKey)),
@@ -241,33 +260,50 @@ async function main() {
   assertOk(ramsReady.body?.status === 'ready', 'RAMS readiness did not report ready');
   console.log('ok 4 - RAMS readiness');
 
-  const idempotencyKey = `production-launch-smoke-${Date.now()}`;
-  let ramsDryRun = null;
-  const ramsDryRunAttempts = Math.max(1, Math.min(12, Number(process.env.ECOSYSTEM_SMOKE_RETRY_ATTEMPTS || 6)));
-  const ramsDryRunDelayMs = Math.max(250, Number(process.env.ECOSYSTEM_SMOKE_RETRY_DELAY_MS || DEFAULT_RETRY_DELAY_MS));
-  for (let attempt = 1; attempt <= ramsDryRunAttempts; attempt += 1) {
-    const result = await requestJson(new URL('/rebuild/on-brand/run', ramsBase), {
-      method: 'POST',
-      headers: requestHeaders(ramsBase, {
-        ...bearer(rmsApiKey),
-        'content-type': 'application/json',
-        'x-idempotency-key': idempotencyKey,
-      }),
-      body: JSON.stringify({ dry_run: true }),
-    }, [202, 409]);
-    if (result.response.status === 202) {
-      ramsDryRun = result;
-      break;
+  if (functionalProbes) {
+    const idempotencyKey = `production-launch-smoke-${Date.now()}`;
+    let ramsDryRun = null;
+    const ramsDryRunAttempts = Math.max(1, Math.min(12, Number(process.env.ECOSYSTEM_SMOKE_RETRY_ATTEMPTS || 6)));
+    const ramsDryRunDelayMs = Math.max(250, Number(process.env.ECOSYSTEM_SMOKE_RETRY_DELAY_MS || DEFAULT_RETRY_DELAY_MS));
+    for (let attempt = 1; attempt <= ramsDryRunAttempts; attempt += 1) {
+      const result = await requestJson(new URL('/rebuild/on-brand/run', ramsBase), {
+        method: 'POST',
+        headers: requestHeaders(ramsBase, {
+          ...bearer(rmsApiKey),
+          'content-type': 'application/json',
+          'x-idempotency-key': idempotencyKey,
+        }),
+        body: JSON.stringify({ dry_run: true }),
+      }, [202, 409]);
+      if (result.response.status === 202) {
+        ramsDryRun = result;
+        break;
+      }
+      const busyMessage = String(result.body?.error || result.body?.detail || result.body?.message || '');
+      if (!/pipeline already running/i.test(busyMessage)) {
+        throw new Error('RAMS dry-run returned 409 with an unrecognized conflict response');
+      }
+      if (attempt < ramsDryRunAttempts) await new Promise((resolve) => setTimeout(resolve, ramsDryRunDelayMs));
     }
-    const busyMessage = String(result.body?.error || result.body?.detail || result.body?.message || '');
-    if (!/pipeline already running/i.test(busyMessage)) {
-      throw new Error('RAMS dry-run returned 409 with an unrecognized conflict response');
-    }
-    if (attempt < ramsDryRunAttempts) await new Promise((resolve) => setTimeout(resolve, ramsDryRunDelayMs));
+    if (!ramsDryRun) throw new Error('RAMS dry-run remained busy for the full smoke retry window');
+    assertOk(ramsDryRun.body?.dryRun === true && ramsDryRun.body?.pipeline === 'on-brand', 'RAMS dry-run was not admitted as a dry run');
+    console.log('ok 5 - RAMS remediation dry-run admitted');
+  } else {
+    const policy = await requestJson(new URL('/ops/excellence', ramsBase), {
+      headers: requestHeaders(ramsBase, bearer(rmsApiKey)),
+    });
+    const contract = policy.body?.deploymentContract;
+    const controls = policy.body?.liveWriteControls;
+    assertOk(policy.body?.service === 'RAMS' && policy.body?.status === 'healthy'
+      && policy.body?.auditStorage?.verified === true
+      && contract?.singleWorkerMode === true && contract?.configuredInstances === 1
+      && contract?.processLocalIdempotencySafe === true && contract?.maxConcurrentPipelines === 1
+      && typeof controls?.dryRunDefault === 'boolean'
+      && typeof controls?.liveWriteEnabled === 'boolean'
+      && controls?.validateAfterEachTask === true && controls?.revertOnValidationFailure === true,
+    'RAMS read-only admission policy evidence is incomplete');
+    console.log('ok 5 - RAMS read-only admission/storage policy; no remediation job admitted');
   }
-  if (!ramsDryRun) throw new Error('RAMS dry-run remained busy for the full smoke retry window');
-  assertOk(ramsDryRun.body?.dryRun === true && ramsDryRun.body?.pipeline === 'on-brand', 'RAMS dry-run was not admitted as a dry run');
-  console.log('ok 5 - RAMS remediation dry-run admitted');
 
   const hiveReady = await requestJson(new URL('/v1/runtime/readiness', hiveApiBase), {
     headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)),
@@ -334,16 +370,28 @@ async function main() {
   );
   console.log('ok 9 - HIVE monthly model governance fresh and propagated');
 
-  const dbPing = await requestJson(new URL('/v1/db/ping-write', hiveApiBase), {
-    method: 'POST',
-    headers: requestHeaders(hiveApiBase, {
-      ...bearer(hiveAdminToken),
-      'content-type': 'application/json',
-    }),
-    body: '{}',
-  });
-  assertOk(dbPing.body?.ok === true, 'HIVE SQL/D1 write-delete readiness probe failed');
-  console.log('ok 10 - HIVE database write/delete readiness');
+  if (functionalProbes) {
+    const dbPing = await requestJson(new URL('/v1/db/ping-write', hiveApiBase), {
+      method: 'POST',
+      headers: requestHeaders(hiveApiBase, {
+        ...bearer(hiveAdminToken),
+        'content-type': 'application/json',
+      }),
+      body: '{}',
+    });
+    assertOk(dbPing.body?.ok === true, 'HIVE SQL/D1 write-delete readiness probe failed');
+    console.log('ok 10 - HIVE database write/delete readiness');
+  } else {
+    const database = await requestJson(new URL('/v1/db/diagnostics', hiveApiBase), {
+      headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)),
+    });
+    assertOk(database.body?.ok === true && ['sql', 'd1'].every((name) => {
+      const store = database.body?.[name];
+      return store && typeof store.enabled === 'boolean'
+        && (store.enabled === false || (store.ok === true && store.probe?.ok === true));
+    }), 'HIVE read-only database diagnostics failed');
+    console.log('ok 10 - HIVE database read-only diagnostics; write/delete probes not run');
+  }
 
   if (!workerMode) {
     const hiveHealth = await requestJson(new URL('/health', hiveUiBase), {

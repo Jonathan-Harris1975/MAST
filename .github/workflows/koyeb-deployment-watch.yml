@@ -87,7 +87,7 @@ jobs:
         env:
           DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
-          printf '{"repository":"%s","sha":"%s","workflow_run":"%s","service":"MAST","status":"production-deployment-and-worker-api-smoke-green"}\n' \
+          printf '{"repository":"%s","sha":"%s","workflow_run":"%s","service":"MAST","status":"production-deployment-and-worker-api-smoke-green","scope":"exact-MAST-deployment-and-read-only-health-policy","mutation_probes":"not_run","oidc_scope":"smoke-only"}\n' \
             "$GITHUB_REPOSITORY" "$DEPLOYED_SHA" "$GITHUB_RUN_ID" > deployment-attestation.json
       - name: Retain post-deployment launch evidence
         if: always()
