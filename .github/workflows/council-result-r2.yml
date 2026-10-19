@@ -84,7 +84,10 @@ jobs:
           test "$source_name" = "Repository Council" || { echo "::error::Source run is not Repository Council."; exit 1; }
           test "$source_sha" = "$TARGET_SHA" || { echo "::error::Source Council run SHA does not match returned result."; exit 1; }
           test "$source_attempt" = "$SOURCE_COUNCIL_RUN_ATTEMPT" || { echo "::error::Source Council run attempt does not match returned result."; exit 1; }
-          test "$source_status" = "completed" && test "$source_conclusion" = "success" || { echo "::error::Source Council run is not successfully completed."; exit 1; }
+          if [[ "$source_status" != "completed" || "$source_conclusion" != "success" ]]; then
+            echo "::error::Source Council run is not successfully completed."
+            exit 1
+          fi
           test "$source_branch" = "$DEFAULT_BRANCH" || { echo "::error::Source Council run is not on the default branch."; exit 1; }
           mkdir -p "$RUNNER_TEMP/council-r2"
           printf '%s' "$REPORT_MD_B64" | base64 --decode > "$RUNNER_TEMP/council-r2/council-report.md"
