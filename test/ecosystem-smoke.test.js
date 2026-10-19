@@ -326,9 +326,9 @@ test('smoke fails when monthly HIVE model governance is stale', async () => {
 test('monthly governance failures identify stale evidence, downstream sync, or service status', async () => {
   const cases = [
     {
-      body: { ok: false, fresh: false, downstream_sync_enabled: true, downstream_sync_ok: true, reason: 'latest AI Council run is degraded', period: '2026-09', secret: 'hidden' },
-      classification: 'stale_governance_evidence',
-      reason: 'latest AI Council run is degraded',
+      body: { ok: false, fresh: false, completion_status: 'missing', downstream_sync_enabled: false, downstream_sync_ok: false, reason: 'no AI Council run history available', period: '2026-10', secret: 'hidden' },
+      classification: 'missing_governance_evidence',
+      reason: 'no AI Council run history available',
     },
     {
       body: { ok: true, fresh: true, downstream_sync_enabled: true, downstream_sync_ok: false, reason: 'RAMS sync pending' },
