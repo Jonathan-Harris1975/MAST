@@ -68,6 +68,20 @@ jobs:
             if (!/^[0-9a-f]{40}$/.test(sha || "")) {
               throw new Error(`${repository.name}: current main SHA is unavailable`);
             }
+            const workflowFile = await getJson(
+              `${root}/contents/.github/workflows/oidc-readiness.yml?ref=${sha}`,
+            );
+            if (workflowFile.type !== "file" || workflowFile.encoding !== "base64" || !workflowFile.content) {
+              throw new Error(`${repository.name}: OIDC readiness workflow source is unavailable at current main ${sha}`);
+            }
+            const workflowSource = Buffer.from(workflowFile.content.replace(/\n/g, ""), "base64").toString("utf8");
+            const workflowBindingPresent =
+              /EXPECTED_WORKFLOW_REF:\s*\$\{\{\s*github\.repository\s*\}\}\/\.github\/workflows\/oidc-readiness\.yml@refs\/heads\/main/.test(workflowSource) &&
+              /workflow_ref:\s*process\.env\.EXPECTED_WORKFLOW_REF/.test(workflowSource) &&
+              /claims\[name\]\s*!==\s*value/.test(workflowSource);
+            if (!workflowBindingPresent) {
+              throw new Error(`${repository.name}: current-main OIDC readiness code does not enforce the canonical exact workflow_ref claim`);
+            }
             const readinessDeadline = Date.now() + 60_000;
             let latest;
             while (Date.now() < readinessDeadline) {
@@ -106,6 +120,8 @@ jobs:
               repository_id: repository.id,
               default_branch: "main",
               head_sha: sha,
+              workflow_ref: `${owner}/${repository.name}/.github/workflows/oidc-readiness.yml@refs/heads/main`,
+              workflow_binding_verified: true,
               run_id: latest.id,
               run_event: latest.event,
               run_url: latest.html_url,
@@ -116,7 +132,7 @@ jobs:
           writeFileSync("oidc-estate-readiness.json", JSON.stringify({
             schema_version: 1,
             verified_at: new Date().toISOString(),
-            verification_scope: "latest successful GitHub OIDC readiness run on each repository's exact current main SHA; no cloud provider trust is verified",
+            verification_scope: "latest successful readiness run on each repository's exact current main SHA and static presence of the canonical workflow_ref guard; no cloud provider trust is verified",
             repositories: results,
           }, null, 2) + "\n");
           NODE
@@ -167,7 +183,7 @@ jobs:
             --service MAST \
             --event-type oidc_estate_readiness_failed \
             --title "Estate OIDC readiness verification failed" \
-            --summary "At least one repository lacks successful GitHub OIDC readiness evidence for its exact current main SHA. Inspect the linked MAST run for the repository, SHA and workflow run ID." \
+            --summary "At least one repository lacks current successful OIDC evidence or the canonical exact workflow identity guard on its main SHA. Inspect the linked MAST run for the repository, SHA and workflow run ID." \
             --severity critical \
             --event-id "github:${{ github.repository }}:${{ github.run_id }}:${{ github.run_attempt }}" \
             --release-id "${{ github.sha }}" \
