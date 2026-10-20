@@ -195,12 +195,17 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
     assert.equal(job.schedule.catchUpMinutes, expectedCatchUp);
   }
 
-  // The standalone HIVE worker owns these writes and its D1 claim is not
-  // shared by legacy MAST HTTP POST jobs.
-  for (const id of ["hive-ai-council-run", "hive-monthly-review-generate"]) {
-    assert.equal(baseJobs.some((job) => job.id === id), false);
-  }
-  assert.equal(baseJobs.some((job) => job.targetPath === "/v1/monthly-review/generate"), false);
+  // MAST owns the schedule and uses only HIVE's D1-claimed async monthly route.
+  assert.equal(baseJobs.some((job) => job.id === "hive-ai-council-run"), false);
+  const monthlyGovernance = baseJobs.find((job) => job.id === "hive-monthly-governance-review");
+  assert.equal(monthlyGovernance.targetPath, "/v1/monthly-review/generate");
+  assert.equal(monthlyGovernance.method, "POST");
+  assert.equal(monthlyGovernance.requestRetries, 0);
+  assert.equal(monthlyGovernance.asyncStatus.statusPath, "/v1/monthly-review/jobs/{id}");
+  assert.equal(monthlyGovernance.asyncStatus.statusField, "state.status");
+  assert.deepEqual(monthlyGovernance.asyncStatus.successStatuses, ["completed"]);
+  assert.deepEqual(monthlyGovernance.asyncStatus.pendingStatuses, ["claimed"]);
+  assert.deepEqual(monthlyGovernance.asyncStatus.failureStatuses, ["failed"]);
   assert.equal(baseJobs.some((job) => job.targetPath === "/v1/ai-council/run"), false);
 
   const productionManager = baseJobs.find((job) => job.id === "hive-production-manager-check");
