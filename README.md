@@ -56,15 +56,15 @@ AIMS owns downstream councils and RAMS hand-off. MAST waits for terminal complet
 
 ### HIVE monthly governance ownership
 
-MAST no longer schedules the legacy `POST /v1/ai-council/run` or
-`POST /v1/monthly-review/generate` calls. Those could duplicate writes
-outside the standalone HIVE worker's atomic D1 claim. The HIVE worker must
-be deployed and scheduled independently using
-`python -m app.monthly_governance_worker --previous-month`.
-This repository change alone **does not** deploy or enable that worker.
-The MAST monthly optimisation statistics read remains scheduled.
-Verify the deployed MAST revision before enabling the worker scheduler;
-reconcile any ambiguous prior 504 downstream writes before first execution.
+MAST owns the first-day monthly governance schedule and starts
+`POST /v1/monthly-review/generate`. HIVE atomically claims the reporting
+period in D1, returns HTTP 202 immediately, then runs the Council cycle,
+AIMS/RAMS propagation and report archive in a background task. MAST polls
+`GET /v1/monthly-review/jobs/{period}` until the D1 job is completed or failed.
+The POST is configured with zero retries; an ambiguous timeout must be reconciled
+before any retry because downstream writes may already have occurred. This keeps
+scheduling in MAST and uses the existing always-on HIVE service, without a second
+scheduled worker.
 
 ### HIVE governance
 
