@@ -885,9 +885,35 @@ const hiveGovernanceWeeklyJobs = [
   }),
 ];
 
-// The standalone HIVE worker owns monthly Council and review writes. MAST must
-// never independently POST those endpoints: they bypass the worker D1 claim.
+// MAST owns the monthly schedule. HIVE accepts this request quickly, atomically
+// claims the period in D1, then runs the Council/report work in a background task.
+// Polling is read-only; a timed-out POST is never retried because the D1 claim fences
+// duplicate downstream writes and must be reconciled before any manual retry.
 const hiveGovernanceMonthlyJobs = [
+  hiveJob({
+    id: "hive-monthly-governance-review",
+    group: "hive-governance-monthly",
+    description: "Start HIVE's D1-claimed monthly AI Council, AIMS/RAMS propagation and archived review; poll the persistent job to terminal status.",
+    schedule: { type: "monthly", dayOfMonth: 1, time: "07:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
+    targetPath: "/v1/monthly-review/generate",
+    method: "POST",
+    body: {},
+    requestRetries: 0,
+    consumeFailureWindow: true,
+    asyncStatus: {
+      responseIdField: "period",
+      statusPath: "/v1/monthly-review/jobs/{id}",
+      statusField: "state.status",
+      successStatuses: ["completed"],
+      pendingStatuses: ["claimed"],
+      failureStatuses: ["failed"],
+      terminalResponsePolicy: {
+        checks: [
+          { type: "equals", path: "state.status", value: "completed", message: "HIVE monthly governance did not persist completed status." },
+        ],
+      },
+    },
+  }),
   hiveJob({
     id: "hive-optimisation-stats-snapshot",
     group: "hive-governance-monthly",
