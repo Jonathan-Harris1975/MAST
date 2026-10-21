@@ -1400,7 +1400,26 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
     jobs: due.map((job) => job.id),
   }));
 
-  for (const job of due) {
+  for (const [index, job] of due.entries()) {
+    // Re-read the durable operator control before every job. A pause or
+    // maintenance command issued while an earlier job was running must stop
+    // later jobs in this same scheduler batch.
+    state.operator = await loadOperatorControl();
+    if (!state.operator.schedulerEnabled || state.operator.maintenanceMode) {
+      const reason = state.operator.maintenanceMode ? "maintenance-mode" : "scheduler-paused";
+      await saveState();
+      return {
+        ok: results.every((result) => result.ok || result.skipped),
+        skipped: true,
+        reason,
+        trigger,
+        tickAt: at.toISOString(),
+        ran: results.length,
+        deferred: due.slice(index).map((deferredJob) => deferredJob.id),
+        results,
+        operatorCommands,
+      };
+    }
     const result = await runJob(job, { at, trigger });
     results.push(resultSummary(result));
     if (CONFIG.betweenJobsMs > 0) await sleep(CONFIG.betweenJobsMs);
