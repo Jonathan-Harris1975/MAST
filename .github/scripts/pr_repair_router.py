@@ -301,6 +301,11 @@ def extract(event: dict) -> tuple[dict, str, list[str]] | None:
     return pr, kind, evidence
 
 
+def trigger_secret_for(kind: str) -> str:
+    """Route failed commit checks to Debug while preserving Code for other requests."""
+    return "KILO_DEBUG_TRIGGER_URL" if kind == "check" else "KILO_REPAIR_TRIGGER_URL"
+
+
 def dispatch(pr: dict, kind: str, findings: list[str]) -> str:
     number, sha = pr["number"], pr["head"]["sha"]
     marker = f"<!-- kilo-auto-repair:{sha}:{kind} -->"
@@ -355,9 +360,10 @@ def dispatch(pr: dict, kind: str, findings: list[str]) -> str:
         "without opening a speculative PR."
     )
     instruction = machine_contract() + "\n\n" + instruction
-    url = os.environ.get("KILO_REPAIR_TRIGGER_URL", "")
+    trigger_secret = trigger_secret_for(kind)
+    url = os.environ.get(trigger_secret, "")
     if not valid_kilo_webhook_url(url):
-        raise RepairAgentConfigurationError("KILO_REPAIR_TRIGGER_URL is missing or invalid")
+        raise RepairAgentConfigurationError(f"Configure {trigger_secret} with this repository's Kilo Cloud Agent webhook trigger")
     payload = {"repository": REPO, "source_pr": source, "source_sha": sha,
                "kind": kind, "task": instruction, "findings": findings[:12]}
     reservation = api("POST", f"/repos/{REPO}/issues/{number}/comments", {"body":
