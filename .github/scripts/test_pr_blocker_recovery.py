@@ -677,6 +677,8 @@ class CurrentHeadFailureCoverage(unittest.TestCase):
             "html_url": "https://github.com/owner/repo/pull/17",
             "head": {"sha": "a" * 40},
             "labels": [],
+            "mergeable": True,
+            "mergeable_state": "clean",
         }
         self.config = patch.multiple(m.router, REPO="owner/repo", DEFAULT="main")
         self.config.start()
@@ -695,7 +697,7 @@ class CurrentHeadFailureCoverage(unittest.TestCase):
                     {"head_sha": "a" * 40, "status": "completed", "conclusion": "failure",
                      "name": "Kilo Code Review", "app": {"slug": "kilo"}},
                 ]}
-            if path.endswith("/status"):
+            if path.endswith("/status") or "/status?" in path:
                 return {"statuses": [
                     {"state": "failure", "context": "Cloudflare Pages"},
                     {"state": "success", "context": "passing"},
