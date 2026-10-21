@@ -835,6 +835,8 @@ function resultSummary(result) {
     job: result.job,
     group: result.group,
     ok: result.ok,
+    skipped: Boolean(result.skipped),
+    reason: result.reason || null,
     status: result.status || null,
     trigger: result.trigger,
     runKey: result.runKey,
@@ -1401,16 +1403,40 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
   }));
 
   for (const [index, job] of due.entries()) {
-    // Re-read the durable operator control before every job. A pause or
-    // maintenance command issued while an earlier job was running must stop
-    // later jobs in this same scheduler batch.
-    state.operator = await loadOperatorControl();
+    // The initial control read above is authoritative for the first job.
+    // Refresh it between jobs so an operator pause stops the rest of this batch.
+    if (index > 0) {
+      try {
+        state.operator = await loadOperatorControl();
+      } catch (error) {
+        console.error(JSON.stringify({
+          service: SERVICE_NAME,
+          event: "operator-control-read-failed",
+          errorName: error?.name || "Error",
+          completedJobs: results.length,
+        }));
+        await saveState();
+        return {
+          ok: results.every((result) => result.ok || result.skipped),
+          skipped: results.length === 0,
+          partial: results.length > 0,
+          reason: "operator-control-read-failed",
+          trigger,
+          tickAt: at.toISOString(),
+          ran: results.length,
+          deferred: due.slice(index).map((deferredJob) => deferredJob.id),
+          results,
+          operatorCommands,
+        };
+      }
+    }
     if (!state.operator.schedulerEnabled || state.operator.maintenanceMode) {
       const reason = state.operator.maintenanceMode ? "maintenance-mode" : "scheduler-paused";
       await saveState();
       return {
         ok: results.every((result) => result.ok || result.skipped),
-        skipped: true,
+        skipped: results.length === 0,
+        partial: results.length > 0,
         reason,
         trigger,
         tickAt: at.toISOString(),
