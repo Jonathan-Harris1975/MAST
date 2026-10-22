@@ -320,6 +320,7 @@ class NativeAutoMergeCurrentLabelTests(unittest.TestCase):
             "app": {"slug": "github-actions"},
             "name": native_auto_merge.ADMISSION_CHECK,
             "external_id": f"trusted-autonomy-admission:99:{sha}",
+            "head_sha": sha,
             "status": "completed",
             "conclusion": "success",
         }]

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -70,6 +71,9 @@ def pages(path: str) -> list[dict[str, Any]]:
 
 def admission_check(number: int, sha: str) -> tuple[bool, bool]:
     """Return (exact successful admission exists, any admission check exists)."""
+    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+        return False, False
+    sha = sha.lower()
     name = urllib.parse.quote(ADMISSION_CHECK, safe="")
     runs = request(
         "GET",
