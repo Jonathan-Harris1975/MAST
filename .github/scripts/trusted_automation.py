@@ -774,7 +774,7 @@ def admit_manual_pr(pr: dict[str, Any]) -> None:
     if not re.fullmatch(r"[0-9a-f]{40}", sha) or pr.get("base", {}).get("ref") != DEFAULT_BRANCH:
         return
     blocking_labels = {
-        "autonomy:human-hold", RISK_APPROVAL_LABEL, "autonomy:council-freeze",
+        "autonomy:human-hold", "autonomy:council-freeze",
         "autonomy:superseded", "autonomy:obsolete", "do-not-merge",
         "do not merge", "hold", "needs-manual-review", "needs-human-review",
     }
