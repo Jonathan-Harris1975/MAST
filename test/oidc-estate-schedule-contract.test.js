@@ -7,7 +7,7 @@ const workflow = new URL("../.github/workflows/oidc-estate-readiness.yml", impor
 test("MAST refreshes exact-main OIDC estate evidence daily", async () => {
   const source = await readFile(workflow, "utf8");
   const schedule = source.split("schedule:")[1].split("workflow_dispatch:")[0];
-  assert.match(schedule, /cron: '5 2 \* \* \*'/);
+  assert.match(schedule, /cron: '44 2 \* \* \*'/);
 });
 
 test("estate readiness rejects repositories whose current-main workflow omits exact workflow identity checks", async () => {
