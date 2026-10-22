@@ -21,7 +21,7 @@ const AIMS_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS
 const HIVE_DAILY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_DAILY_CATCH_UP_MINUTES || 180));
 const HIVE_WEEKLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_WEEKLY_CATCH_UP_MINUTES || 360));
 const HIVE_MONTHLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_MONTHLY_CATCH_UP_MINUTES || 1020));
-const CLOUDFLARE_PURGE_TIME = String(process.env.MAST_CLOUDFLARE_PURGE_TIME || "03:00");
+const CLOUDFLARE_PURGE_TIME = String(process.env.MAST_CLOUDFLARE_PURGE_TIME || "02:00");
 const CLOUDFLARE_PURGE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_CLOUDFLARE_PURGE_CATCH_UP_MINUTES || 120));
 const EMAIL_CLEANUP_TIME = String(process.env.MAST_EMAIL_CLEANUP_TIME || "03:00");
 const EMAIL_CLEANUP_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_EMAIL_CLEANUP_CATCH_UP_MINUTES || 1260));
@@ -195,7 +195,7 @@ const outreachScheduledJobs = [
 const cloudflareDailyPurge = aimsPostJob({
   id: "cloudflare-daily-purge",
   group: "cloudflare-maintenance",
-  description: "Purge the complete configured Cloudflare cache every day at 03:00 Europe/London.",
+  description: "Purge the complete configured Cloudflare cache every day at 02:00 Europe/London.",
   schedule: {
     type: "weekly",
     days: EVERY_DAY,
