@@ -145,7 +145,7 @@ jobs:
     branches:
     - main
   schedule:
-  - cron: 17,37,57 * * * *
+  - cron: 2,22,42 * * * *
   workflow_dispatch:
     inputs:
       pr_number:
