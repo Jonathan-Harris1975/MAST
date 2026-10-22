@@ -264,7 +264,7 @@ class NativeAutoMergeCurrentLabelTests(unittest.TestCase):
             native_auto_merge.reconcile(summary)
         enable.assert_not_called()
 
-    def test_removed_admission_label_preserves_user_auto_merge_request(self):
+    def test_removed_admission_label_preserves_user_owned_auto_merge(self):
         summary = {
             "number": 7,
             "labels": [{"name": "autonomy:admitted"}],
