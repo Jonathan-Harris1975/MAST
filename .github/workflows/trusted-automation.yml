@@ -3,7 +3,6 @@ name: Trusted automation and native auto-merge
 on:
   pull_request_target: # zizmor: ignore[dangerous-triggers] trusted default-branch automation reads metadata only and never executes PR code
     types: [opened, reopened, edited, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled]
-on: # zizmor: ignore[dangerous-triggers] workflow_run is guarded and executes trusted default-branch automation only
   issue_comment:
     types: [created, edited, deleted]
   pull_request_review:
