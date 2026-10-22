@@ -229,6 +229,7 @@ const oneComMailboxCleanup = aimsPostJob({
     timezone: LOCAL_TIME_ZONE,
     catchUpMinutes: EMAIL_CLEANUP_CATCH_UP_MINUTES,
   },
+  pretriggerOffsets: { health: 174, preflight: 114, warmup: 24 },
   targetPath: "/comms-hub/email/maintenance/cleanup",
   authEnv: "AIMS_API_KEY",
   requiredServices: ["aims"],
