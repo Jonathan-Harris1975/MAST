@@ -44,6 +44,10 @@ AIMS owns sequencing inside each content window. Individual RSS, Zernio, Blotato
 - **First Saturday:** resume RAMS at 13:00 and run the website audit at 13:30.
 - **Second Saturday:** resume RAMS at 09:00 and run the AIMS/content governance audit at 09:15.
 
+### Daily cache maintenance
+
+MAST purges the configured Cloudflare cache every day at **02:00 Europe/London**. This leaves the **03:00 Europe/London** first-of-month mailbox cleanup its own scheduled slot before the **04:00** Comms Hub housekeeping cycle.
+
 ### one.com mailbox maintenance
 
 On the **first day of each month at 03:00 Europe/London**, MAST calls AIMS to permanently empty the server-advertised Trash and Junk/Spam folders for `info@`, `admin@` and `newsletter@jonathan-harris.online`. `MAST_EMAIL_CLEANUP_TIME` changes the time, and `MAST_EMAIL_CLEANUP_CATCH_UP_MINUTES` controls same-day recovery after downtime. The job is non-retried at the HTTP layer, consumes a failed monthly window, and accepts success only when AIMS reports all three governed accounts complete.
