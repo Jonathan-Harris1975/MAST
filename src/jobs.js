@@ -21,7 +21,7 @@ const AIMS_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS
 const HIVE_DAILY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_DAILY_CATCH_UP_MINUTES || 180));
 const HIVE_WEEKLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_WEEKLY_CATCH_UP_MINUTES || 360));
 const HIVE_MONTHLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_MONTHLY_CATCH_UP_MINUTES || 1020));
-const CLOUDFLARE_PURGE_TIME = String(process.env.MAST_CLOUDFLARE_PURGE_TIME || "03:00");
+const CLOUDFLARE_PURGE_TIME = String(process.env.MAST_CLOUDFLARE_PURGE_TIME || "02:00");
 const CLOUDFLARE_PURGE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_CLOUDFLARE_PURGE_CATCH_UP_MINUTES || 120));
 const EMAIL_CLEANUP_TIME = String(process.env.MAST_EMAIL_CLEANUP_TIME || "03:00");
 const EMAIL_CLEANUP_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_EMAIL_CLEANUP_CATCH_UP_MINUTES || 1260));
@@ -177,6 +177,7 @@ const outreachScheduledJobs = [
     group: "outreach",
     description: "Automatically process the morning Outreach batch on weekdays.",
     schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "09:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
+    pretriggerOffsets: { health: 179, preflight: 111, warmup: 29 },
     targetPath: "/outreach/batch/next",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims"],
@@ -186,6 +187,7 @@ const outreachScheduledJobs = [
     group: "outreach",
     description: "Automatically process the afternoon Outreach batch on weekdays.",
     schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "16:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
+    pretriggerOffsets: { health: 179, preflight: 111, warmup: 29 },
     targetPath: "/outreach/batch/next",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims"],
@@ -195,7 +197,7 @@ const outreachScheduledJobs = [
 const cloudflareDailyPurge = aimsPostJob({
   id: "cloudflare-daily-purge",
   group: "cloudflare-maintenance",
-  description: "Purge the complete configured Cloudflare cache every day at 03:00 Europe/London.",
+  description: "Purge the complete configured Cloudflare cache every day at 02:00 Europe/London.",
   schedule: {
     type: "weekly",
     days: EVERY_DAY,
@@ -227,6 +229,7 @@ const oneComMailboxCleanup = aimsPostJob({
     timezone: LOCAL_TIME_ZONE,
     catchUpMinutes: EMAIL_CLEANUP_CATCH_UP_MINUTES,
   },
+  pretriggerOffsets: { health: 174, preflight: 114, warmup: 24 },
   targetPath: "/comms-hub/email/maintenance/cleanup",
   authEnv: "AIMS_API_KEY",
   requiredServices: ["aims"],
@@ -261,6 +264,7 @@ const commsHubMonthlyHousekeeping = aimsPostJob({
     timezone: LOCAL_TIME_ZONE,
     catchUpMinutes: COMMS_HOUSEKEEPING_CATCH_UP_MINUTES,
   },
+  pretriggerOffsets: { health: 170, preflight: 110, warmup: 20 },
   targetPath: "/comms-hub/maintenance/run",
   authEnv: "AIMS_API_KEY",
   requiredServices: ["aims"],
@@ -303,6 +307,7 @@ const commsHubWeeklyQuarantineReview = aimsPostJob({
     timezone: LOCAL_TIME_ZONE,
     catchUpMinutes: COMMS_QUARANTINE_REVIEW_CATCH_UP_MINUTES,
   },
+  pretriggerOffsets: { health: 178, preflight: 113, warmup: 25 },
   targetPath: "/comms-hub/maintenance/quarantine-review",
   authEnv: "AIMS_API_KEY",
   requiredServices: ["aims"],
@@ -465,6 +470,7 @@ const monthlyAuditJobs = [
     group: "audits",
     description: `Run the complete AIMS audit at ${AIMS_AUDIT_RUN_TIME} on the second Saturday of each month. AIMS owns the full council/report/RAMS sequence.`,
     schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: AIMS_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AIMS_AUDIT_RUN_CATCH_UP_MINUTES },
+    pretriggerOffsets: { health: 178, preflight: 112, warmup: 23 },
     targetPath: "/audits/monthly/aims",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims", "rams"],

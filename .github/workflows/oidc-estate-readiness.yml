@@ -2,7 +2,7 @@ name: OIDC estate readiness
 
 on:
   schedule:
-    - cron: '17 2 * * *' # refresh current-main OIDC evidence daily
+    - cron: '44 2 * * *' # refresh current-main OIDC evidence daily
   workflow_dispatch:
 
 permissions:
