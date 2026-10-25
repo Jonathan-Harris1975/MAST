@@ -17,7 +17,7 @@ import native_auto_merge as native_merge  # noqa: E402
 class ExactHeadAdmissionTests(unittest.TestCase):
     @patch("autonomy_admission_check._request")
     def test_publishes_trusted_check_bound_to_pull_request_and_exact_sha(self, request):
-        request.side_effect = [{"check_runs": []}, {"id": 1}]
+        request.side_effect = [{"check_runs": []}, {"id": 1}, [], {}]
         sha = "a" * 40
 
         self.assertTrue(admission_check.set_admission_check(22, sha, "success", "verified"))
