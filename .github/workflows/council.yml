@@ -73,8 +73,8 @@ jobs:
         run: |
           set -uo pipefail
           context="$RUNNER_TEMP/council-r2/context.json"
-          if ! gh api --paginate --slurp "repos/${REPO}/actions/runs?branch=${DEFAULT_BRANCH}&per_page=100" \
-              --jq 'map(.workflow_runs) | add' > "$RUNNER_TEMP/council-r2/workflow-runs.json"; then
+          if ! gh api --paginate "repos/${REPO}/actions/runs?branch=${DEFAULT_BRANCH}&per_page=100" \
+              --jq '.workflow_runs' | jq -s 'add' > "$RUNNER_TEMP/council-r2/workflow-runs.json"; then
             jq '.query_error="workflow_run_query_failed"' "$context" > "$context.tmp" && mv "$context.tmp" "$context"
           elif ! gh pr list --repo "$REPO" --state open --limit 1000 --json number,labels,url > "$RUNNER_TEMP/council-r2/open-prs.json"; then
             jq '.query_error="open_pull_request_query_failed"' "$context" > "$context.tmp" && mv "$context.tmp" "$context"
