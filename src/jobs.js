@@ -489,6 +489,27 @@ const monthlyAuditJobs = [
   }),
 ];
 
+const kdpWeeklyJobs = [
+  aimsPostJob({
+    id: "kdp-weekly-audit", group: "kdp", description: "Create the weekly public KDP audit.",
+    schedule: { type: "weekly", days: ["monday"], time: "12:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 170 },
+    targetPath: "/kdp/audit/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"], body: { mode: "public", marketplace: "US" },
+    asyncStatus: {
+      responseIdField: "sessionId", statusPath: "/kdp/jobs/audit-run/{id}", statusField: "status",
+      terminalResponsePolicy: { checks: [{ type: "equals", path: "result.complete", value: true, message: "KDP audit was incomplete." }] },
+    },
+  }),
+  aimsPostJob({
+    id: "kdp-weekly-research", group: "kdp", description: "Run or resume the weekly KDP research batch.",
+    schedule: { type: "weekly", days: ["tuesday", "wednesday", "thursday"], time: "12:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 170 },
+    targetPath: "/kdp/research/weekly/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
+    asyncStatus: {
+      responseIdField: "sessionId", statusPath: "/kdp/jobs/weekly-research/{id}", statusField: "status",
+      terminalResponsePolicy: { checks: [{ type: "equals", path: "result.ok", value: true, message: "KDP research did not complete." }] },
+    },
+  }),
+];
+
 const zernioEbooksWeekly = aimsPostJob({
   id: "zernio-ebooks-weekly",
   group: "zernio-ebooks",
@@ -1017,6 +1038,7 @@ export const baseJobs = [
   ...zernioDailyJobs,
   zernioWeeklyQuiz,
   ...monthlyAuditJobs,
+  ...kdpWeeklyJobs,
   zernioEbooksWeekly,
   ...blotatoVideoJobs,
   healthPing,
