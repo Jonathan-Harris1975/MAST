@@ -500,6 +500,15 @@ const kdpWeeklyJobs = [
     },
   }),
   aimsPostJob({
+    id: "kdp-weekly-metadata-sync", group: "kdp", description: "Refresh the signed-in KDP setup metadata snapshot.",
+    schedule: { type: "weekly", days: ["monday"], time: "12:15", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 155 },
+    targetPath: "/kdp/audit/metadata/sync", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
+    asyncStatus: {
+      responseIdField: "sessionId", statusPath: "/kdp/jobs/audit-metadata-sync/{id}", statusField: "status",
+      terminalResponsePolicy: { checks: [{ type: "equals", path: "result.ok", value: true, message: "KDP setup metadata sync failed." }] },
+    },
+  }),
+  aimsPostJob({
     id: "kdp-weekly-research", group: "kdp", description: "Run or resume the weekly KDP research batch.",
     schedule: { type: "weekly", days: ["tuesday", "wednesday", "thursday"], time: "12:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 170 },
     targetPath: "/kdp/research/weekly/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],

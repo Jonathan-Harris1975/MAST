@@ -5,6 +5,7 @@ import { baseJobs } from "../src/jobs.js";
 test("MAST triggers the KDP audit Monday and research Tuesday to Thursday in London", () => {
   const audit = baseJobs.find((job) => job.id === "kdp-weekly-audit");
   const research = baseJobs.find((job) => job.id === "kdp-weekly-research");
+  const metadata = baseJobs.find((job) => job.id === "kdp-weekly-metadata-sync");
   assert.deepEqual(audit.schedule.days, ["monday"]);
   assert.deepEqual(research.schedule.days, ["tuesday", "wednesday", "thursday"]);
   for (const job of [audit, research]) {
@@ -16,4 +17,8 @@ test("MAST triggers the KDP audit Monday and research Tuesday to Thursday in Lon
   }
   assert.equal(audit.targetPath, "/kdp/audit/run");
   assert.equal(research.targetPath, "/kdp/research/weekly/run");
+  assert.equal(metadata.targetPath, "/kdp/audit/metadata/sync");
+  assert.deepEqual(metadata.schedule.days, ["monday"]);
+  assert.equal(metadata.schedule.time, "12:15");
+  assert.equal(metadata.asyncStatus.terminalResponsePolicy.checks[0].value, true);
 });

@@ -41,7 +41,7 @@ AIMS owns sequencing inside each content window. Individual RSS, Zernio, Blotato
 
 ### Audit schedule
 
-- **Every Monday at 12:00:** trigger the KDP public audit. Tuesday through Thursday at 12:00, trigger or resume KDP research. AIMS enforces its London time window, audit freshness, search quota, and batch cursor. MAST reports incomplete results as failures.
+- **Every Monday at 12:00:** trigger the KDP public audit; at 12:15, refresh the signed-in KDP setup metadata snapshot. Tuesday through Thursday at 12:00, trigger or resume KDP research. AIMS enforces its London time window, audit freshness, search quota, and batch cursor. MAST reports incomplete results as failures.
 
 - **First Saturday:** resume RAMS at 13:00 and run the website audit at 13:30.
 - **Second Saturday:** resume RAMS at 09:00 and run the AIMS/content governance audit at 09:15.
