@@ -1005,11 +1005,11 @@ const hiveGovernanceJobs = [
 
 
 const operationWindowJobs = [
-  ...["monday", "tuesday", "wednesday", "thursday", "friday"].map((day) => aimsPostJob({
+  ...EVERY_DAY.map((day) => aimsPostJob({
     id: `operation-${day}-am`,
     group: "operations",
     description: [
-      `${day} AM AIMS operating window: all weekday content preparation, including both scheduled Blotato posts;`,
+      `${day} AM AIMS operating window: daily social blog and newsletter; weekdays also prepare both Blotato posts;`,
       "Monday also owns weekly blog, ebooks, quiz and the mini-series through its Zernio lane, while Friday also",
       "prepares weekend Zernio content.",
     ].join(" "),

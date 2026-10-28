@@ -141,3 +141,5 @@ MAST uses authenticated public HTTPS endpoints for AIMS, RAMS and HIVE in produc
 Restrict ingress at the hosting/CDN layer wherever a service does not need general public access, keep service tokens independently scoped and rotated, and retain HIVE operational alerting so failed or unauthorised scheduling attempts remain observable.
 
 See `.env.example`, `docs/OPERATIONS.md`, `docs/POWER_MANAGEMENT.md`, `docs/OPERATIONAL_ALERTING.md` and `SECURITY.md`.
+
+Saturday and Sunday AM operation windows run at the same London time as weekdays to build and distribute the daily social blog and newsletter. Deploy the AIMS version exposing `/ops/run/saturday-am` and `/ops/run/sunday-am` before enabling this scheduler change. Friday continues to prepare weekend evergreen image posts.

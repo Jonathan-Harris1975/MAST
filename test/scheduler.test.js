@@ -7,7 +7,7 @@ import { dueJobPriority, isTimedJobDue, jobScheduleDue, nextRunForJob, requiredS
 
 const operationIds = [
   "operation-monday-am", "operation-tuesday-am", "operation-wednesday-am",
-  "operation-thursday-am", "operation-friday-am", "operation-friday-pm",
+  "operation-thursday-am", "operation-friday-am", "operation-saturday-am", "operation-sunday-am", "operation-friday-pm",
 ];
 
 const legacyContentIds = [
@@ -19,10 +19,10 @@ const legacyContentIds = [
   "blotato-ai-playbook-publish",
 ];
 
-test("MAST exposes five AM windows plus the Friday podcast window", () => {
+test("MAST exposes seven AM windows plus the Friday podcast window", () => {
   const operations = baseJobs.filter((job) => job.group === "operations");
   assert.deepEqual(operations.map((job) => job.id).sort(), [...operationIds].sort());
-  assert.equal(operations.length, 6);
+  assert.equal(operations.length, 8);
   for (const job of operations) {
     assert.equal(job.method, "POST");
     assert.equal(job.authEnv, "AIMS_API_KEY");
@@ -34,7 +34,7 @@ test("MAST exposes five AM windows plus the Friday podcast window", () => {
 
 test("AIMS remains always-on and AM operations begin at 10:00 with catch-up protection", () => {
   assert.equal(baseJobs.some((job) => job.id.startsWith("aims-power-")), false);
-  for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"]) {
+  for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]) {
     const am = baseJobs.find((job) => job.id === `operation-${day}-am`);
     assert.equal(am.schedule.time, process.env.MAST_AM_OPERATION_TIME || "10:00");
     assert.equal(am.schedule.catchUpMinutes, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
@@ -403,7 +403,7 @@ test("AIMS and HIVE have no scheduled standby jobs", () => {
 
 test("operation windows do not multiply into per-task pretriggers", () => {
   assert.equal(pretriggerJobs.some((job) => operationIds.includes(job.sourceJobId)), false);
-  assert.equal(jobs.filter((job) => job.group === "operations").length, 6);
+  assert.equal(jobs.filter((job) => job.group === "operations").length, 8);
 });
 
 test("HIVE and RAMS governance controls remain present", () => {
