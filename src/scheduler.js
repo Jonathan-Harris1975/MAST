@@ -850,6 +850,8 @@ function resultSummary(result) {
     sourceJobId: result.sourceJobId || null,
     operationStatus: result.operationJob?.status || result.operationFailure?.status || null,
     operationFailures: Number(result.operationJob?.failures ?? result.operationFailure?.failures ?? 0),
+    operationTerminal: result.operationJob?.terminal === true,
+    operationRetryable: result.operationJob?.retryable ?? null,
     asyncStatus: result.asyncJob?.status || result.asyncFailure?.status || null,
     asyncId: result.asyncJob?.asyncId || result.asyncFailure?.asyncId || null,
     asyncPolicyFailures: result.asyncFailure?.responsePolicy?.failures || [],
@@ -1027,6 +1029,12 @@ async function waitForAimsOperation(job, responseText) {
   const operation = payload?.job;
   if (!operation?.id) {
     throw new Error("AIMS operation response omitted job.id");
+  }
+  // AIMS explicitly settles exhausted/disabled recovery windows. Preserve that
+  // decision instead of polling and replaying the failed POST on every tick.
+  if (payload.terminal === true && payload.retryable === false &&
+      ["completed", "completed-with-failures", "failed"].includes(operation.status)) {
+    return { ...operation, terminal: true, retryable: false };
   }
   const statusUrl = new URL(`/ops/jobs/${encodeURIComponent(operation.id)}`, job.url).toString();
   const deadline = Date.now() + CONFIG.aimsOperationTimeoutMs;
@@ -1265,7 +1273,9 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
       durationMs: finishedAt.getTime() - startedAt.getTime(),
     };
 
-    const consumeFailureWindow = Boolean(job.consumeFailureWindow && !jobOk);
+    const terminalOperationFailure = response.ok && !operationOk &&
+      operationJob?.terminal === true && operationJob?.retryable === false;
+    const consumeFailureWindow = Boolean(job.consumeFailureWindow && !jobOk) || terminalOperationFailure;
     if (jobOk || terminalSemanticFailure || consumeFailureWindow) {
       // A semantic health failure is a completed diagnostic observation, not a transport
       // failure. Selected governance jobs also consume their window after a returned
