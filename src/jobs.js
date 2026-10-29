@@ -371,6 +371,20 @@ const newsletterAiEdgeSend = aimsPostJob({
   body: { profileId: "ai-edge" },
 });
 
+// Friday's AIMS window prepares both artefacts. These jobs only deliver them.
+const weekendNewsletterJobs = [
+  ...[["saturday", "17:10"], ["sunday", "05:10"]].map(([day, time]) => aimsPostJob({
+    id: `newsletter-ai-edge-${day}-send`,
+    group: "newsletter",
+    description: `Deliver the Friday-prepared ${day} AI Edge email in its maintenance-free slot; never generate content at the weekend.`,
+    schedule: { type: "weekly", days: [day], time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 30 },
+    targetPath: `/newsletter/weekend/send/${day}`,
+    authEnv: "AIMS_API_KEY",
+    requiredServices: ["aims"],
+    requestRetries: 0,
+  })),
+];
+
 const zernioDailyJobs = [
   aimsPostJob({
     id: "zernio-monday",
@@ -1011,7 +1025,7 @@ const operationWindowJobs = [
     description: [
       `${day} AM AIMS operating window: all weekday content preparation, including both scheduled Blotato posts;`,
       "Monday also owns weekly blog, ebooks, quiz and the mini-series through its Zernio lane, while Friday also",
-      "prepares weekend Zernio content.",
+      "prepares weekend Zernio content and both scheduled AI Edge weekend editions.",
     ].join(" "),
     schedule: { type: "weekly", days: [day], time: AM_OPERATION_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AM_OPERATION_CATCH_UP_MINUTES },
     targetPath: `/ops/run/${day}-am`,
@@ -1044,6 +1058,7 @@ export const baseJobs = [
   blogDailySocialBuild,
   newsletterAiEdgeGenerate,
   newsletterAiEdgeSend,
+  ...weekendNewsletterJobs,
   ...zernioDailyJobs,
   zernioWeeklyQuiz,
   ...monthlyAuditJobs,
