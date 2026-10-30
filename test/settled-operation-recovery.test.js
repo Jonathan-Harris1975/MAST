@@ -19,14 +19,14 @@ test("settled failed windows probe at most once a minute and retry only an expli
     job: id, group: "operations", runKey, ok: false, operationStatus: "completed-with-failures",
     operationTerminal: true, operationRetryable: false, finishedAt: new Date(now - 120000).toISOString(),
   }] }));
-  let posts = 0; let gets = 0; let available = false; let wrongId = false;
+  let posts = 0; let gets = 0; let available = false; let wrongId = false; let failPost = false;
   const server = http.createServer((req, res) => {
-    res.writeHead(200, { "content-type": "application/json" });
+    res.writeHead(req.method === "POST" && failPost ? 503 : 200, { "content-type": "application/json" });
     if (req.method === "POST") {
       posts++;
       assert.equal(req.url, "/ops/run/friday-am");
       assert.equal(req.headers["x-operation-force"], undefined);
-      res.end(JSON.stringify({ ok: true, job: { id: operationId, status: "accepted" } }));
+      res.end(JSON.stringify({ ok: !failPost, job: { id: operationId, status: "accepted" } }));
     } else {
       gets++;
       res.end(JSON.stringify({ ok: true, job: { id: wrongId ? "2026-10-29:thursday-am" : operationId,
@@ -37,24 +37,31 @@ test("settled failed windows probe at most once a minute and retry only an expli
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${server.address().port}/ops/run/friday-am`;
   const job = { id, group: "operations", method: "POST", body: {}, requestRetries: 0,
-    schedule: { type: "weekly", days: ["friday"], time: "10:00", timezone: "Europe/London" },
+    schedule: { type: "weekly", days: ["friday"], time: "10:00", timezone: "Europe/London", catchUpMinutes: 180 },
     url, targetUrl: url, targetPath: "/ops/run/friday-am", authEnv: "AIMS_API_KEY" };
+  const { jobs } = await import("../src/jobs.js");
+  const originalJobs = jobs.slice();
+  jobs.splice(0, jobs.length, job);
   try {
-    const { runJob } = await import(`../src/scheduler.js?settledRecovery=${realNow()}`);
+    const { runDueJobs } = await import(`../src/scheduler.js?settledRecovery=${realNow()}`);
     const at = new Date("2026-10-30T12:00:00Z");
-    assert.equal((await runJob(job, { at })).skipped, true);
-    assert.equal((await runJob(job, { at })).skipped, true);
+    assert.equal((await runDueJobs({ at })).results[0].skipped, true);
+    assert.equal((await runDueJobs({ at })).results[0].skipped, true);
     assert.equal(gets, 1); assert.equal(posts, 0);
     available = true; wrongId = true; now += 61000;
-    assert.equal((await runJob(job, { at })).skipped, true);
+    assert.equal((await runDueJobs({ at })).results[0].skipped, true);
     assert.equal(posts, 0);
-    wrongId = false; now += 61000;
-    assert.equal((await runJob(job, { at })).ok, true);
-    assert.equal(posts, 1); assert.equal(gets, 4);
-    assert.equal((await runJob(job, { at })).skipped, true);
-    assert.equal(posts, 1); assert.equal(gets, 4);
+    wrongId = false; failPost = true; now += 61000;
+    assert.equal((await runDueJobs({ at })).ok, false);
+    assert.equal(posts, 1); assert.equal(gets, 3);
+    failPost = false; now += 61000;
+    assert.equal((await runDueJobs({ at })).ok, true);
+    assert.equal(posts, 2); assert.equal(gets, 5);
+    assert.equal((await runDueJobs({ at })).ran, 0);
+    assert.equal(posts, 2); assert.equal(gets, 5);
   } finally {
     Date.now = realNow;
+    jobs.splice(0, jobs.length, ...originalJobs);
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
     await rm(temp, { recursive: true, force: true });
   }

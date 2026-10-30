@@ -386,6 +386,18 @@ export function requiredServicesReady(job, currentState = state) {
   return services.length === 0 || services.every(({ state: serviceState }) => ["online", "busy"].includes(serviceState));
 }
 
+function settledOperationFailure(job, runKey, currentState = state) {
+  if (job.group !== "operations") return null;
+  for (const result of currentState.recentResults || []) {
+    if (result.job !== job.id || result.runKey !== runKey) continue;
+    // A later transport error keeps its earlier settled failure context. A
+    // confirmed success is a barrier: never reopen a successfully delivered run.
+    if (result.ok === true) return null;
+    if (result.ok === false && ["failed", "completed-with-failures"].includes(result.operationStatus)) return result;
+  }
+  return null;
+}
+
 export function jobScheduleDue(job, at = new Date(), currentState = state) {
   if (job.schedule?.type === "interval") {
     return isIntervalJobDue(job, at, currentState);
@@ -394,7 +406,7 @@ export function jobScheduleDue(job, at = new Date(), currentState = state) {
   if (!isTimedJobDue(job, at, currentState)) return false;
 
   const runKey = buildRunKey(job, at, currentState);
-  return currentState.lastRunKeys?.[job.id] !== runKey;
+  return currentState.lastRunKeys?.[job.id] !== runKey || Boolean(settledOperationFailure(job, runKey, currentState));
 }
 
 export function dueJobsAt(at = new Date(), currentState = state) {
@@ -1099,9 +1111,8 @@ async function emitJobFailureAlert(job, result) {
 }
 
 async function canRecoverSettledOperation(job, runKey) {
-  if (job.group !== "operations") return false;
-  const previous = (state.recentResults || []).find((result) => result.job === job.id && result.runKey === runKey);
-  if (!previous || previous.ok !== false || !["failed", "completed-with-failures"].includes(previous.operationStatus)) return false;
+  const previous = settledOperationFailure(job, runKey);
+  if (!previous) return false;
   const now = Date.now();
   const last = settledOperationProbes.get(job.id) || Date.parse(previous.finishedAt || "") || 0;
   if (now - last < SETTLED_OPERATION_PROBE_MS) return false;
