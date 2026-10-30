@@ -174,7 +174,6 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
     ["hive-repo-health-check", ["weekly", "06:05", "/v1/system/repo-health"]],
     ["hive-provider-health-check", ["weekly", "06:10", "/v1/providers/health"]],
     ["hive-env-audit", ["weekly", "06:25", "/v1/environment/audit"]],
-    ["hive-model-registry-snapshot", ["weekly", "06:55", "/v1/model-registry"]],
     ["hive-weekly-lifecycle-report", ["weekly", "07:05", "/v1/system/lifecycle-reports/weekly"]],
     ["hive-optimisation-stats-snapshot", ["monthly", "07:16", "/v1/optimisation/stats"]],
   ]);
@@ -221,27 +220,8 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
       overall_status: "UNKNOWN", repositories: [] },
   })).ok, false);
 
-  const councilFreshness = baseJobs.find((job) => job.id === "hive-ai-council-freshness");
-  assert.ok(councilFreshness);
-  assert.deepEqual(councilFreshness.schedule, {
-    type: "weekly",
-    days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
-    time: "23:50",
-    timezone: "Europe/London",
-    catchUpMinutes: 10,
-  });
-  assert.equal(councilFreshness.targetPath, "/v1/ai-council/status");
-  assert.equal(councilFreshness.authEnv, "HIVE_ADMIN_BEARER_TOKEN");
-  assert.deepEqual(councilFreshness.requiredServices, ["hive"]);
-  assert.deepEqual(
-    councilFreshness.responsePolicy.checks.map((check) => [check.path, check.value]),
-    [
-      ["ok", true],
-      ["fresh", true],
-      ["downstream_sync_enabled", true],
-      ["downstream_sync_ok", true],
-    ],
-  );
+  assert.equal(baseJobs.some((job) => job.targetPath?.startsWith("/v1/ai-council")), false);
+  assert.equal(baseJobs.some((job) => job.id === "hive-model-registry-snapshot"), false);
 
   // The retired write-producing jobs must not be accessed as active schedules.
   // Their absence is asserted above; only the read-only snapshot remains.

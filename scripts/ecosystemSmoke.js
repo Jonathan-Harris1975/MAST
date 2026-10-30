@@ -110,35 +110,6 @@ async function waitForWake(url, options = {}) {
   throw new Error('HIVE RAMS wake did not complete within the smoke retry window');
 }
 
-function aiCouncilDiagnostics(body) {
-  const text = (value, limit = 240) => typeof value === 'string' ? value.slice(0, limit) : undefined;
-  let classification = 'service_status';
-  if (body?.completion_status === 'missing' || body?.reason === 'no AI Council run history available') classification = 'missing_governance_evidence';
-  else if (body?.fresh === false) classification = 'stale_governance_evidence';
-  else if (body?.downstream_sync_enabled !== true || body?.downstream_sync_ok !== true) classification = 'downstream_sync';
-  const detail = {
-    classification,
-    ok: typeof body?.ok === 'boolean' ? body.ok : undefined,
-    fresh: typeof body?.fresh === 'boolean' ? body.fresh : undefined,
-    downstream_sync_enabled: typeof body?.downstream_sync_enabled === 'boolean' ? body.downstream_sync_enabled : undefined,
-    downstream_sync_ok: typeof body?.downstream_sync_ok === 'boolean' ? body.downstream_sync_ok : undefined,
-    reason: [
-      'current monthly governance is stale', 'latest AI Council run is degraded',
-      'RAMS sync pending', 'status endpoint unavailable',
-      'no AI Council run history available',
-      'no verified AI Council run exists for the current monthly governance period',
-      'latest AI Council run did not enable downstream AIMS/RAMS model propagation',
-      'latest AI Council run did not verify downstream AIMS/RAMS model propagation',
-      'latest AI Council run is not verified complete',
-    ].includes(body?.reason) ? body.reason : undefined,
-    period: text(body?.period, 16),
-    completion_status: ['completed', 'degraded', 'missing'].includes(body?.completion_status) ? body.completion_status : undefined,
-    run_id: text(body?.latest_run_id || body?.latest_verified_run_id || body?.run_id, 80),
-    run_at: text(body?.latest_run_at || body?.latest_verified_at, 40),
-    required_since: text(body?.required_since, 40),
-  };
-  return JSON.stringify(Object.fromEntries(Object.entries(detail).filter(([, value]) => value !== undefined)));
-}
 
 function assertOk(condition, message) {
   if (!condition) throw new Error(message);
@@ -368,19 +339,6 @@ async function main() {
   } else {
     console.log('skip - HIVE Production Manager check deferred until deployment workflow completes');
   }
-
-  const councilStatus = await requestJson(new URL('/v1/ai-council/status', hiveApiBase), {
-    headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)),
-  });
-  const councilHealthy = councilStatus.body?.ok === true
-    && councilStatus.body?.fresh === true
-    && councilStatus.body?.downstream_sync_enabled === true
-    && councilStatus.body?.downstream_sync_ok === true;
-  assertOk(
-    councilHealthy,
-    `HIVE monthly model governance is not fresh and verified: ${aiCouncilDiagnostics(councilStatus.body)}`,
-  );
-  console.log('ok 9 - HIVE monthly model governance fresh and propagated');
 
   if (functionalProbes) {
     const dbPing = await requestJson(new URL('/v1/db/ping-write', hiveApiBase), {

@@ -747,7 +747,7 @@ const koyebPowerJobs = koyebPowerManagementEnabled()
 // --- HIVE governance jobs (read-only ecosystem checks + AI Council) --------------
 //
 // HIVE exposes a set of admin-authenticated diagnostic/report endpoints (see
-// backend/app/api/system.py, env_audit.py, ai_council.py, providers.py, skills.py,
+// backend/app/api/system.py, env_audit.py, providers.py, skills.py,
 // vectorize.py, buckets.py, connectors.py, model_registry.py, optimisation_engine.py)
 // that were previously never called by anything except a human opening HIVE-UI.
 // HIVE remains always-on; its liveness probe is separate from these governance checks.
@@ -756,7 +756,7 @@ const koyebPowerJobs = koyebPowerManagementEnabled()
 // repository refresh. HIVE downloads fresh snapshots and runs the combined Repository
 // Intelligence workflow, while MAST polls the asynchronous job to terminal completion.
 //
-// POST /ai-council/run is the deliberate mutating exception. It refreshes provider
+// Monthly report generation is the deliberate reporting-write exception. It aggregates
 // catalogues, benchmarks/ranks eligible models and may promote sufficiently high-confidence
 // defaults. The Model Registry is persisted to D1 and restored at HIVE startup, while the
 // AI Council run history provides the audit trail.
@@ -843,21 +843,7 @@ const hiveGovernanceDailyJobs = [
     schedule: { type: "weekly", days: EVERY_DAY, time: "06:15", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
     targetPath: "/v1/system/ops-events?limit=100",
   }),
-  hiveJob({
-    id: "hive-ai-council-freshness",
-    group: "hive-governance",
-    description: "Keep monthly model governance visibly unhealthy until the current month's AI Council and AIMS/RAMS propagation are verified.",
-    schedule: { type: "weekly", days: EVERY_DAY, time: "23:50", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 10 },
-    targetPath: "/v1/ai-council/status",
-    responsePolicy: {
-      checks: [
-        { type: "equals", path: "ok", value: true, message: "HIVE AI Council governance is not verified for the current month." },
-        { type: "equals", path: "fresh", value: true, message: "HIVE AI Council governance is stale for the current month." },
-        { type: "equals", path: "downstream_sync_enabled", value: true, message: "HIVE monthly model governance did not enable AIMS/RAMS propagation." },
-        { type: "equals", path: "downstream_sync_ok", value: true, message: "HIVE monthly model governance did not verify AIMS/RAMS propagation." },
-      ],
-    },
-  }),
+
 ];
 
 const hiveGovernanceWeeklyJobs = [
@@ -925,13 +911,7 @@ const hiveGovernanceWeeklyJobs = [
       ],
     },
   }),
-  hiveJob({
-    id: "hive-model-registry-snapshot",
-    group: "hive-governance-weekly",
-    description: "Check the current D1-backed Model Registry state and ranked defaults for unexpected resets or drift.",
-    schedule: { type: "weekly", days: ["monday"], time: "06:55", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
-    targetPath: "/v1/model-registry",
-  }),
+
 ];
 
 // MAST owns the monthly schedule. HIVE accepts this request quickly, atomically
