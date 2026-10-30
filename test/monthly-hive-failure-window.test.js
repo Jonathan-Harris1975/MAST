@@ -31,8 +31,8 @@ test("failed monthly HIVE POST is not replayed every scheduler tick", async () =
 
   const at = new Date("2026-09-01T06:00:00.000Z");
   const job = {
-    id: "hive-ai-council-test",
-    group: "hive-ai-council",
+    id: "hive-monthly-report-test",
+    group: "hive-reporting",
     description: "test",
     method: "POST",
     schedule: {
@@ -42,9 +42,9 @@ test("failed monthly HIVE POST is not replayed every scheduler tick", async () =
       timezone: "Europe/London",
       catchUpMinutes: 1020,
     },
-    url: `http://127.0.0.1:${port}/v1/ai-council/run`,
-    targetUrl: `http://127.0.0.1:${port}/v1/ai-council/run`,
-    targetPath: "/v1/ai-council/run",
+    url: `http://127.0.0.1:${port}/v1/monthly-review/generate`,
+    targetUrl: `http://127.0.0.1:${port}/v1/monthly-review/generate`,
+    targetPath: "/v1/monthly-review/generate",
     body: {},
     authEnv: "HIVE_ADMIN_BEARER_TOKEN",
     requestRetries: 0,
@@ -59,7 +59,7 @@ test("failed monthly HIVE POST is not replayed every scheduler tick", async () =
     assert.equal(first.status, 503);
     assert.equal(second.skipped, true);
     assert.equal(second.reason, "already-ran-for-this-schedule-window");
-    assert.equal(calls, 1, "the failed Council POST should only be sent once");
+    assert.equal(calls, 1, "the failed monthly report POST should only be sent once");
   } finally {
     await close(server);
     await rm(tempDir, { recursive: true, force: true });
