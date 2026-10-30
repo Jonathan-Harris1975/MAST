@@ -244,11 +244,11 @@ test("retired HIVE skills endpoints are not scheduled", () => {
   assert.equal(baseJobs.some((job) => String(job.targetPath || "").startsWith("/v1/skills/")), false);
 });
 
-test("Friday PM starts the podcast at 17:00 while AIMS remains always-on", () => {
+test("Friday PM starts the podcast at 20:30 while AIMS remains always-on", () => {
   assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-friday-podcast"), false);
   const job = baseJobs.find((item) => item.id === "operation-friday-pm");
   assert.deepEqual(job.schedule.days, ["friday"]);
-  assert.equal(job.schedule.time, process.env.MAST_FRIDAY_PM_OPERATION_TIME || "17:00");
+  assert.equal(job.schedule.time, process.env.MAST_FRIDAY_PM_OPERATION_TIME || "20:30");
   assert.equal(job.schedule.catchUpMinutes, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
   assert.deepEqual(job.requiredServices, ["aims"]);
   assert.equal(job.targetPath, "/ops/run/friday-pm");
