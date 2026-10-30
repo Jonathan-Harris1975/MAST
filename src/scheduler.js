@@ -403,10 +403,13 @@ export function jobScheduleDue(job, at = new Date(), currentState = state) {
     return isIntervalJobDue(job, at, currentState);
   }
 
-  if (!isTimedJobDue(job, at, currentState)) return false;
-
   const runKey = buildRunKey(job, at, currentState);
-  return currentState.lastRunKeys?.[job.id] !== runKey || Boolean(settledOperationFailure(job, runKey, currentState));
+  const recovery = settledOperationFailure(job, runKey, currentState);
+  // A recorded failure may recover later on the same calendar day, even after
+  // the normal catch-up window. This never creates a new late operation run.
+  if (recovery && isTimedJobDue({ ...job, schedule: { ...job.schedule, catchUpMinutes: 24 * 60 } }, at, currentState)) return true;
+  if (!isTimedJobDue(job, at, currentState)) return false;
+  return currentState.lastRunKeys?.[job.id] !== runKey;
 }
 
 export function dueJobsAt(at = new Date(), currentState = state) {

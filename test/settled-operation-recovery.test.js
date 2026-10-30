@@ -43,8 +43,10 @@ test("settled failed windows probe at most once a minute and retry only an expli
   const originalJobs = jobs.slice();
   jobs.splice(0, jobs.length, job);
   try {
-    const { runDueJobs } = await import(`../src/scheduler.js?settledRecovery=${realNow()}`);
-    const at = new Date("2026-10-30T12:00:00Z");
+    const { runDueJobs, jobScheduleDue } = await import(`../src/scheduler.js?settledRecovery=${realNow()}`);
+    const at = new Date("2026-10-30T20:00:00Z");
+    assert.equal(jobScheduleDue(job, at, { lastRunKeys: {}, recentResults: [] }), false,
+      "a missed, never-started window must not become a new late run");
     assert.equal((await runDueJobs({ at })).results[0].skipped, true);
     assert.equal((await runDueJobs({ at })).results[0].skipped, true);
     assert.equal(gets, 1); assert.equal(posts, 0);
