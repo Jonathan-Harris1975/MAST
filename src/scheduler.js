@@ -173,6 +173,8 @@ let state = { ...DEFAULT_STATE, startedAt: new Date().toISOString() };
 let loaded = false;
 let stateLoadError = null;
 const runningJobs = new Set();
+const settledOperationProbes = new Map();
+const SETTLED_OPERATION_PROBE_MS = 60_000;
 
 const localPartFormatters = new Map();
 
@@ -384,14 +386,29 @@ export function requiredServicesReady(job, currentState = state) {
   return services.length === 0 || services.every(({ state: serviceState }) => ["online", "busy"].includes(serviceState));
 }
 
+function settledOperationFailure(job, runKey, currentState = state) {
+  if (job.group !== "operations") return null;
+  for (const result of currentState.recentResults || []) {
+    if (result.job !== job.id || result.runKey !== runKey) continue;
+    // A later transport error keeps its earlier settled failure context. A
+    // confirmed success is a barrier: never reopen a successfully delivered run.
+    if (result.ok === true) return null;
+    if (result.ok === false && ["failed", "completed-with-failures"].includes(result.operationStatus)) return result;
+  }
+  return null;
+}
+
 export function jobScheduleDue(job, at = new Date(), currentState = state) {
   if (job.schedule?.type === "interval") {
     return isIntervalJobDue(job, at, currentState);
   }
 
-  if (!isTimedJobDue(job, at, currentState)) return false;
-
   const runKey = buildRunKey(job, at, currentState);
+  const recovery = settledOperationFailure(job, runKey, currentState);
+  // A recorded failure may recover later on the same calendar day, even after
+  // the normal catch-up window. This never creates a new late operation run.
+  if (recovery && isTimedJobDue({ ...job, schedule: { ...job.schedule, catchUpMinutes: 24 * 60 } }, at, currentState)) return true;
+  if (!isTimedJobDue(job, at, currentState)) return false;
   return currentState.lastRunKeys?.[job.id] !== runKey;
 }
 
@@ -1096,13 +1113,40 @@ async function emitJobFailureAlert(job, result) {
   }
 }
 
+async function canRecoverSettledOperation(job, runKey) {
+  const previous = settledOperationFailure(job, runKey);
+  if (!previous) return false;
+  const now = Date.now();
+  const last = settledOperationProbes.get(job.id) || Date.parse(previous.finishedAt || "") || 0;
+  if (now - last < SETTLED_OPERATION_PROBE_MS) return false;
+  settledOperationProbes.set(job.id, now);
+  const day = runKey.match(/:(\d{4}-\d{2}-\d{2}):/)?.[1];
+  const window = String(job.targetPath || "").match(/^\/ops\/run\/([a-z-]+)$/)?.[1];
+  if (!day || !window) return false;
+  const operationId = `${day}:${window}`;
+  const url = new URL(`/ops/jobs/${encodeURIComponent(operationId)}`, job.url).toString();
+  try {
+    const response = await fetchWithRetry(url, { method: "GET", headers: buildRequestHeaders(job, `recovery-probe:${operationId}`) },
+      { ...CONFIG, requestRetries: 0 });
+    if (!response.ok) return false;
+    const payload = await response.json();
+    const available = payload?.job?.id === operationId && payload.job.recoveryAvailable === true;
+    if (available) console.log(JSON.stringify({ service: SERVICE_NAME, event: "operation-deployment-recovery-available", job: job.id, operationId }));
+    return available;
+  } catch (error) {
+    console.warn(JSON.stringify({ service: SERVICE_NAME, event: "operation-recovery-probe-failed", job: job.id, errorName: error.name }));
+    return false;
+  }
+}
+
 export async function runJob(job, { at = new Date(), trigger = "scheduled", force = false } = {}) {
   await loadState();
 
   const startedAt = new Date();
   const runKey = buildRunKey(job, at);
 
-  if (!force && job.schedule?.type !== "interval" && state.lastRunKeys?.[job.id] === runKey) {
+  if (!force && job.schedule?.type !== "interval" && state.lastRunKeys?.[job.id] === runKey
+      && !await canRecoverSettledOperation(job, runKey)) {
     return {
       job: job.id,
       group: job.group,
