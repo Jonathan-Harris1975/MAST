@@ -173,6 +173,8 @@ let state = { ...DEFAULT_STATE, startedAt: new Date().toISOString() };
 let loaded = false;
 let stateLoadError = null;
 const runningJobs = new Set();
+const settledOperationProbes = new Map();
+const SETTLED_OPERATION_PROBE_MS = 60_000;
 
 const localPartFormatters = new Map();
 
@@ -1096,13 +1098,41 @@ async function emitJobFailureAlert(job, result) {
   }
 }
 
+async function canRecoverSettledOperation(job, runKey) {
+  if (job.group !== "operations") return false;
+  const previous = (state.recentResults || []).find((result) => result.job === job.id && result.runKey === runKey);
+  if (!previous || previous.ok !== false || !["failed", "completed-with-failures"].includes(previous.operationStatus)) return false;
+  const now = Date.now();
+  const last = settledOperationProbes.get(job.id) || Date.parse(previous.finishedAt || "") || 0;
+  if (now - last < SETTLED_OPERATION_PROBE_MS) return false;
+  settledOperationProbes.set(job.id, now);
+  const day = runKey.match(/:(\d{4}-\d{2}-\d{2}):/)?.[1];
+  const window = String(job.targetPath || "").match(/^\/ops\/run\/([a-z-]+)$/)?.[1];
+  if (!day || !window) return false;
+  const operationId = `${day}:${window}`;
+  const url = new URL(`/ops/jobs/${encodeURIComponent(operationId)}`, job.url).toString();
+  try {
+    const response = await fetchWithRetry(url, { method: "GET", headers: buildRequestHeaders(job, `recovery-probe:${operationId}`) },
+      { ...CONFIG, requestRetries: 0 });
+    if (!response.ok) return false;
+    const payload = await response.json();
+    const available = payload?.job?.id === operationId && payload.job.recoveryAvailable === true;
+    if (available) console.log(JSON.stringify({ service: SERVICE_NAME, event: "operation-deployment-recovery-available", job: job.id, operationId }));
+    return available;
+  } catch (error) {
+    console.warn(JSON.stringify({ service: SERVICE_NAME, event: "operation-recovery-probe-failed", job: job.id, errorName: error.name }));
+    return false;
+  }
+}
+
 export async function runJob(job, { at = new Date(), trigger = "scheduled", force = false } = {}) {
   await loadState();
 
   const startedAt = new Date();
   const runKey = buildRunKey(job, at);
 
-  if (!force && job.schedule?.type !== "interval" && state.lastRunKeys?.[job.id] === runKey) {
+  if (!force && job.schedule?.type !== "interval" && state.lastRunKeys?.[job.id] === runKey
+      && !await canRecoverSettledOperation(job, runKey)) {
     return {
       job: job.id,
       group: job.group,
