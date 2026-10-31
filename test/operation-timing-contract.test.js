@@ -8,7 +8,7 @@ test("production operation timing assumes AIMS is continuously available", () =>
   const monday = baseJobs.find((job) => job.id === "operation-monday-am");
   const fridayPm = baseJobs.find((job) => job.id === "operation-friday-pm");
   assert.equal(monday.schedule.time, process.env.MAST_AM_OPERATION_TIME || "10:00");
-  assert.equal(fridayPm.schedule.time, process.env.MAST_FRIDAY_PM_OPERATION_TIME || "21:45");
+  assert.equal(fridayPm.schedule.time, process.env.MAST_FRIDAY_PM_OPERATION_TIME || "14:45");
   assert.equal(fridayPm.schedule.catchUpMinutes, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
   assert.deepEqual(fridayPm.requiredServices, ["aims"]);
   assert.equal(monday.schedule.catchUpMinutes, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
