@@ -19,7 +19,7 @@ test("production env patch keeps operation polling and canonical times", async (
   const patch = await readFile(new URL("../MAST-KOYEB-PRODUCTION-ENV-PATCH.txt", import.meta.url), "utf8");
   assert.match(patch, /^MAST_AM_OPERATION_TIME=10:00$/m);
   assert.match(patch, /^MAST_AM_OPERATION_CATCH_UP_MINUTES=180$/m);
-  assert.match(patch, /^MAST_FRIDAY_PM_OPERATION_TIME=21:45$/m);
+  assert.match(patch, /^MAST_FRIDAY_PM_OPERATION_TIME=14:45$/m);
   assert.match(patch, /^MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES=180$/m);
   assert.match(patch, /^MAST_WEBSITE_AUDIT_WAKE_TIME=13:00$/m);
   assert.match(patch, /^MAST_WEBSITE_AUDIT_RUN_TIME=13:30$/m);
