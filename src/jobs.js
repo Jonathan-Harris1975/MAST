@@ -10,12 +10,12 @@ const AM_OPERATION_TIME = String(process.env.MAST_AM_OPERATION_TIME || "10:00");
 const AM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
 const FRIDAY_PM_OPERATION_TIME = String(process.env.MAST_FRIDAY_PM_OPERATION_TIME || "21:45");
 const FRIDAY_PM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
-const WEBSITE_AUDIT_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME || "13:00");
-const WEBSITE_AUDIT_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "13:30");
+const WEBSITE_AUDIT_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME || "11:30");
+const WEBSITE_AUDIT_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "12:00");
 const WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 const WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES || 180));
-const AIMS_AUDIT_WAKE_TIME = String(process.env.MAST_AIMS_AUDIT_WAKE_TIME || "09:00");
-const AIMS_AUDIT_RUN_TIME = String(process.env.MAST_AIMS_AUDIT_RUN_TIME || "09:15");
+const AIMS_AUDIT_WAKE_TIME = String(process.env.MAST_AIMS_AUDIT_WAKE_TIME || "17:45");
+const AIMS_AUDIT_RUN_TIME = String(process.env.MAST_AIMS_AUDIT_RUN_TIME || "18:00");
 const AIMS_AUDIT_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 const AIMS_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS_AUDIT_RUN_CATCH_UP_MINUTES || 180));
 const HIVE_DAILY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_DAILY_CATCH_UP_MINUTES || 180));
@@ -458,10 +458,10 @@ const monthlyAuditJobs = [
     id: "website-audit-pipeline",
     group: "audits",
     description: [
-      `Run the complete website audit at ${WEBSITE_AUDIT_RUN_TIME} on the first Saturday of each month.`,
+      `Run the complete website audit at ${WEBSITE_AUDIT_RUN_TIME} on the first Friday of each month.`,
       "AIMS owns the full council/report/RAMS sequence and MAST waits for terminal completion.",
     ].join(" "),
-    schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: WEBSITE_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES },
+    schedule: { type: "nth-weekday-monthly", weekday: "friday", occurrence: 1, time: WEBSITE_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES },
     targetPath: "/audits/monthly/website",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims", "rams"],
@@ -476,14 +476,14 @@ const monthlyAuditJobs = [
     },
     body: {
       requestedBy: SERVICE_NAME,
-      notes: "First-Saturday website audit. AIMS owns sequencing, monthly cadence enforcement, final publication and the required RAMS remediation handoff.",
+      notes: "First-Friday website audit. AIMS owns sequencing, monthly cadence enforcement, final publication and the required RAMS remediation handoff.",
     },
   }),
   aimsPostJob({
     id: "aims-audit-pipeline",
     group: "audits",
-    description: `Run the complete AIMS audit at ${AIMS_AUDIT_RUN_TIME} on the second Saturday of each month. AIMS owns the full council/report/RAMS sequence.`,
-    schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: AIMS_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AIMS_AUDIT_RUN_CATCH_UP_MINUTES },
+    description: `Run the complete AIMS audit at ${AIMS_AUDIT_RUN_TIME} on the second Friday of each month. AIMS owns the full council/report/RAMS sequence.`,
+    schedule: { type: "nth-weekday-monthly", weekday: "friday", occurrence: 2, time: AIMS_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AIMS_AUDIT_RUN_CATCH_UP_MINUTES },
     pretriggerOffsets: { health: 178, preflight: 112, warmup: 23 },
     targetPath: "/audits/monthly/aims",
     authEnv: "AIMS_API_KEY",
@@ -498,7 +498,7 @@ const monthlyAuditJobs = [
     },
     body: {
       requestedBy: SERVICE_NAME,
-      notes: "Second-Saturday AIMS audit. AIMS owns sequencing, final PDF/HTML/JSON publication and RAMS remediation handoff.",
+      notes: "Second-Friday AIMS audit. AIMS owns sequencing, final PDF/HTML/JSON publication and RAMS remediation handoff.",
     },
   }),
 ];
@@ -688,8 +688,8 @@ function koyebPowerJob({ id, group, description, schedule, serviceIdEnv, action 
 const ramsPowerResumeWebsiteAudit = koyebPowerJob({
   id: "rams-power-resume-website-audit",
   group: "power-rams",
-  description: `Resume RAMS at ${WEBSITE_AUDIT_WAKE_TIME} for the first-Saturday website audit remediation sequence controlled by AIMS.`,
-  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: WEBSITE_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES },
+  description: `Resume RAMS at ${WEBSITE_AUDIT_WAKE_TIME} for the first-Friday website audit remediation sequence controlled by AIMS.`,
+  schedule: { type: "nth-weekday-monthly", weekday: "friday", occurrence: 1, time: WEBSITE_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES },
   serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   action: "resume",
 });
@@ -697,8 +697,8 @@ const ramsPowerResumeWebsiteAudit = koyebPowerJob({
 const ramsPowerResumeAimsAudit = koyebPowerJob({
   id: "rams-power-resume-aims-audit",
   group: "power-rams",
-  description: `Resume RAMS at ${AIMS_AUDIT_WAKE_TIME} for the second-Saturday AIMS audit remediation sequence controlled by AIMS.`,
-  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: AIMS_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AIMS_AUDIT_WAKE_CATCH_UP_MINUTES },
+  description: `Resume RAMS at ${AIMS_AUDIT_WAKE_TIME} for the second-Friday AIMS audit remediation sequence controlled by AIMS.`,
+  schedule: { type: "nth-weekday-monthly", weekday: "friday", occurrence: 2, time: AIMS_AUDIT_WAKE_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AIMS_AUDIT_WAKE_CATCH_UP_MINUTES },
   serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
   action: "resume",
 });
@@ -718,7 +718,7 @@ const ramsAuditPauseJobs = [
   posttriggerPauseJob({
     id: "rams-power-pause-after-website-audit",
     group: "power-rams",
-    description: "Pause RAMS one hour after AIMS completes the first-Saturday website audit/remediation sequence.",
+    description: "Pause RAMS one hour after AIMS completes the first-Friday website audit/remediation sequence.",
     sourceJobId: "website-audit-pipeline",
     delayMinutes: 60,
     serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
@@ -726,7 +726,7 @@ const ramsAuditPauseJobs = [
   posttriggerPauseJob({
     id: "rams-power-pause-after-aims-audit",
     group: "power-rams",
-    description: "Pause RAMS one hour after AIMS completes the second-Saturday AIMS audit/remediation sequence.",
+    description: "Pause RAMS one hour after AIMS completes the second-Friday AIMS audit/remediation sequence.",
     sourceJobId: "aims-audit-pipeline",
     delayMinutes: 60,
     serviceIdEnv: "KOYEB_SERVICE_ID_RAMS",
