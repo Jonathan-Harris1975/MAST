@@ -85,15 +85,16 @@ test("Cloudflare cache is purged completely every day at 02:00 Europe/London", (
   assert.equal(isTimedJobDue(job, new Date("2026-09-24T00:59:00.000Z")), false);
 });
 
-test("one.com cleanup permanently covers Info, Admin and Newsletter on the first of each month", () => {
+test("one.com cleanup permanently covers Info, Admin and Newsletter on the first Monday at 06:00 UK time", () => {
   const job = baseJobs.find((item) => item.id === "onecom-mailbox-cleanup");
   assert.ok(job);
   assert.deepEqual(job.schedule, {
-    type: "monthly",
-    dayOfMonth: 1,
-    time: process.env.MAST_EMAIL_CLEANUP_TIME || "03:00",
+    type: "nth-weekday-monthly",
+    weekday: "monday",
+    occurrence: 1,
+    time: process.env.MAST_EMAIL_CLEANUP_TIME || "06:00",
     timezone: "Europe/London",
-    catchUpMinutes: Number(process.env.MAST_EMAIL_CLEANUP_CATCH_UP_MINUTES || 1260),
+    catchUpMinutes: Number(process.env.MAST_EMAIL_CLEANUP_CATCH_UP_MINUTES || 180),
   });
   assert.equal(job.targetPath, "/comms-hub/email/maintenance/cleanup");
   assert.equal(job.authEnv, "AIMS_API_KEY");
@@ -104,10 +105,14 @@ test("one.com cleanup permanently covers Info, Admin and Newsletter on the first
   const accountSet = job.responsePolicy.checks.find((check) => check.type === "arrayKeySetEquals");
   assert.deepEqual(accountSet.values, ["info", "admin", "newsletter"]);
 
-  // 03:00 Europe/London is 02:00 UTC during British Summer Time.
-  assert.equal(isTimedJobDue(job, new Date("2026-08-01T02:00:00.000Z")), true);
-  assert.equal(isTimedJobDue(job, new Date("2026-08-01T22:59:00.000Z")), true);
-  assert.equal(isTimedJobDue(job, new Date("2026-08-02T02:00:00.000Z")), false);
+  // First Monday in August 2026 is the 3rd; BST is UTC+1.
+  assert.equal(isTimedJobDue(job, new Date("2026-08-03T05:00:00.000Z")), true);
+  assert.equal(isTimedJobDue(job, new Date("2026-08-03T07:59:00.000Z")), true);
+  assert.equal(isTimedJobDue(job, new Date("2026-08-03T08:00:00.000Z")), false);
+  assert.equal(isTimedJobDue(job, new Date("2026-08-01T05:00:00.000Z")), false);
+  assert.equal(isTimedJobDue(job, new Date("2026-08-10T05:00:00.000Z")), false);
+  // First Monday in November 2026 is the 2nd; GMT is UTC+0.
+  assert.equal(isTimedJobDue(job, new Date("2026-11-02T06:00:00.000Z")), true);
 });
 
 test("Comms Hub full housekeeping follows mailbox cleanup on day one with a strict response contract", () => {
