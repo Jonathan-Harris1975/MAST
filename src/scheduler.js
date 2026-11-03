@@ -307,7 +307,11 @@ function timeIsDue(parts, schedule) {
   if (nowMinute === null || scheduledMinute === null) return false;
   const catchUpMinutes = Math.max(0, Number(schedule.catchUpMinutes || 0));
   const elapsed = nowMinute - scheduledMinute;
-  return elapsed >= 0 && elapsed <= catchUpMinutes;
+  // The scheduled minute itself is always eligible. With a positive catch-up
+  // allowance the window stays open for that many minutes after scheduling and
+  // closes exactly when the allowance is exhausted, so the first minute past it
+  // is not due. A zero allowance is only ever eligible at the scheduled minute.
+  return elapsed >= 0 && elapsed < Math.max(catchUpMinutes, 1);
 }
 
 function nthWeekdayOccurrence(dayOfMonth) {
