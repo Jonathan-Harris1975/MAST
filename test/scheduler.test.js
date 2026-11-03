@@ -63,12 +63,12 @@ test("Outreach is fully automated twice each weekday under MAST", () => {
   }
 });
 
-test("Cloudflare cache is purged completely every day at 02:00 Europe/London", () => {
+test("Cloudflare cache is purged Monday to Friday at 02:00 Europe/London", () => {
   const job = baseJobs.find((item) => item.id === "cloudflare-daily-purge");
   assert.ok(job);
   assert.deepEqual(job.schedule, {
     type: "weekly",
-    days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+    days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
     time: process.env.MAST_CLOUDFLARE_PURGE_TIME || "02:00",
     timezone: "Europe/London",
     catchUpMinutes: Number(process.env.MAST_CLOUDFLARE_PURGE_CATCH_UP_MINUTES || 120),
