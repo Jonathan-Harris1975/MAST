@@ -23,8 +23,8 @@ const HIVE_WEEKLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_WE
 const HIVE_MONTHLY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_MONTHLY_CATCH_UP_MINUTES || 1020));
 const CLOUDFLARE_PURGE_TIME = String(process.env.MAST_CLOUDFLARE_PURGE_TIME || "02:00");
 const CLOUDFLARE_PURGE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_CLOUDFLARE_PURGE_CATCH_UP_MINUTES || 120));
-const EMAIL_CLEANUP_TIME = String(process.env.MAST_EMAIL_CLEANUP_TIME || "03:00");
-const EMAIL_CLEANUP_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_EMAIL_CLEANUP_CATCH_UP_MINUTES || 1260));
+const EMAIL_CLEANUP_TIME = String(process.env.MAST_EMAIL_CLEANUP_TIME || "06:00");
+const EMAIL_CLEANUP_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_EMAIL_CLEANUP_CATCH_UP_MINUTES || 180));
 const COMMS_HOUSEKEEPING_TIME = String(process.env.MAST_COMMS_HOUSEKEEPING_TIME || "04:00");
 const COMMS_HOUSEKEEPING_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_COMMS_HOUSEKEEPING_CATCH_UP_MINUTES || 1200));
 const COMMS_QUARANTINE_REVIEW_TIME = String(process.env.MAST_COMMS_QUARANTINE_REVIEW_TIME || "08:00");
@@ -221,10 +221,11 @@ const cloudflareDailyPurge = aimsPostJob({
 const oneComMailboxCleanup = aimsPostJob({
   id: "onecom-mailbox-cleanup",
   group: "email-maintenance",
-  description: "Permanently empty the one.com Trash and Junk/Spam folders for Info, Admin and Newsletter on the first day of each month.",
+  description: "Permanently empty the one.com Trash and Junk/Spam folders for Info, Admin and Newsletter on the first Monday of each month at 06:00 Europe/London.",
   schedule: {
-    type: "monthly",
-    dayOfMonth: 1,
+    type: "nth-weekday-monthly",
+    weekday: "monday",
+    occurrence: 1,
     time: EMAIL_CLEANUP_TIME,
     timezone: LOCAL_TIME_ZONE,
     catchUpMinutes: EMAIL_CLEANUP_CATCH_UP_MINUTES,
