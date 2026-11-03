@@ -100,7 +100,7 @@ test("one.com cleanup permanently covers Info, Admin and Newsletter on the first
   assert.deepEqual(job.requiredServices, ["aims"]);
   assert.deepEqual(job.body, { confirmation: "permanently-delete-trash-and-spam" });
   assert.equal(job.requestRetries, 0);
-  assert.equal(job.consumeFailureWindow, true);
+  assert.equal(job.consumeFailureWindow, false, "failed cleanup must remain eligible for recovery within the monthly window");
   const accountSet = job.responsePolicy.checks.find((check) => check.type === "arrayKeySetEquals");
   assert.deepEqual(accountSet.values, ["info", "admin", "newsletter"]);
 
