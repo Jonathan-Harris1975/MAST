@@ -307,7 +307,7 @@ function timeIsDue(parts, schedule) {
   if (nowMinute === null || scheduledMinute === null) return false;
   const catchUpMinutes = Math.max(0, Number(schedule.catchUpMinutes || 0));
   const elapsed = nowMinute - scheduledMinute;
-  return elapsed >= 0 && elapsed <= catchUpMinutes;
+  return elapsed >= 0 && elapsed < Math.max(catchUpMinutes, 1);
 }
 
 function nthWeekdayOccurrence(dayOfMonth) {
