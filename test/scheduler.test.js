@@ -255,6 +255,14 @@ test("Friday PM starts the podcast at the configured recovery time while AIMS re
   assert.match(job.description, /podcast-only/i);
 });
 
+test("Cloudflare website cache purge runs only Monday through Friday", () => {
+  const job = baseJobs.find((item) => item.id === "cloudflare-daily-purge");
+  assert.deepEqual(job.schedule.days, ["monday", "tuesday", "wednesday", "thursday", "friday"]);
+  assert.equal(isTimedJobDue(job, new Date("2026-08-07T01:00:00.000Z")), true);
+  assert.equal(isTimedJobDue(job, new Date("2026-08-08T01:00:00.000Z")), false);
+  assert.equal(isTimedJobDue(job, new Date("2026-08-09T01:00:00.000Z")), false);
+});
+
 test("website and AIMS audits run on the first and second Fridays outside weekend CI", () => {
   const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
   const aims = baseJobs.find((job) => job.id === "aims-audit-pipeline");
