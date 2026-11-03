@@ -255,33 +255,31 @@ test("Friday PM starts the podcast at the configured recovery time while AIMS re
   assert.match(job.description, /podcast-only/i);
 });
 
-test("website audit uses the first Saturday while the AIMS audit remains second Saturday", () => {
+test("website and AIMS audits run on the first and second Fridays outside weekend CI", () => {
   const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
   const aims = baseJobs.find((job) => job.id === "aims-audit-pipeline");
   assert.deepEqual(website.schedule, {
-    type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "13:30", timezone: "Europe/London", catchUpMinutes: 180,
+    type: "nth-weekday-monthly", weekday: "friday", occurrence: 1, time: process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "12:00", timezone: "Europe/London", catchUpMinutes: 180,
   });
   assert.deepEqual(aims.schedule, {
-    type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "09:15", timezone: "Europe/London", catchUpMinutes: 180,
+    type: "nth-weekday-monthly", weekday: "friday", occurrence: 2, time: process.env.MAST_AIMS_AUDIT_RUN_TIME || "18:00", timezone: "Europe/London", catchUpMinutes: 180,
   });
   assert.equal(website.targetPath, "/audits/monthly/website");
   assert.equal(aims.targetPath, "/audits/monthly/aims");
   assert.equal(aims.asyncStatus.statusPath, "/audits/content-master/jobs/{id}");
   assert.equal(website.asyncStatus.statusPath, "/audits/website/jobs/{id}");
-
-  // 13:30 Europe/London is 12:30 UTC during British Summer Time.
-  assert.equal(isTimedJobDue(website, new Date("2026-08-01T12:30:00.000Z")), true);
-  assert.equal(isTimedJobDue(website, new Date("2026-08-01T15:29:00.000Z")), true);
-  assert.equal(isTimedJobDue(website, new Date("2026-08-01T15:31:00.000Z")), false);
-  assert.equal(isTimedJobDue(website, new Date("2026-08-08T12:30:00.000Z")), false);
-  assert.equal(isTimedJobDue(aims, new Date("2026-08-08T08:15:00.000Z")), true);
+  // 7 and 14 August 2026 are the first and second Fridays; BST is UTC+1.
+  assert.equal(isTimedJobDue(website, new Date("2026-08-07T11:00:00.000Z")), true);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-07T13:59:00.000Z")), true);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-07T14:00:00.000Z")), false);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-08T11:00:00.000Z")), false);
+  assert.equal(isTimedJobDue(aims, new Date("2026-08-14T17:00:00.000Z")), true);
+  assert.equal(isTimedJobDue(aims, new Date("2026-08-07T17:00:00.000Z")), false);
 });
-
 
 test("next-run calculation handles London DST without minute-by-minute horizon scanning", () => {
   const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
-  assert.equal(nextRunForJob(website, new Date("2026-07-31T12:00:00.000Z")), "2026-08-01T12:30:00.000Z");
-
+  assert.equal(nextRunForJob(website, new Date("2026-07-31T12:00:00.000Z")), "2026-08-07T11:00:00.000Z");
   const weekly = {
     id: "dst-weekly",
     schedule: { type: "weekly", days: ["monday"], time: "06:00", timezone: "Europe/London", catchUpMinutes: 0 },
@@ -297,27 +295,27 @@ test("next-run calculation returns the next catch-up minute when already inside 
   assert.equal(nextRunForJob(job, new Date("2026-08-03T08:30:15.000Z")), "2026-08-03T08:32:00.000Z");
 });
 
-test("first-Saturday website audit wakes RAMS at 13:00 while AIMS stays online", () => {
+test("first-Friday website audit wakes RAMS at 11:30 while AIMS stays online", () => {
   assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-website-audit"), false);
   const wake = baseJobs.find((job) => job.id === "rams-power-resume-website-audit");
   assert.deepEqual(wake.schedule, {
-    type: "nth-weekday-monthly", weekday: "saturday", occurrence: 1, time: "13:00", timezone: "Europe/London", catchUpMinutes: 120,
+    type: "nth-weekday-monthly", weekday: "friday", occurrence: 1, time: process.env.MAST_WEBSITE_AUDIT_WAKE_TIME || "11:30", timezone: "Europe/London", catchUpMinutes: 120,
   });
-  assert.equal(isTimedJobDue(wake, new Date("2026-08-01T12:00:00.000Z")), true);
+  assert.equal(isTimedJobDue(wake, new Date("2026-08-07T10:30:00.000Z")), true);
 });
 
 
-test("second-Saturday AIMS audit wake and run have catch-up protection", () => {
+test("second-Friday AIMS audit wake and run have catch-up protection", () => {
   const audit = baseJobs.find((job) => job.id === "aims-audit-pipeline");
-  assert.equal(audit.schedule.time, process.env.MAST_AIMS_AUDIT_RUN_TIME || "09:15");
+  assert.equal(audit.schedule.time, process.env.MAST_AIMS_AUDIT_RUN_TIME || "18:00");
   assert.equal(audit.schedule.catchUpMinutes, Number(process.env.MAST_AIMS_AUDIT_RUN_CATCH_UP_MINUTES || 180));
   assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-aims-audit"), false);
   const wake = baseJobs.find((job) => job.id === "rams-power-resume-aims-audit");
-  assert.equal(wake.schedule.time, process.env.MAST_AIMS_AUDIT_WAKE_TIME || "09:00");
+  assert.equal(wake.schedule.time, process.env.MAST_AIMS_AUDIT_WAKE_TIME || "17:45");
   assert.equal(wake.schedule.catchUpMinutes, Number(process.env.MAST_AIMS_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 });
 
-test("website audit pretriggers run after the 13:00 wake", () => {
+test("website audit pretriggers run after the 11:30 wake", () => {
   const stages = Object.fromEntries(pretriggerJobs
     .filter((job) => job.sourceJobId === "website-audit-pipeline")
     .map((job) => [job.pretriggerStage, job.pretriggerOffsetMinutes]));
@@ -334,7 +332,7 @@ test("website audit dispatch requires both AIMS and RAMS readiness", () => {
 
 test("schedule eligibility remains visible even when the lifecycle ledger is stale", () => {
   const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
-  const at = new Date("2026-08-01T12:30:00.000Z");
+  const at = new Date("2026-08-07T11:00:00.000Z");
   const staleState = { lastRunKeys: {}, intervalLastRunAt: {}, services: { aims: { state: "offline" } } };
   assert.equal(jobScheduleDue(website, at, staleState), true);
   assert.equal(requiredServicesReady(website, staleState), false);
