@@ -235,7 +235,10 @@ const oneComMailboxCleanup = aimsPostJob({
   requiredServices: ["aims"],
   body: { confirmation: "permanently-delete-trash-and-spam" },
   requestRetries: 0,
-  consumeFailureWindow: true,
+  // Mailbox deletion is UID-based and retry-safe: an already-expunged folder is empty.
+  // Do not mark a failed monthly run as completed. MAST must recover within the
+  // existing catch-up window after temporary AIMS, network or IMAP failures.
+  consumeFailureWindow: false,
   responsePolicy: {
     checks: [
       { type: "equals", path: "ok", value: true, message: "One or more one.com mailboxes failed monthly cleanup." },
