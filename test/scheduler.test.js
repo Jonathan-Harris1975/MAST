@@ -68,7 +68,7 @@ test("Cloudflare cache is purged completely every day at 02:00 Europe/London", (
   assert.ok(job);
   assert.deepEqual(job.schedule, {
     type: "weekly",
-    days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+    days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
     time: process.env.MAST_CLOUDFLARE_PURGE_TIME || "02:00",
     timezone: "Europe/London",
     catchUpMinutes: Number(process.env.MAST_CLOUDFLARE_PURGE_CATCH_UP_MINUTES || 120),

@@ -197,10 +197,10 @@ const outreachScheduledJobs = [
 const cloudflareDailyPurge = aimsPostJob({
   id: "cloudflare-daily-purge",
   group: "cloudflare-maintenance",
-  description: "Purge the complete configured Cloudflare cache every day at 02:00 Europe/London.",
+  description: "Purge the complete configured Cloudflare cache Monday to Friday at 02:00 Europe/London.",
   schedule: {
     type: "weekly",
-    days: EVERY_DAY,
+    days: WEEKDAYS_MON_TO_FRI,
     time: CLOUDFLARE_PURGE_TIME,
     timezone: LOCAL_TIME_ZONE,
     catchUpMinutes: CLOUDFLARE_PURGE_CATCH_UP_MINUTES,
