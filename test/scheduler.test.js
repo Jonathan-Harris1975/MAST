@@ -1,9 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import http from "node:http";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { baseJobs, HIVE_GOVERNED_REPOSITORIES, jobs, pretriggerJobs } from "../src/jobs.js";
 import { evaluateResponsePolicy } from "../src/response-policy.js";
 import { aimsBaseUrl } from "../src/service-origins.js";
 import { dueJobPriority, isTimedJobDue, jobScheduleDue, nextRunForJob, requiredServiceStates, requiredServicesReady, serviceHealthUrl } from "../src/scheduler.js";
+
+function listen(server) {
+  return new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+}
+
+function close(server) {
+  return new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+}
 
 const operationIds = [
   "operation-monday-am", "operation-tuesday-am", "operation-wednesday-am",
@@ -113,6 +125,68 @@ test("one.com cleanup permanently covers Info, Admin and Newsletter on the first
   assert.equal(isTimedJobDue(job, new Date("2026-08-10T05:00:00.000Z")), false);
   // First Monday in November 2026 is the 2nd; GMT is UTC+0.
   assert.equal(isTimedJobDue(job, new Date("2026-11-02T06:00:00.000Z")), true);
+});
+
+test("failed one.com mailbox cleanup is retried within the same schedule window", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "mast-mailbox-cleanup-"));
+  let calls = 0;
+  const server = http.createServer((_req, res) => {
+    calls += 1;
+    res.writeHead(503, { "content-type": "application/json" });
+    res.end(JSON.stringify({ ok: false, error: "AIMS unavailable" }));
+  });
+  await listen(server);
+  const { port } = server.address();
+
+  const previousAimsKey = process.env.AIMS_API_KEY;
+  const previousStateBackend = process.env.MAST_STATE_BACKEND;
+  const previousStateFile = process.env.STATE_FILE;
+  try {
+    process.env.AIMS_API_KEY = "test-token";
+    process.env.MAST_STATE_BACKEND = "local";
+    process.env.STATE_FILE = path.join(tempDir, "state.json");
+    const { runJob } = await import(`../src/scheduler.js?mailbox-cleanup=${Date.now()}`);
+
+    const cleanup = {
+      id: "onecom-mailbox-cleanup",
+      group: "email-maintenance",
+      description: "Permanently empty the one.com Trash and Junk/Spam folders.",
+      method: "POST",
+      schedule: {
+        type: "nth-weekday-monthly",
+        weekday: "monday",
+        occurrence: 1,
+        time: "06:00",
+        timezone: "Europe/London",
+        catchUpMinutes: 180,
+      },
+      url: `http://127.0.0.1:${port}/comms-hub/email/maintenance/cleanup`,
+      targetUrl: `http://127.0.0.1:${port}/comms-hub/email/maintenance/cleanup`,
+      targetPath: "/comms-hub/email/maintenance/cleanup",
+      body: { confirmation: "permanently-delete-trash-and-spam" },
+      authEnv: "AIMS_API_KEY",
+      requiredServices: ["aims"],
+      requestRetries: 0,
+      consumeFailureWindow: false,
+    };
+
+    const at = new Date("2026-11-02T06:00:00.000Z");
+
+    const first = await runJob(cleanup, { at, trigger: "test" });
+    assert.equal(first.ok, false);
+    assert.equal(first.status, 503);
+    assert.equal(first.skipped, undefined);
+
+    const second = await runJob(cleanup, { at, trigger: "test" });
+    assert.equal(second.skipped, undefined, "failed cleanup must be retried within the same schedule window, not skipped as already-ran-for-this-schedule-window");
+    assert.equal(calls, 2, "the failed cleanup POST must be retried within the same schedule window");
+  } finally {
+    if (previousAimsKey === undefined) delete process.env.AIMS_API_KEY; else process.env.AIMS_API_KEY = previousAimsKey;
+    if (previousStateBackend === undefined) delete process.env.MAST_STATE_BACKEND; else process.env.MAST_STATE_BACKEND = previousStateBackend;
+    if (previousStateFile === undefined) delete process.env.STATE_FILE; else process.env.STATE_FILE = previousStateFile;
+    await close(server);
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("Comms Hub full housekeeping follows mailbox cleanup on day one with a strict response contract", () => {
