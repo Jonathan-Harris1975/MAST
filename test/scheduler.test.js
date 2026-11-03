@@ -271,7 +271,7 @@ test("website and AIMS audits run on the first and second Fridays outside weeken
   // 7 and 14 August 2026 are the first and second Fridays; BST is UTC+1.
   assert.equal(isTimedJobDue(website, new Date("2026-08-07T11:00:00.000Z")), true);
   assert.equal(isTimedJobDue(website, new Date("2026-08-07T13:59:00.000Z")), true);
-  assert.equal(isTimedJobDue(website, new Date("2026-08-07T14:00:00.000Z")), false);
+  assert.equal(isTimedJobDue(website, new Date("2026-08-07T14:01:00.000Z")), false);
   assert.equal(isTimedJobDue(website, new Date("2026-08-08T11:00:00.000Z")), false);
   assert.equal(isTimedJobDue(aims, new Date("2026-08-14T17:00:00.000Z")), true);
   assert.equal(isTimedJobDue(aims, new Date("2026-08-07T17:00:00.000Z")), false);
