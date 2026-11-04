@@ -36,7 +36,7 @@ async function runSmoke(env, args = []) {
   });
 }
 
-async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, skipProductionManager = false, runtimeReadinessStatus = 200, runtimeReadinessBody = null, ramsConflictBody = null, productionManagerDelayMs = 0, smokeTimeoutMs = 3000 } = {}) {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, mastStatus = 'healthy', mastOperationalDetail = '', wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, skipProductionManager = false, runtimeReadinessStatus = 200, runtimeReadinessBody = null, ramsConflictBody = null, productionManagerDelayMs = 0, smokeTimeoutMs = 3000 } = {}) {
   let aimsBase = '';
   let productionManagerRequests = 0;
   let mutationRequests = 0;
@@ -69,8 +69,8 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
     });
     if (req.url === '/v1/system/repo-health?force_refresh=true') {
       return send(res, 200, { repos: [{
-        repo: 'MAST', category: 'background_worker', status: 'healthy',
-        operational: { payload: {
+        repo: 'MAST', category: 'background_worker', status: mastStatus,
+        operational: { status: mastStatus, detail: mastOperationalDetail, payload: {
           source: heartbeatSource, object_key: 'state/mast/scheduler-state.json',
           last_tick_at: new Date(Date.now() - heartbeatAgeSeconds * 1000).toISOString(),
           heartbeat_age_seconds: heartbeatAgeSeconds, healthy_max_age_seconds: 90,
@@ -178,6 +178,20 @@ test('smoke rejects Koyeb status when HIVE has no R2 heartbeat', async () => {
   const result = await exerciseSmoke({ heartbeatSource: 'koyeb_api' });
   assert.equal(result.code, 1);
   assert.match(result.stderr, /health was not read from its durable R2 heartbeat/);
+});
+
+test('smoke includes bounded durable heartbeat diagnostics when HIVE reports MAST unhealthy', async () => {
+  const result = await exerciseSmoke({
+    mastStatus: 'down',
+    mastOperationalDetail: 'MAST worker heartbeat has stopped (31320 seconds old).',
+    recentFailures: 8,
+  });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /HIVE did not report a healthy MAST Worker/);
+  assert.match(result.stderr, /"status":"down"/);
+  assert.match(result.stderr, /"heartbeat_age_seconds":3/);
+  assert.match(result.stderr, /"recent_failures":8/);
+  assert.doesNotMatch(result.stderr, /test-hive-token/);
 });
 
 test('smoke rejects a stale Worker heartbeat', async () => {
