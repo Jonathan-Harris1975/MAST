@@ -1501,6 +1501,12 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
       };
     }
     const result = await runJob(job, { at, trigger });
+    if (result.skipped) {
+      // runJob's idempotency and in-flight guards return before saving state. Persist
+      // this scheduler tick so durable heartbeat readers do not mistake a safe skip
+      // for a stopped worker.
+      await saveState();
+    }
     results.push(resultSummary(result));
     if (CONFIG.betweenJobsMs > 0) await sleep(CONFIG.betweenJobsMs);
   }
