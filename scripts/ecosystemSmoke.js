@@ -111,6 +111,27 @@ async function waitForWake(url, options = {}) {
 }
 
 
+function mastHealthDiagnostics(mast) {
+  const operational = mast?.operational && typeof mast.operational === 'object' ? mast.operational : {};
+  const payload = operational.payload && typeof operational.payload === 'object' ? operational.payload : {};
+  const boundedText = (value, limit = 180) => typeof value === 'string' ? value.slice(0, limit) : null;
+  return JSON.stringify({
+    category: boundedText(mast?.category, 40),
+    status: boundedText(mast?.status, 40),
+    operational_status: boundedText(operational.status, 40),
+    detail: boundedText(operational.detail || mast?.detail),
+    source: boundedText(payload.source, 40),
+    lane: boundedText(payload.lane, 80),
+    object_key: boundedText(payload.object_key, 160),
+    last_tick_at: boundedText(payload.last_tick_at, 40),
+    heartbeat_age_seconds: Number.isSafeInteger(payload.heartbeat_age_seconds) ? payload.heartbeat_age_seconds : null,
+    healthy_max_age_seconds: Number.isSafeInteger(payload.healthy_max_age_seconds) ? payload.healthy_max_age_seconds : null,
+    recent_failures: Number.isSafeInteger(payload.recent_failures) ? payload.recent_failures : null,
+    latest_result_ok: typeof payload.latest_result_ok === 'boolean' ? payload.latest_result_ok : null,
+    latest_result_finished_at: boundedText(payload.latest_result_finished_at, 40),
+  });
+}
+
 function assertOk(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -205,7 +226,7 @@ async function main() {
   const mast = workerHealth.body?.repos?.find((repo) => repo?.repo === 'MAST');
   const heartbeat = mast?.operational?.payload;
   const tickTime = Date.parse(heartbeat?.last_tick_at || '');
-  assertOk(mast?.category === 'background_worker' && mast?.status === 'healthy', 'HIVE did not report a healthy MAST Worker');
+  assertOk(mast?.category === 'background_worker' && mast?.status === 'healthy', `HIVE did not report a healthy MAST Worker; diagnostics=${mastHealthDiagnostics(mast)}`);
   assertOk(['r2_s3', 'r2_public'].includes(heartbeat?.source)
     && heartbeat?.object_key === 'state/mast/scheduler-state.json', 'MAST Worker health was not read from its durable R2 heartbeat');
   assertOk(Number.isFinite(tickTime) && tickTime <= Date.now() + 60_000
