@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -65,6 +65,60 @@ test("settled failed windows probe at most once a minute and retry only an expli
     Date.now = realNow;
     jobs.splice(0, jobs.length, ...originalJobs);
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
+    await rm(temp, { recursive: true, force: true });
+  }
+});
+
+
+test("persist the durable heartbeat when a due job is safely skipped as already run", async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), "mast-skipped-heartbeat-"));
+  const previousBackend = process.env.MAST_STATE_BACKEND;
+  const previousStateFile = process.env.STATE_FILE;
+  const previousAimsKey = process.env.AIMS_API_KEY;
+  const realNow = Date.now;
+  const now = Date.parse("2026-11-04T10:30:30.000Z");
+  const id = "already-completed-daily-job";
+  const runKey = `${id}:Europe/London:2026-11-04:10:00`;
+  process.env.MAST_STATE_BACKEND = "local";
+  process.env.STATE_FILE = path.join(temp, "state.json");
+  process.env.AIMS_API_KEY = "test-token";
+  Date.now = () => now;
+  await writeFile(process.env.STATE_FILE, JSON.stringify({ lastRunKeys: { [id]: runKey } }));
+
+  const job = {
+    id,
+    group: "maintenance",
+    method: "GET",
+    schedule: {
+      type: "weekly",
+      days: ["wednesday"],
+      time: "10:00",
+      timezone: "Europe/London",
+      catchUpMinutes: 180,
+    },
+    url: "http://127.0.0.1/never-requested",
+    targetUrl: "http://127.0.0.1/never-requested",
+    targetPath: "/never-requested",
+  };
+  const { jobs } = await import("../src/jobs.js");
+  const originalJobs = jobs.slice();
+  jobs.splice(0, jobs.length, job);
+
+  try {
+    const { runDueJobs } = await import(`../src/scheduler.js?skippedHeartbeat=${now}`);
+    const result = await runDueJobs({ at: new Date(now) });
+    assert.equal(result.results[0].skipped, true);
+    assert.equal(result.results[0].reason, "already-ran-for-this-schedule-window");
+
+    const persisted = JSON.parse(await readFile(process.env.STATE_FILE, "utf8"));
+    assert.equal(persisted.lastTickAt, new Date(now).toISOString(),
+      "a safe idempotency skip must persist the worker heartbeat to durable state");
+  } finally {
+    Date.now = realNow;
+    jobs.splice(0, jobs.length, ...originalJobs);
+    if (previousBackend === undefined) delete process.env.MAST_STATE_BACKEND; else process.env.MAST_STATE_BACKEND = previousBackend;
+    if (previousStateFile === undefined) delete process.env.STATE_FILE; else process.env.STATE_FILE = previousStateFile;
+    if (previousAimsKey === undefined) delete process.env.AIMS_API_KEY; else process.env.AIMS_API_KEY = previousAimsKey;
     await rm(temp, { recursive: true, force: true });
   }
 });
