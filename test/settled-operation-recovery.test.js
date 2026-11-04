@@ -83,11 +83,11 @@ test("persist the durable heartbeat when a due job is safely skipped as already 
   process.env.STATE_FILE = path.join(temp, "state.json");
   process.env.AIMS_API_KEY = "test-token";
   Date.now = () => now;
-  await writeFile(process.env.STATE_FILE, JSON.stringify({ lastRunKeys: { [id]: runKey } }));
+  await writeFile(process.env.STATE_FILE, JSON.stringify({ lastRunKeys: { [id]: runKey }, recentResults: [{ job: id, runKey, ok: false, operationStatus: "completed-with-failures", operationTerminal: true, operationRetryable: false, finishedAt: new Date(now - 1_000).toISOString() }] }));
 
   const job = {
     id,
-    group: "maintenance",
+    group: "operations",
     method: "GET",
     schedule: {
       type: "weekly",
@@ -98,7 +98,7 @@ test("persist the durable heartbeat when a due job is safely skipped as already 
     },
     url: "http://127.0.0.1/never-requested",
     targetUrl: "http://127.0.0.1/never-requested",
-    targetPath: "/never-requested",
+    targetPath: "/ops/run/wednesday-am",
   };
   const { jobs } = await import("../src/jobs.js");
   const originalJobs = jobs.slice();
