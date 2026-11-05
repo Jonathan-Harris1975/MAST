@@ -508,6 +508,15 @@ const monthlyAuditJobs = [
 ];
 
 const kdpWeeklyJobs = [
+  ...["12:05", "13:05", "14:05", "16:05", "20:05"].map((time) => aimsPostJob({
+    id: `kdp-update-verification-${time.replace(":", "")}`, group: "kdp", description: "Submit eligible queued updates in-window and verify prior KDP publications.",
+    schedule: { type: "weekly", days: EVERY_DAY, time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 45 },
+    targetPath: "/kdp/research/updates/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
+    asyncStatus: {
+      responseIdField: "sessionId", statusPath: "/kdp/jobs/weekly-update-verification/{id}", statusField: "status",
+      terminalResponsePolicy: { checks: [{ type: "equals", path: "result.ok", value: true, message: "KDP update verification needs attention." }] },
+    },
+  })),
   aimsPostJob({
     id: "kdp-weekly-audit", group: "kdp", description: "Create the weekly public KDP audit.",
     schedule: { type: "weekly", days: ["monday"], time: "12:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 170 },

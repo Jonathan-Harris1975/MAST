@@ -22,3 +22,13 @@ test("MAST triggers the KDP audit Monday and research Tuesday to Thursday in Lon
   assert.equal(metadata.schedule.time, "12:15");
   assert.equal(metadata.asyncStatus.terminalResponsePolicy.checks[0].value, true);
 });
+
+
+test("MAST verifies pending publications independently of weekly research", () => {
+  const job = baseJobs.find((item) => item.id === "kdp-update-verification-1205");
+  assert.equal(job.schedule.time, "12:05");
+  assert.equal(job.schedule.days.length, 7);
+  assert.equal(job.targetPath, "/kdp/research/updates/run");
+  assert.equal(job.authEnv, "AIMS_API_KEY");
+  assert.equal(job.asyncStatus.statusPath, "/kdp/jobs/weekly-update-verification/{id}");
+});
