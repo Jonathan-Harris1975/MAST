@@ -130,8 +130,8 @@ class ManagedBranchOwnershipTests(unittest.TestCase):
         self.assertNotIn("disablePullRequestAutoMerge", source)
         self.assertNotIn('gh", "pr", "merge', source)
 
-    def test_managed_branch_pr_is_admitted_to_mergify_after_green_checks(self):
-        admit = self.enterContext(patch.object(automation, "admit_to_mergify"))
+    def test_managed_branch_pr_is_admitted_to_github_native_auto_merge_after_green_checks(self):
+        admit = self.enterContext(patch.object(automation, "admit_to_github_native_auto_merge"))
         approve = self.enterContext(patch.object(automation, "approve_pr"))
         self.enterContext(
             patch.object(automation, "pr_files", return_value=["docs/runbook.md"])
@@ -154,7 +154,7 @@ class ManagedBranchOwnershipTests(unittest.TestCase):
 
     def test_managed_branch_pr_touching_governance_gets_human_hold(self):
         hold = self.enterContext(patch.object(automation, "require_operator_risk_approval", return_value=True))
-        admit = self.enterContext(patch.object(automation, "admit_to_mergify"))
+        admit = self.enterContext(patch.object(automation, "admit_to_github_native_auto_merge"))
         self.enterContext(
             patch.object(
                 automation,
@@ -170,7 +170,7 @@ class ManagedBranchOwnershipTests(unittest.TestCase):
 
     def test_managed_branch_pr_cannot_rewrite_admission_controller(self):
         hold = self.enterContext(patch.object(automation, "require_operator_risk_approval", return_value=True))
-        admit = self.enterContext(patch.object(automation, "admit_to_mergify"))
+        admit = self.enterContext(patch.object(automation, "admit_to_github_native_auto_merge"))
         self.enterContext(
             patch.object(
                 automation,
