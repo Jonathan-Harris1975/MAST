@@ -140,3 +140,9 @@ MAST uses authenticated public HTTPS endpoints for AIMS, RAMS and HIVE in produc
 Restrict ingress at the hosting/CDN layer wherever a service does not need general public access, keep service tokens independently scoped and rotated, and retain HIVE operational alerting so failed or unauthorised scheduling attempts remain observable.
 
 See `.env.example`, `docs/OPERATIONS.md`, `docs/POWER_MANAGEMENT.md`, `docs/OPERATIONAL_ALERTING.md` and `SECURITY.md`.
+
+KDP optimisation reconciliation runs at 12:05, 13:05, 14:05, 16:05 and 20:05
+Europe/London through AIMS `/kdp/research/updates/run`. AIMS enforces the separate
+Tuesday–Thursday submission window and five-minute minimum delay. Later daily
+checks verify publication without permitting out-of-window submissions. Deploy
+the companion AIMS update route before this schedule change.
