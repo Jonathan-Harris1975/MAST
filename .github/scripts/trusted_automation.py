@@ -42,7 +42,6 @@ KILO_SENSITIVE_PREFIXES = (
     ".github/scripts/",
     ".github/CODEOWNERS",
     ".github/dependabot.yml",
-    ".mergify.yml",
     "renovate.json",
     ".gitleaks",
     "SECURITY.md",
@@ -717,7 +716,7 @@ def approve_pr(number: int, sha: str) -> None:
     log(f"Approved PR #{number} at {sha[:12]} after trusted checks passed.")
 
 
-def admit_to_mergify(number: int) -> None:
+def admit_to_github_native_auto_merge(number: int) -> None:
     pr = get(f"/repos/{REPO}/pulls/{number}")
     if pr.get("state") != "open":
         return
@@ -862,7 +861,7 @@ def reconcile_pr(pr: dict[str, Any]) -> None:
         if current_head_unchanged(number, sha) is None:
             return
 
-    admit_to_mergify(number)
+    admit_to_github_native_auto_merge(number)
 
 
 def main() -> int:
