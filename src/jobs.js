@@ -218,6 +218,24 @@ const cloudflareDailyPurge = aimsPostJob({
   },
 });
 
+const storageHousekeepingWeekly = aimsPostJob({
+  id: "storage-housekeeping-weekly",
+  group: "cloudflare-maintenance",
+  description: "Archive and retain governed R2 and non-KDP D1 data with verified copies before bounded cleanup.",
+  schedule: { type: "weekly", days: ["sunday"], time: "05:30", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 720 },
+  targetPath: "/storage/housekeeping/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
+  body: { dryRun: false, confirmation: "run-governed-storage-housekeeping" },
+  asyncStatus: {
+    responseIdField: "sessionId", statusPath: "/storage/housekeeping/jobs/weekly/{id}", statusField: "status",
+    terminalResponsePolicy: { checks: [
+      { type: "equals", path: "result.ok", value: true, message: "Governed storage housekeeping did not complete across every resource." },
+      { type: "equals", path: "result.dryRun", value: false, message: "Storage housekeeping returned a preview instead of a live run." },
+      { type: "equals", path: "result.coverage.r2", value: 6, message: "Storage housekeeping did not cover all six governed R2 buckets." },
+      { type: "equals", path: "result.coverage.kdpD1Touched", value: false, message: "KDP D1 must remain excluded from housekeeping." },
+    ] },
+  },
+});
+
 const oneComMailboxCleanup = aimsPostJob({
   id: "onecom-mailbox-cleanup",
   group: "email-maintenance",
@@ -1043,6 +1061,7 @@ export const baseJobs = [
   outreachBatchNext,
   ...outreachScheduledJobs,
   cloudflareDailyPurge,
+  storageHousekeepingWeekly,
   oneComMailboxCleanup,
   commsHubMonthlyHousekeeping,
   commsHubWeeklyQuarantineReview,
