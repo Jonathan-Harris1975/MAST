@@ -43,8 +43,8 @@ AIMS owns sequencing inside each content window. An explicit terminal, non-retry
 
 - **Every Monday at 12:00:** trigger the KDP public audit; at 12:15, refresh the signed-in KDP setup metadata snapshot. Tuesday through Thursday at 12:00, trigger or resume KDP research. AIMS enforces its London time window, audit freshness, search quota, and batch cursor. MAST reports incomplete results as failures.
 
-- **First Saturday:** resume RAMS at 13:00 and run the website audit at 13:30.
-- **Second Saturday:** resume RAMS at 09:00 and run the AIMS/content governance audit at 09:15.
+- **First Friday:** resume RAMS at 11:30 and run the website audit at 12:00.
+- **Second Friday:** resume RAMS at 17:45 and run the AIMS/content governance audit at 18:00.
 
 ### Daily cache maintenance
 
@@ -73,7 +73,7 @@ scheduled worker.
 
 ### HIVE governance
 
-MAST runs seven-day HIVE readiness/repository/provider checks plus weekly and monthly governance jobs. HIVE remains online continuously and scheduled HIVE jobs are readiness-gated before execution. Daily governance also verifies HIVE's authoritative `/v1/system/production-manager?force_refresh=true` state is `GREEN / ALLOW`. Retired `/v1/skills/*` routes are intentionally not scheduled. After the second-Saturday AIMS audit completes, MAST triggers HIVE's asynchronous `/v1/repositories/refresh-all` workflow and polls `/v1/repositories/refresh-jobs/{job_id}` to terminal completion. A refresh is accepted as successful only when HIVE reports the exact governed catalogue (`HIVE`, `HIVE-UI`, `AIMS`, `AIMS-UI`, `RAMS`, `MAST`, `IRS`, `Website`), all eight results are complete, and none failed. Duplicate scheduler execution cannot start a second in-process refresh for the same job, and the monthly window is consumed after a terminal/transport failure so the expensive full-estate POST is not replayed every tick.
+MAST runs seven-day HIVE readiness/repository/provider checks plus weekly and monthly governance jobs. HIVE remains online continuously and scheduled HIVE jobs are readiness-gated before execution. Daily governance also verifies HIVE's authoritative `/v1/system/production-manager?force_refresh=true` state is `GREEN / ALLOW`. Retired `/v1/skills/*` routes are intentionally not scheduled. After the second-Friday AIMS audit completes, MAST triggers HIVE's asynchronous `/v1/repositories/refresh-all` workflow and polls `/v1/repositories/refresh-jobs/{job_id}` to terminal completion. A refresh is accepted as successful only when HIVE reports the exact governed catalogue (`HIVE`, `HIVE-UI`, `AIMS`, `AIMS-UI`, `RAMS`, `MAST`, `IRS`, `Website`), all eight results are complete, and none failed. Duplicate scheduler execution cannot start a second in-process refresh for the same job, and the monthly window is consumed after a terminal/transport failure so the expensive full-estate POST is not replayed every tick.
 
 ## Configuration
 

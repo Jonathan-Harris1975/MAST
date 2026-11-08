@@ -989,7 +989,7 @@ const hiveGovernanceMonthlyJobs = [
 const hiveRepositoryMonthlyRefresh = hiveJob({
   id: "hive-repositories-monthly-refresh",
   group: "hive-repositories",
-  description: "After the second-Saturday AIMS/RAMS audit sequence completes, download fresh governed GitHub snapshots and run HIVE Repository Intelligence for every repository.",
+  description: "After the second-Friday AIMS/RAMS audit sequence completes, download fresh governed GitHub snapshots and run HIVE Repository Intelligence for every repository.",
   schedule: { type: "posttrigger", sourceJobId: "aims-audit-pipeline", delayMinutes: 15 },
   targetPath: "/v1/repositories/refresh-all",
   method: "POST",
