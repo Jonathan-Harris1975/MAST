@@ -6,7 +6,7 @@
 
 AIMS and HIVE are **always-on production services**. AIMS hosts Comms Hub's continuous inbound, delayed-action, backup, retention and follow-up workers. HIVE receives operational events and performs governance/alert duties. MAST therefore never schedules pause/resume jobs for either service.
 
-RAMS remains demand-managed because its work is bounded remediation/audit processing. MAST resumes RAMS before the first-Saturday website audit and second-Saturday AIMS/content audit, readiness-gates the parent audit on both AIMS and RAMS, and pauses RAMS one hour after terminal completion.
+RAMS remains demand-managed because its work is bounded remediation/audit processing. MAST resumes RAMS before the first-Friday website audit and second-Friday AIMS/content audit, readiness-gates the parent audit on both AIMS and RAMS, and pauses RAMS one hour after terminal completion.
 
 ## Normal weekday automation
 
@@ -21,8 +21,8 @@ There are no AIMS standby windows. Blotato provider publication times remain own
 
 ## Governed audit windows
 
-- First Saturday: RAMS resumes at 13:00 and the website audit runs at 13:30.
-- Second Saturday: RAMS resumes at 09:00 and the AIMS/content master audit runs at 09:15.
+- First Friday: RAMS resumes at 11:30 and the website audit runs at 12:00.
+- Second Friday: RAMS resumes at 17:45 and the AIMS/content master audit runs at 18:00.
 
 AIMS and HIVE remain online throughout. RAMS pause is completion-driven.
 
