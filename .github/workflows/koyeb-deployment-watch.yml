@@ -9,13 +9,13 @@ on: # zizmor: ignore[dangerous-triggers] guarded to successful same-repository m
 permissions:
   contents: read
 
-concurrency:
-  group: koyeb-deployment-watch-MAST
-  # Preserve in-flight production worker verification and its failure alert.
-  cancel-in-progress: false
-
 jobs:
   watch:
+    concurrency:
+      group: koyeb-deployment-watch-MAST
+      # Preserve in-flight production worker verification and its failure alert.
+      cancel-in-progress: false
+    
     if: >-
       ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
           (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' &&
