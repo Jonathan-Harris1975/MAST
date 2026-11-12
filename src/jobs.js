@@ -541,6 +541,23 @@ const kdpWeeklyJobs = [
     },
   }),
 
+
+  aimsPostJob({
+    id: "kdp-print-rollout-capacity-plan", group: "kdp",
+    description: "Plan up to three existing books per day for paperback and hardcover, Monday–Thursday only. Capacity planning never creates or submits KDP titles.",
+    schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"], time: "17:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 45 },
+    targetPath: "/kdp/print/rollout/plan/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
+    body: {},
+    requestRetries: 0,
+    asyncStatus: {
+      responseIdField: "sessionId", statusPath: "/kdp/jobs/print-rollout-plan/{id}", statusField: "status",
+      terminalResponsePolicy: { checks: [
+        { type: "equals", path: "result.ok", value: true, message: "KDP print rollout capacity planning failed." },
+        { type: "equals", path: "result.kdpWritesPerformed", value: false, message: "Capacity planning must not create or submit a print title." },
+      ] },
+    },
+  }),
+
   ...["12:05", "13:05", "14:05", "16:05", "20:05"].map((time) => aimsPostJob({
     id: `kdp-update-verification-${time.replace(":", "")}`, group: "kdp", description: "Submit eligible queued updates in-window and verify prior KDP publications.",
     schedule: { type: "weekly", days: EVERY_DAY, time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 45 },
