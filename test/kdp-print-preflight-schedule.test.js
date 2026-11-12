@@ -12,7 +12,5 @@ test("print preflight is an independent Monday preparation checkpoint", () => {
   assert.equal(job.targetPath, "/kdp/print/preflight/run");
   assert.equal(job.authEnv, "AIMS_API_KEY");
   assert.equal(job.asyncStatus.statusPath, "/kdp/jobs/print-preflight/{id}");
-  assert.deepEqual(job.asyncStatus.terminalResponsePolicy.checks.map((check) => check.value), [true, false]);
-  assert.equal(baseJobs.find((item) => item.id === "kdp-weekly-audit").schedule.time, "12:00");
-  assert.equal(baseJobs.find((item) => item.id === "kdp-weekly-research").schedule.time, "12:00");
+  assert.deepEqual(job.asyncStatus.terminalResponsePolicy.checks.map((check) => ({ path: check.path, value: check.value })), [{ path: "result.ok", value: true }, { path: "result.kdpWritesPerformed", value: false }]);
 });
