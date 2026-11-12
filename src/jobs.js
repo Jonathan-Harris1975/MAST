@@ -526,6 +526,21 @@ const monthlyAuditJobs = [
 ];
 
 const kdpWeeklyJobs = [
+  aimsPostJob({
+    id: "kdp-print-preflight", group: "kdp",
+    description: "Inventory every existing Kindle title for paperback and hardback preparation; do not create or submit to KDP.",
+    schedule: { type: "weekly", days: ["monday"], time: "15:30", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 150 },
+    targetPath: "/kdp/print/preflight/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
+    body: {},
+    asyncStatus: {
+      responseIdField: "sessionId", statusPath: "/kdp/jobs/print-preflight/{id}", statusField: "status",
+      terminalResponsePolicy: { checks: [
+        { type: "equals", path: "result.ok", value: true, message: "KDP print preflight was not saved." },
+        { type: "equals", path: "result.kdpWritesPerformed", value: false, message: "Print preflight must never create or submit KDP titles." },
+      ] },
+    },
+  }),
+
   ...["12:05", "13:05", "14:05", "16:05", "20:05"].map((time) => aimsPostJob({
     id: `kdp-update-verification-${time.replace(":", "")}`, group: "kdp", description: "Submit eligible queued updates in-window and verify prior KDP publications.",
     schedule: { type: "weekly", days: EVERY_DAY, time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 45 },
