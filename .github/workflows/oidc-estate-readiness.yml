@@ -22,6 +22,8 @@ jobs:
           egress-policy: audit
 
       - name: Verify latest readiness run for each exact default-branch commit
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
@@ -42,6 +44,7 @@ jobs:
           const api = "https://api.github.com";
           const headers = {
             Accept: "application/vnd.github+json",
+            Authorization: `Bearer ${process.env.GH_TOKEN}`,
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": "MAST-OIDC-estate-readiness",
           };
@@ -183,7 +186,7 @@ jobs:
             --service MAST \
             --event-type oidc_estate_readiness_failed \
             --title "Estate OIDC readiness verification failed" \
-            --summary "At least one repository lacks current successful OIDC evidence or the canonical exact workflow identity guard on its main SHA. Inspect the linked MAST run for the repository, SHA and workflow run ID." \
+            --summary "Estate OIDC verification could not complete. This may be an API access or rate-limit failure, unavailable current-main evidence, or a workflow identity mismatch. Inspect the linked MAST run for the exact cause." \
             --severity critical \
             --event-id "github:${{ github.repository }}:${{ github.run_id }}:${{ github.run_attempt }}" \
             --release-id "${{ github.sha }}" \

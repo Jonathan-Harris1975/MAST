@@ -18,3 +18,11 @@ test("estate readiness rejects repositories whose current-main workflow omits ex
   assert.match(source, /workflow_binding_verified: true/);
   assert.match(source, /no cloud provider trust is verified/);
 });
+
+
+test("estate GitHub reads are authenticated and failure alerts do not assume missing identity guards", async () => {
+  const source = await readFile(workflow, "utf8");
+  assert.match(source, /GH_TOKEN: \$\{\{ github.token \}\}/);
+  assert.ok(source.includes('Authorization: `Bearer ${process.env.GH_TOKEN}`'));
+  assert.match(source, /API access or rate-limit failure/);
+});
