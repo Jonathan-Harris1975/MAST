@@ -29,6 +29,8 @@ const COMMS_HOUSEKEEPING_TIME = String(process.env.MAST_COMMS_HOUSEKEEPING_TIME 
 const COMMS_HOUSEKEEPING_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_COMMS_HOUSEKEEPING_CATCH_UP_MINUTES || 1200));
 const COMMS_QUARANTINE_REVIEW_TIME = String(process.env.MAST_COMMS_QUARANTINE_REVIEW_TIME || "08:00");
 const COMMS_QUARANTINE_REVIEW_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_COMMS_QUARANTINE_REVIEW_CATCH_UP_MINUTES || 720));
+const COMMS_QUARANTINE_TIDY_TIME = String(process.env.MAST_COMMS_QUARANTINE_TIDY_TIME || "08:00");
+const COMMS_QUARANTINE_TIDY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_COMMS_QUARANTINE_TIDY_CATCH_UP_MINUTES || 720));
 export const HIVE_GOVERNED_REPOSITORIES = Object.freeze([
   "HIVE",
   "HIVE-UI",
@@ -342,6 +344,33 @@ const commsHubWeeklyQuarantineReview = aimsPostJob({
       { type: "equals", path: "runType", value: "quarantine_review", message: "AIMS returned the wrong quarantine-review run type." },
       { type: "arrayKeySetEquals", path: "stages", key: "name", values: ["quarantine_review"], message: "The quarantine review response omitted its required stage." },
       { type: "arrayEveryEquals", path: "stages", key: "ok", value: true, message: "The quarantine review stage reported failure." },
+    ],
+  },
+});
+
+const commsHubWeeklyQuarantineTidy = aimsPostJob({
+  id: "comms-hub-weekly-quarantine-tidy",
+  group: "comms-maintenance",
+  description: "Tidy completed and obsolete Comms Hub failures and purge expired terminal history every Monday; preserve unresolved work.",
+  schedule: {
+    type: "weekly",
+    days: ["monday"],
+    time: COMMS_QUARANTINE_TIDY_TIME,
+    timezone: LOCAL_TIME_ZONE,
+    catchUpMinutes: COMMS_QUARANTINE_TIDY_CATCH_UP_MINUTES,
+  },
+  pretriggerOffsets: { health: 178, preflight: 113, warmup: 25 },
+  targetPath: "/comms-hub/maintenance/quarantine-tidy",
+  authEnv: "AIMS_API_KEY",
+  requiredServices: ["aims"],
+  body: { dryRun: false },
+  requestRetries: 2,
+  consumeFailureWindow: true,
+  responsePolicy: {
+    checks: [
+      { type: "equals", path: "ok", value: true, message: "The weekly Comms Hub tidy-up failed." },
+      { type: "equals", path: "result.dryRun", value: false, message: "AIMS returned a preview instead of applying the authorised tidy-up." },
+      { type: "equals", path: "result.limit", value: 500, message: "AIMS omitted the bounded quarantine tidy result." },
     ],
   },
 });
@@ -1097,6 +1126,7 @@ export const baseJobs = [
   oneComMailboxCleanup,
   commsHubMonthlyHousekeeping,
   commsHubWeeklyQuarantineReview,
+  commsHubWeeklyQuarantineTidy,
   podcastRun,
   blogWeeklyBuild,
   blogDailySocialBuild,
