@@ -671,7 +671,7 @@ const blotatoRecoveryStatus = {
 };
 const blotatoRecoveryJobs = [
   aimsPostJob({
-    id: "blotato-weekday-am-recovery",
+    id: "blotato-weekday-am-backstop",
     group: "blotato-recovery",
     description: "13:00 weekday check: recover the existing AM Blotato slot without creating duplicate paid videos.",
     schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "13:00",
@@ -686,7 +686,7 @@ const blotatoRecoveryJobs = [
     ["wednesday", "ai-at-work"], ["thursday", "reality-check"],
     ["friday", "ai-playbook"],
   ].map(([day, lane]) => aimsPostJob({
-    id: `blotato-${day}-pm-recovery`,
+    id: `blotato-${day}-pm-backstop`,
     group: "blotato-recovery",
     description: `16:30 ${day} check: recover the original PM ${lane} scheduled video, not a duplicate post.`,
     schedule: { type: "weekly", days: [day], time: "16:30",
