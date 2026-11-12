@@ -670,32 +670,32 @@ const blotatoRecoveryStatus = {
   },
 };
 const blotatoRecoveryJobs = [
-  aimsPostJob({
-    id: "blotato-weekday-am-backstop",
+  ...["13:00", "17:15"].map((time, index) => aimsPostJob({
+    id: index === 0 ? "blotato-weekday-am-backstop" : "blotato-weekday-am-late-backstop",
     group: "blotato-recovery",
-    description: "13:00 weekday check: recover the existing AM Blotato slot without creating duplicate paid videos.",
-    schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "13:00",
-      timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
+    description: `${time} weekday check: retry the existing AM Blotato slot without a duplicate paid render.`,
+    schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time,
+      timezone: LOCAL_TIME_ZONE, catchUpMinutes: 90 },
     targetPath: "/blotato/autoshorts/schedule",
     authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
     asyncStatus: blotatoRecoveryStatus,
     requestRetries: 0, consumeFailureWindow: true,
-  }),
+  })),
   ...[
     ["monday", "news-insight"], ["tuesday", "model-verdict"],
     ["wednesday", "ai-at-work"], ["thursday", "reality-check"],
     ["friday", "ai-playbook"],
-  ].map(([day, lane]) => aimsPostJob({
-    id: `blotato-${day}-pm-backstop`,
+  ].flatMap(([day, lane]) => ["16:30", "21:15"].map((time, index) => aimsPostJob({
+    id: index === 0 ? `blotato-${day}-pm-backstop` : `blotato-${day}-pm-late-backstop`,
     group: "blotato-recovery",
-    description: `16:30 ${day} check: recover the original PM ${lane} scheduled video, not a duplicate post.`,
-    schedule: { type: "weekly", days: [day], time: "16:30",
-      timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
+    description: `${time} ${day} check: recover the existing PM ${lane} short, never duplicate publication.`,
+    schedule: { type: "weekly", days: [day], time,
+      timezone: LOCAL_TIME_ZONE, catchUpMinutes: 90 },
     targetPath: `/blotato/shorts/${lane}/schedule`,
     authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
     asyncStatus: blotatoRecoveryStatus,
     requestRetries: 0, consumeFailureWindow: true,
-  })),
+  }))),
 ];
 
 const healthPing = aimsGetJob({
