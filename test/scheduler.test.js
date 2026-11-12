@@ -66,7 +66,7 @@ test("legacy task-level content jobs remain manual fallbacks and cannot double-f
 test("Blotato backstops are scheduled weekdays, idempotent and inspect terminal jobs", () => {
   const backstops = baseJobs.filter((job) => job.group === "blotato-recovery");
   assert.equal(backstops.length, 6);
-  const am = backstops.find((job) => job.id === "blotato-weekday-am-recovery");
+  const am = backstops.find((job) => job.id === "blotato-weekday-am-backstop");
   assert.deepEqual(am.schedule.days, ["monday", "tuesday", "wednesday", "thursday", "friday"]);
   assert.equal(am.schedule.time, "13:00");
   assert.equal(am.targetPath, "/blotato/autoshorts/schedule");
@@ -75,7 +75,7 @@ test("Blotato backstops are scheduled weekdays, idempotent and inspect terminal 
     ["wednesday", "ai-at-work"], ["thursday", "reality-check"],
     ["friday", "ai-playbook"],
   ]) {
-    const pm = backstops.find((job) => job.id === `blotato-${day}-pm-recovery`);
+    const pm = backstops.find((job) => job.id === `blotato-${day}-pm-backstop`);
     assert.ok(pm);
     assert.deepEqual(pm.schedule.days, [day]);
     assert.equal(pm.schedule.time, "16:30");
