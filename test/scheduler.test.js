@@ -63,6 +63,42 @@ test("legacy task-level content jobs remain manual fallbacks and cannot double-f
   }
 });
 
+test("Blotato backstops are scheduled weekdays, idempotent and inspect terminal jobs", () => {
+  const backstops = baseJobs.filter((job) => job.group === "blotato-recovery");
+  assert.equal(backstops.length, 6);
+  const am = backstops.find((job) => job.id === "blotato-weekday-am-recovery");
+  assert.deepEqual(am.schedule.days, ["monday", "tuesday", "wednesday", "thursday", "friday"]);
+  assert.equal(am.schedule.time, "13:00");
+  assert.equal(am.targetPath, "/blotato/autoshorts/schedule");
+  for (const [day, lane] of [
+    ["monday", "news-insight"], ["tuesday", "model-verdict"],
+    ["wednesday", "ai-at-work"], ["thursday", "reality-check"],
+    ["friday", "ai-playbook"],
+  ]) {
+    const pm = backstops.find((job) => job.id === `blotato-${day}-pm-recovery`);
+    assert.ok(pm);
+    assert.deepEqual(pm.schedule.days, [day]);
+    assert.equal(pm.schedule.time, "16:30");
+    assert.equal(pm.targetPath, `/blotato/shorts/${lane}/schedule`);
+  }
+  for (const job of backstops) {
+    assert.equal(job.schedule.type, "weekly");
+    assert.equal(job.schedule.timezone, "Europe/London");
+    assert.equal(job.authEnv, "AIMS_API_KEY");
+    assert.equal(job.requestRetries, 0);
+    assert.equal(job.consumeFailureWindow, true);
+    assert.deepEqual(job.requiredServices, ["aims"]);
+    assert.equal(job.asyncStatus.statusField, "job.status");
+    assert.equal(job.asyncStatus.statusPath, "/blotato/jobs/{id}");
+    assert.deepEqual(job.asyncStatus.terminalResponsePolicy.checks, [
+      { type: "equals", path: "job.result.ok", value: true,
+        message: "Blotato video did not complete scheduling." },
+    ]);
+  }
+  assert.equal(isTimedJobDue(am, new Date("2026-11-12T13:00:00Z")), true);
+  assert.equal(isTimedJobDue(am, new Date("2026-11-14T13:00:00Z")), false);
+});
+
 test("Outreach is fully automated twice each weekday under MAST", () => {
   for (const [id, time] of [["outreach-weekday-am", "09:00"], ["outreach-weekday-pm", "16:00"]]) {
     const job = baseJobs.find((item) => item.id === id);
