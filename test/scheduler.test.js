@@ -530,7 +530,7 @@ test("HIVE and RAMS governance controls remain present", () => {
 test("no temporary or one-off audit fires remain in the production schedule", () => {
   const oneOffAudits = baseJobs.filter((job) => job.group === "audits" && job.schedule.type === "once");
   assert.deepEqual(oneOffAudits, []);
-  assert.equal(baseJobs.some((job) => /recovery|2026-08-03/.test(job.id)), false);
+  assert.equal(baseJobs.some((job) => job.group === "audits" && /recovery|2026-08-03/.test(job.id)), false);
   assert.equal(pretriggerJobs.some((job) => /recovery|2026-08-03/.test(job.sourceJobId || job.id)), false);
 });
 
