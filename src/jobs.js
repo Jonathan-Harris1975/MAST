@@ -656,6 +656,48 @@ const blotatoVideoJobs = [
   }),
 ];
 
+// The main AIMS content operation remains the sole creator of daily content.
+// These low-cost backstops call the same idempotent scheduled routes after
+// transient outages; AIMS must reconcile an existing paid video before doing
+// anything that could incur another Blotato render charge.
+const blotatoRecoveryStatus = {
+  responseIdField: "sessionId",
+  statusPath: "/blotato/jobs/{id}",
+  statusField: "job.status",
+  terminalResponsePolicy: {
+    checks: [{ type: "equals", path: "job.result.ok", value: true,
+      message: "Blotato video did not complete scheduling." }],
+  },
+};
+const blotatoRecoveryJobs = [
+  aimsPostJob({
+    id: "blotato-weekday-am-recovery",
+    group: "blotato-recovery",
+    description: "13:00 weekday check: recover the existing AM Blotato slot without creating duplicate paid videos.",
+    schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "13:00",
+      timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
+    targetPath: "/blotato/autoshorts/schedule",
+    authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
+    asyncStatus: blotatoRecoveryStatus,
+    requestRetries: 0, consumeFailureWindow: true,
+  }),
+  ...[
+    ["monday", "news-insight"], ["tuesday", "model-verdict"],
+    ["wednesday", "ai-at-work"], ["thursday", "reality-check"],
+    ["friday", "ai-playbook"],
+  ].map(([day, lane]) => aimsPostJob({
+    id: `blotato-${day}-pm-recovery`,
+    group: "blotato-recovery",
+    description: `16:30 ${day} check: recover the original PM ${lane} scheduled video, not a duplicate post.`,
+    schedule: { type: "weekly", days: [day], time: "16:30",
+      timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
+    targetPath: `/blotato/shorts/${lane}/schedule`,
+    authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
+    asyncStatus: blotatoRecoveryStatus,
+    requestRetries: 0, consumeFailureWindow: true,
+  })),
+];
+
 const healthPing = aimsGetJob({
   id: "suite-health-ping",
   group: "health",
@@ -1109,6 +1151,7 @@ export const baseJobs = [
   ...kdpWeeklyJobs,
   zernioEbooksWeekly,
   ...blotatoVideoJobs,
+  ...blotatoRecoveryJobs,
   healthPing,
   ...hiveGovernanceJobs,
   ...ramsJobs,
