@@ -7,7 +7,7 @@ import path from "node:path";
 import { baseJobs, HIVE_GOVERNED_REPOSITORIES, jobs, pretriggerJobs } from "../src/jobs.js";
 import { evaluateResponsePolicy } from "../src/response-policy.js";
 import { aimsBaseUrl } from "../src/service-origins.js";
-import { dueJobPriority, isTimedJobDue, jobScheduleDue, nextRunForJob, requiredServiceStates, requiredServicesReady, serviceHealthUrl, failedWindowRetryEligible, responseReportsFailure } from "../src/scheduler.js";
+import { buildRequestHeaders, buildRunKey, dueJobPriority, isTimedJobDue, jobScheduleDue, nextRunForJob, requiredServiceStates, requiredServicesReady, serviceHealthUrl, failedWindowRetryEligible, responseReportsFailure } from "../src/scheduler.js";
 
 function listen(server) {
   return new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -67,6 +67,34 @@ test("ordinary failed jobs back off across the catch-up window and cannot replay
     { recentResults: [twice, confirmed] }), false);
   assert.equal(failedWindowRetryEligible(job, key, at,
     { recentResults: [{ ...once, finishedAt: null }] }), false);
+});
+
+test("failed operation windows are paced and backstops reuse the canonical idempotency key", () => {
+  const operation = baseJobs.find((job) => job.id === "operation-friday-am");
+  const backstop = baseJobs.find((job) => job.id === "operation-friday-am-afternoon-backstop");
+  assert.ok(operation && backstop);
+
+  const startedAt = new Date("2026-11-13T10:00:00.000Z");
+  const runKey = buildRunKey(operation, startedAt);
+  const failed = {
+    job: operation.id,
+    runKey,
+    ok: false,
+    providerReportedFailure: true,
+    finishedAt: startedAt.toISOString(),
+  };
+  const currentState = { recentResults: [failed], lastRunKeys: {} };
+  assert.equal(jobScheduleDue(operation, new Date("2026-11-13T10:04:00.000Z"), currentState), false);
+  assert.equal(jobScheduleDue(operation, new Date("2026-11-13T10:05:00.000Z"), currentState), true);
+
+  const backstopAt = new Date("2026-11-13T15:45:00.000Z");
+  const canonicalKey = buildRunKey(operation, backstopAt);
+  const recoveryKey = buildRunKey(backstop, backstopAt);
+  assert.notEqual(recoveryKey, canonicalKey, "scheduler identities remain distinct");
+  const canonicalHeaders = buildRequestHeaders({ ...operation, authEnv: undefined }, canonicalKey);
+  const recoveryHeaders = buildRequestHeaders({ ...backstop, authEnv: undefined }, recoveryKey);
+  assert.equal(recoveryHeaders["x-idempotency-key"], canonicalHeaders["x-idempotency-key"]);
+  assert.equal(recoveryHeaders["x-operation-recovery-of"], canonicalKey);
 });
 
 test("MAST exposes five AM windows plus the Friday podcast window", () => {

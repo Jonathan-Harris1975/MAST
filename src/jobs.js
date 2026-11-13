@@ -79,6 +79,7 @@ function postJob({
   responsePolicy = null,
   requestRetries = null,
   consumeFailureWindow = false,
+  operationRecoveryOf = null,
 }) {
   return {
     id,
@@ -99,6 +100,7 @@ function postJob({
     responsePolicy,
     requestRetries,
     consumeFailureWindow,
+    operationRecoveryOf,
   };
 }
 
@@ -1172,6 +1174,7 @@ const operationContentBackstops = [
       description: `Reconcile and recover unfinished ${day} AM content, without rerunning confirmed successes.`,
       schedule: { type: "weekly", days: [day], time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 90 },
       targetPath: `/ops/run/${day}-am`,
+      operationRecoveryOf: `operation-${day}-am`,
       authEnv: "AIMS_API_KEY",
       requiredServices: ["aims"],
       requestRetries: 0,
@@ -1183,6 +1186,7 @@ const operationContentBackstops = [
     description: "Reconcile and resume the original Friday podcast operation without a duplicate episode.",
     schedule: { type: "weekly", days: ["friday"], time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 90 },
     targetPath: "/ops/run/friday-pm",
+    operationRecoveryOf: "operation-friday-pm",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims"],
     requestRetries: 0,

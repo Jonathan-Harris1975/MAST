@@ -422,15 +422,14 @@ export function jobScheduleDue(job, at = new Date(), currentState = state) {
   const runKey = buildRunKey(job, at, currentState);
   const recovery = settledOperationFailure(job, runKey, currentState);
   // A recorded failure may recover later on the same calendar day, even after
-  // the normal catch-up window. This never creates a new late operation run.
-  if (recovery && isTimedJobDue({ ...job, schedule: { ...job.schedule, catchUpMinutes: 24 * 60 } }, at, currentState)) return true;
+  // the normal catch-up window. Keep retries paced; AIMS remains the final
+  // duplicate-prevention boundary for operation recovery.
+  if (recovery && isTimedJobDue({ ...job, schedule: { ...job.schedule, catchUpMinutes: 24 * 60 } }, at, currentState)) {
+    return failedWindowRetryEligible(job, runKey, at, currentState);
+  }
   if (!isTimedJobDue(job, at, currentState)) return false;
   if (currentState.lastRunKeys?.[job.id] === runKey) return false;
-  // Explicit operation recovery has its own durable AIMS claim/attempt budget.
-  // Ordinary jobs instead use a bounded backoff to prevent retry storms.
-  return job.group === "operations"
-    ? true
-    : failedWindowRetryEligible(job, runKey, at, currentState);
+  return failedWindowRetryEligible(job, runKey, at, currentState);
 }
 
 export function dueJobsAt(at = new Date(), currentState = state) {
@@ -902,6 +901,7 @@ function resultSummary(result) {
     operationFailures: Number(result.operationJob?.failures ?? result.operationFailure?.failures ?? 0),
     operationTerminal: result.operationJob?.terminal === true,
     operationRetryable: result.operationJob?.retryable ?? null,
+    providerReportedFailure: Boolean(result.providerReportedFailure),
     asyncStatus: result.asyncJob?.status || result.asyncFailure?.status || null,
     asyncId: result.asyncJob?.asyncId || result.asyncFailure?.asyncId || null,
     asyncPolicyFailures: result.asyncFailure?.responsePolicy?.failures || [],
@@ -962,14 +962,25 @@ function envSecret(name) {
 }
 
 export function buildRequestHeaders(job, runKey) {
+  let idempotencyKey = runKey;
+  if (job.operationRecoveryOf) {
+    const sourceJob = jobs.find((candidate) => candidate.id === job.operationRecoveryOf);
+    const date = runKey.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+    if (!sourceJob || !date) {
+      throw new Error(`Invalid operation recovery identity for job ${job.id}`);
+    }
+    idempotencyKey = `${sourceJob.id}:${sourceJob.schedule.timezone || LOCAL_TIME_ZONE}:${date}:${sourceJob.schedule.time}`;
+  }
   const headers = {
     "user-agent": USER_AGENT,
     "x-trigger-worker": SERVICE_NAME,
     "x-trigger-job": job.id,
     "x-trigger-group": job.group,
     "x-trigger-run-key": runKey,
-    "x-idempotency-key": runKey,
+    "x-idempotency-key": idempotencyKey,
   };
+
+  if (job.operationRecoveryOf) headers["x-operation-recovery-of"] = idempotencyKey;
 
   if (job.managedPretrigger) {
     headers["x-trigger-pretrigger-stage"] = job.pretriggerStage || "";

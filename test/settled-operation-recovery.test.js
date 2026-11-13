@@ -14,10 +14,15 @@ test("settled failed windows probe at most once a minute and retry only an expli
   const id = "deployment-recovery-test";
   const runKey = `${id}:Europe/London:2026-10-30:10:00`;
   const operationId = "2026-10-30:friday-am";
-  const realNow = Date.now; let now = realNow(); Date.now = () => now;
+  const RealDate = Date; let now = Date.parse("2026-10-30T20:00:00Z");
+  class FakeDate extends RealDate {
+    constructor(...args) { super(...(args.length ? args : [now])); }
+    static now() { return now; }
+  }
+  globalThis.Date = FakeDate;
   await writeFile(process.env.STATE_FILE, JSON.stringify({ lastRunKeys: { [id]: runKey }, recentResults: [{
     job: id, group: "operations", runKey, ok: false, operationStatus: "completed-with-failures",
-    operationTerminal: true, operationRetryable: false, finishedAt: new Date(now - 120000).toISOString(),
+    operationTerminal: true, operationRetryable: false, finishedAt: new Date(now - 600000).toISOString(),
   }] }));
   let posts = 0; let gets = 0; let available = false; let wrongId = false; let failPost = false;
   const server = http.createServer((req, res) => {
@@ -43,26 +48,26 @@ test("settled failed windows probe at most once a minute and retry only an expli
   const originalJobs = jobs.slice();
   jobs.splice(0, jobs.length, job);
   try {
-    const { runDueJobs, jobScheduleDue } = await import(`../src/scheduler.js?settledRecovery=${realNow()}`);
-    const at = new Date("2026-10-30T20:00:00Z");
+    const { runDueJobs, jobScheduleDue } = await import(`../src/scheduler.js?settledRecovery=${now}`);
+    let at = new Date("2026-10-30T20:00:00Z");
     assert.equal(jobScheduleDue(job, at, { lastRunKeys: {}, recentResults: [] }), false,
       "a missed, never-started window must not become a new late run");
     assert.equal((await runDueJobs({ at })).results[0].skipped, true);
     assert.equal((await runDueJobs({ at })).results[0].skipped, true);
     assert.equal(gets, 1); assert.equal(posts, 0);
-    available = true; wrongId = true; now += 61000;
+    available = true; wrongId = true; now += 61000; at = new Date(at.getTime() + 61000);
     assert.equal((await runDueJobs({ at })).results[0].skipped, true);
     assert.equal(posts, 0);
-    wrongId = false; failPost = true; now += 61000;
+    wrongId = false; failPost = true; now += 61000; at = new Date(at.getTime() + 61000);
     assert.equal((await runDueJobs({ at })).ok, false);
     assert.equal(posts, 1); assert.equal(gets, 3);
-    failPost = false; now += 61000;
+    failPost = false; now += 15 * 60000; at = new Date(at.getTime() + 15 * 60000);
     assert.equal((await runDueJobs({ at })).ok, true);
     assert.equal(posts, 2); assert.equal(gets, 5);
     assert.equal((await runDueJobs({ at })).ran, 0);
     assert.equal(posts, 2); assert.equal(gets, 5);
   } finally {
-    Date.now = realNow;
+    globalThis.Date = RealDate;
     jobs.splice(0, jobs.length, ...originalJobs);
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
     await rm(temp, { recursive: true, force: true });
@@ -83,7 +88,7 @@ test("persist the durable heartbeat when a due job is safely skipped as already 
   process.env.STATE_FILE = path.join(temp, "state.json");
   process.env.AIMS_API_KEY = "test-token";
   Date.now = () => now;
-  await writeFile(process.env.STATE_FILE, JSON.stringify({ lastRunKeys: { [id]: runKey }, recentResults: [{ job: id, runKey, ok: false, operationStatus: "completed-with-failures", operationTerminal: true, operationRetryable: false, finishedAt: new Date(now - 1_000).toISOString() }] }));
+  await writeFile(process.env.STATE_FILE, JSON.stringify({ lastRunKeys: { [id]: runKey }, recentResults: [{ job: id, runKey, ok: false, operationStatus: "completed-with-failures", operationTerminal: true, operationRetryable: false, finishedAt: new Date(now - 600_000).toISOString() }] }));
 
   const job = {
     id,
