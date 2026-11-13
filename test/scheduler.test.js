@@ -698,3 +698,56 @@ test("monthly HIVE repository refresh follows the second RAMS/AIMS audit and wai
   const catalogueCheck = terminalChecks.find((check) => check.type === "arrayKeySetEquals");
   assert.deepEqual(catalogueCheck.values, HIVE_GOVERNED_REPOSITORIES);
 });
+
+
+test("AI Edge newsletter promotion runs independently on Monday Wednesday Friday", () => {
+  const expected = ["monday", "wednesday", "friday"];
+  const items = baseJobs.filter((job) => job.group === "zernio-newsletter");
+  assert.equal(items.length, 3, "exactly three weekly promotions; no daily advertising flood");
+  for (const day of expected) {
+    const job = items.find((item) => item.id === "zernio-newsletter-promo-" + day);
+    assert.ok(job, "missing newsletter job for " + day);
+    assert.equal(job.targetPath, "/zernio/newsletter/promo");
+    assert.deepEqual(job.schedule.days, [day]);
+    assert.equal(job.schedule.time, "11:15");
+    assert.equal(job.schedule.timezone, "Europe/London");
+    assert.equal(job.schedule.catchUpMinutes, 150);
+    assert.equal(job.authEnv, "AIMS_API_KEY");
+    assert.deepEqual(job.requiredServices, ["aims"]);
+    assert.equal(job.requestRetries, 0);
+    assert.deepEqual(job.body, { weekday: day, dryRun: false }, "AIMS owns the publish-time mapping");
+    assert.equal(job.asyncStatus.statusPath, "/zernio/jobs/newsletter-promo/{id}");
+    assert.equal(job.nonBlocking, true);
+    assert.match(job.description, /previous day's dispatched issue/);
+    assert.match(job.description, /AIMS-owned publish slot/);
+    const operation = baseJobs.find((item) => item.id === `operation-${day}-am`);
+    assert.ok(operation, `missing scheduled ${day} AIMS content operation`);
+    assert.equal(operation.schedule.type, "weekly");
+    assert.deepEqual(operation.schedule.days, [day]);
+    assert.equal(operation.targetPath, `/ops/run/${day}-am`);
+    assert.match(operation.description, /all weekday content preparation/);
+    const dayDate = { monday: "2026-11-16", wednesday: "2026-11-18", friday: "2026-11-20" }[day];
+    assert.equal(isTimedJobDue(job, new Date(dayDate + "T11:15:00Z")), true);
+    assert.equal(isTimedJobDue(job, new Date(dayDate + "T13:46:00Z")), false, "the 150-minute catch-up window has closed");
+    assert.equal(isTimedJobDue(job, new Date(dayDate + "T16:30:00Z")), false);
+    assert.equal(isTimedJobDue(job, new Date("2026-11-17T11:15:00Z")), false);
+  }
+  assert.equal(baseJobs.find((job) => job.id === "zernio-thursday").schedule.type, "manual");
+  assert.ok(baseJobs.find((job) => job.id === "operation-thursday-am"), "existing Thursday podcast promotion operation remains");
+});
+
+test("AI Edge promotion terminal policy matches AIMS confirmation and duplicate responses", () => {
+  const job = baseJobs.find((item) => item.id === "zernio-newsletter-promo-monday");
+  const policy = job.asyncStatus.terminalResponsePolicy;
+  const evaluate = (result) => evaluateResponsePolicy(policy, JSON.stringify({ result }));
+
+  assert.equal(evaluate({ ok: true, scheduled: true, confirmed: true, dryRun: false }).ok, true);
+  assert.equal(evaluate({ ok: true, scheduled: false, confirmed: true, duplicatePrevented: true }).ok, true,
+    "an already-confirmed duplicate slot is successful");
+  assert.equal(evaluate({ ok: true, scheduled: false, confirmed: false, duplicatePrevented: true }).ok, false,
+    "an in-progress duplicate is not yet a confirmed schedule");
+  assert.equal(evaluate({ ok: true, scheduled: false, confirmed: false, dryRun: true }).ok, false,
+    "a dry run is not a live schedule");
+  assert.equal(evaluate({ ok: true, scheduled: true }).ok, false,
+    "missing confirmation must fail closed");
+});

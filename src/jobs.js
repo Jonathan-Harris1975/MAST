@@ -497,6 +497,38 @@ const zernioDailyJobs = [
   }),
 ];
 
+// Queue each promotion from the previous day's dispatched issue. AIMS owns the
+// public-slot mapping; these jobs are isolated from the AM newsletter delivery.
+const zernioNewsletterPromoJobs = [
+  "monday",
+  "wednesday",
+  "friday",
+].map((weekday) => aimsPostJob({
+  id: "zernio-newsletter-promo-" + weekday,
+  group: "zernio-newsletter",
+  description: "Schedule the source-grounded AI Edge " + weekday + " promotion from the previous day's dispatched issue using the AIMS-owned publish slot.",
+  schedule: { type: "weekly", days: [weekday], time: "11:15", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 150 },
+  targetPath: "/zernio/newsletter/promo",
+  authEnv: "AIMS_API_KEY",
+  requiredServices: ["aims"],
+  requestRetries: 0,
+  body: { weekday, dryRun: false },
+  asyncStatus: {
+    responseIdField: "sessionId",
+    statusPath: "/zernio/jobs/newsletter-promo/{id}",
+    statusField: "status",
+    successStatuses: ["completed"],
+    pendingStatuses: ["queued", "accepted", "running"],
+    failureStatuses: ["failed"],
+    terminalResponsePolicy: {
+      checks: [
+        { type: "equals", path: "result.ok", value: true, message: "AI Edge promotion did not complete." },
+        { type: "equals", path: "result.confirmed", value: true, message: "AI Edge promotion was not confirmed on Zernio (duplicate or dry-run check)." },
+      ],
+    },
+  },
+}));
+
 const zernioWeeklyQuiz = aimsPostJob({
   id: "zernio-weekly-quiz",
   group: "zernio-quiz",
@@ -1235,6 +1267,7 @@ export const baseJobs = [
   ...weekendNewsletterJobs,
   ...weekendNewsletterBackstops,
   ...zernioDailyJobs,
+  ...zernioNewsletterPromoJobs,
   zernioWeeklyQuiz,
   ...monthlyAuditJobs,
   ...kdpWeeklyJobs,
