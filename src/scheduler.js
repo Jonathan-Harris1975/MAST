@@ -1036,7 +1036,7 @@ async function waitForConfiguredAsyncStatus(job, responseText) {
 }
 
 async function waitForAimsOperation(job, responseText) {
-  if (job.group !== "operations") return null;
+  if (!["operations", "operations-backstop"].includes(job.group)) return null;
   let payload;
   try {
     payload = JSON.parse(responseText);
