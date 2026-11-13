@@ -80,3 +80,52 @@ test("whole-operation backstop waits for a real child result and never double-di
     await rm(temp, { recursive: true, force: true });
   }
 });
+
+test("failed provider POSTs are not immediately replayed and 2xx JSON failures are not marked done", async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), "mast-ack-failure-"));
+  const originalBackend = process.env.MAST_STATE_BACKEND;
+  const originalFile = process.env.STATE_FILE;
+  const originalKey = process.env.AIMS_API_KEY;
+  let calls = 0;
+  let semanticFailure = false;
+  const server = http.createServer((_req, res) => {
+    calls += 1;
+    res.writeHead(semanticFailure ? 200 : 503, { "content-type": "application/json" });
+    res.end(JSON.stringify(semanticFailure ? { ok: false, error: "provider rejected content" }
+      : { ok: false, error: "temporarily unavailable" }));
+  });
+  await listen(server);
+  try {
+    process.env.MAST_STATE_BACKEND = "local";
+    process.env.STATE_FILE = path.join(temp, "state.json");
+    process.env.AIMS_API_KEY = "test-token";
+    const { runJob } = await import(`../src/scheduler.js?provider-failure=${Date.now()}`);
+    const job = { id: "provider-batch-test", group: "outreach", method: "POST",
+      schedule: { type: "weekly", days: ["friday"], time: "16:00",
+        timezone: "Europe/London", catchUpMinutes: 120 },
+      url: `http://127.0.0.1:${server.address().port}/outreach/batch/next`,
+      targetPath: "/outreach/batch/next",
+      authEnv: "AIMS_API_KEY",
+      body: {},
+    };
+    const first = await runJob(job, { at: new Date("2026-11-13T16:00:00Z") });
+    assert.equal(first.ok, false);
+    assert.equal(calls, 1, "ambiguous non-idempotent POST must not retry automatically");
+    semanticFailure = true;
+    const next = await runJob({ ...job, id: "provider-batch-semantic-test" },
+      { at: new Date("2026-11-13T16:00:00Z") });
+    assert.equal(next.ok, false);
+    assert.equal(next.status, 200);
+    assert.equal(next.providerReportedFailure, true);
+    assert.equal(calls, 2);
+  } finally {
+    if (originalBackend === undefined) delete process.env.MAST_STATE_BACKEND;
+    else process.env.MAST_STATE_BACKEND = originalBackend;
+    if (originalFile === undefined) delete process.env.STATE_FILE;
+    else process.env.STATE_FILE = originalFile;
+    if (originalKey === undefined) delete process.env.AIMS_API_KEY;
+    else process.env.AIMS_API_KEY = originalKey;
+    await close(server);
+    await rm(temp, { recursive: true, force: true });
+  }
+});
