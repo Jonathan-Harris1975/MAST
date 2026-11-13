@@ -398,6 +398,22 @@ function settledOperationFailure(job, runKey, currentState = state) {
   return null;
 }
 
+export function failedWindowRetryEligible(job, runKey, at = new Date(), currentState = state) {
+  // A definite success must not be replayed if a prior process crashed just
+  // before updating lastRunKeys. Only failed attempts may be rechecked.
+  const attempts = (currentState.recentResults || [])
+    .filter((result) => result.job === job.id && result.runKey === runKey && result.skipped !== true);
+  if (attempts.some((result) => result.ok === true)) return false;
+  const latest = attempts[0];
+  if (!latest || latest.ok !== false) return true;
+  const lastFinished = Date.parse(latest.finishedAt || "");
+  if (!Number.isFinite(lastFinished)) return false; // missing time: do not busy-loop blindly
+  // Space retries across the catch-up window instead of resubmitting every
+  // 20-second tick. This is independent of the per-request HTTP retry budget.
+  const minutes = [5, 15, 45, 60][Math.min(attempts.length - 1, 3)];
+  return at.getTime() >= lastFinished + minutes * 60_000;
+}
+
 export function jobScheduleDue(job, at = new Date(), currentState = state) {
   if (job.schedule?.type === "interval") {
     return isIntervalJobDue(job, at, currentState);
@@ -409,7 +425,12 @@ export function jobScheduleDue(job, at = new Date(), currentState = state) {
   // the normal catch-up window. This never creates a new late operation run.
   if (recovery && isTimedJobDue({ ...job, schedule: { ...job.schedule, catchUpMinutes: 24 * 60 } }, at, currentState)) return true;
   if (!isTimedJobDue(job, at, currentState)) return false;
-  return currentState.lastRunKeys?.[job.id] !== runKey;
+  if (currentState.lastRunKeys?.[job.id] === runKey) return false;
+  // Explicit operation recovery has its own durable AIMS claim/attempt budget.
+  // Ordinary jobs instead use a bounded backoff to prevent retry storms.
+  return job.group === "operations"
+    ? true
+    : failedWindowRetryEligible(job, runKey, at, currentState);
 }
 
 export function dueJobsAt(at = new Date(), currentState = state) {
@@ -596,21 +617,33 @@ export async function loadState() {
   }
 }
 
+let stateSaveQueue = Promise.resolve();
+
 export async function saveState() {
+  // Multiple long-running status monitors may finish while the scheduler
+  // continues ticking. Write their immutable snapshots in order so an older
+  // R2 PUT cannot silently overwrite the newer run result and heartbeat.
   const body = JSON.stringify(state, null, 2);
-  if (CONFIG.stateBackend === "r2") {
-    if (!r2StateConfigured) throw new Error("MAST R2 state backend is not fully configured");
-    await stateClient().send(new PutObjectCommand({
-      Bucket: r2StateConfig.bucket,
-      Key: r2StateConfig.key,
-      Body: body,
-      ContentType: "application/json",
-      CacheControl: "no-store",
-    }));
-    return;
-  }
-  await mkdir(dirname(CONFIG.stateFile), { recursive: true });
-  await writeFile(CONFIG.stateFile, body);
+  const writeSnapshot = async () => {
+    if (CONFIG.stateBackend === "r2") {
+      if (!r2StateConfigured) throw new Error("MAST R2 state backend is not fully configured");
+      await stateClient().send(new PutObjectCommand({
+        Bucket: r2StateConfig.bucket,
+        Key: r2StateConfig.key,
+        Body: body,
+        ContentType: "application/json",
+        CacheControl: "no-store",
+      }));
+      return;
+    }
+    await mkdir(dirname(CONFIG.stateFile), { recursive: true });
+    await writeFile(CONFIG.stateFile, body);
+  };
+  const committed = stateSaveQueue.then(writeSnapshot, writeSnapshot);
+  // A failed write is still surfaced to its caller, but must not permanently
+  // poison the queue and stop later safe durability attempts.
+  stateSaveQueue = committed.catch(() => {});
+  return committed;
 }
 
 function sleep(ms) {
@@ -973,7 +1006,8 @@ async function fetchWithRetry(url, options, config) {
   for (let attempt = 0; attempt <= config.requestRetries; attempt += 1) {
     try {
       const response = await fetchWithTimeout(url, options, config.requestTimeoutMs);
-      if (response.ok || attempt === config.requestRetries) return response;
+      if (response.ok || ![408, 429, 500, 502, 503, 504].includes(response.status)
+          || attempt === config.requestRetries) return response;
       lastError = new Error(`HTTP ${response.status} ${response.statusText}`);
     } catch (error) {
       lastError = error;
@@ -984,6 +1018,22 @@ async function fetchWithRetry(url, options, config) {
   }
 
   throw lastError || new Error("Request failed before response was created");
+}
+
+export function responseReportsFailure(responseText = "") {
+  // A 2xx transport status is not evidence of a completed provider operation.
+  // Preserve successful deliberate no-ops (already dispatched) but fail on an
+  // explicit negative acknowledgement, even when a route returned HTTP 200.
+  let payload;
+  try { payload = JSON.parse(responseText); } catch { return false; }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
+  const status = String(payload.status || payload.job?.status || "").trim().toLowerCase();
+  return payload.ok === false
+    || payload.failed === true
+    || payload.partialFailure === true
+    || payload.quarantined === true
+    || payload.result?.ok === false
+    || ["failed", "completed-with-failures", "partial-failure"].includes(status);
 }
 
 function valueAtPath(value, path = "") {
@@ -1036,7 +1086,7 @@ async function waitForConfiguredAsyncStatus(job, responseText) {
 }
 
 async function waitForAimsOperation(job, responseText) {
-  if (job.group !== "operations") return null;
+  if (!["operations", "operations-backstop"].includes(job.group)) return null;
   let payload;
   try {
     payload = JSON.parse(responseText);
@@ -1263,9 +1313,14 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
   console.log(JSON.stringify({ ...logBase, event: "job-started", payload: payload || null }));
 
   try {
-    const requestConfig = Number.isInteger(job.requestRetries) && job.requestRetries >= 0
-      ? { ...CONFIG, requestRetries: job.requestRetries }
-      : CONFIG;
+    // Never blindly resend a POST whose transport response is uncertain:
+    // provider writes may already have happened. GET probes remain retryable,
+    // and bounded scheduled rechecks use the original deterministic run key.
+    const requestConfig = {
+      ...CONFIG,
+      requestRetries: Number.isInteger(job.requestRetries) && job.requestRetries >= 0
+        ? job.requestRetries : (job.method === "POST" ? 0 : CONFIG.requestRetries),
+    };
     const response = await fetchWithRetry(job.url, {
       method: job.method,
       headers,
@@ -1284,7 +1339,8 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
     const responsePolicy = response.ok && operationOk && asyncOk
       ? evaluateResponsePolicy(job.responsePolicy, responseText)
       : { ok: true, checked: false, failures: [] };
-    const jobOk = response.ok && operationOk && asyncOk && responsePolicy.ok;
+    const providerReportedFailure = response.ok && responseReportsFailure(responseText);
+    const jobOk = response.ok && operationOk && asyncOk && responsePolicy.ok && !providerReportedFailure;
     const terminalSemanticFailure = response.ok && operationOk && asyncOk && !responsePolicy.ok;
     const finishedAt = new Date();
 
@@ -1311,6 +1367,7 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
         responsePolicy: asyncJob.terminalResponsePolicy || null,
       } : null,
       responsePolicy,
+      providerReportedFailure,
       payload: payload || null,
       startedAt: startedAt.toISOString(),
       finishedAt: finishedAt.toISOString(),
@@ -1471,7 +1528,7 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
         }));
         await saveState();
         return {
-          ok: results.every((result) => result.ok || result.skipped),
+          ok: results.every((result) => result.ok || result.skipped || result.pending),
           skipped: results.length === 0,
           partial: results.length > 0,
           reason: "operator-control-read-failed",
@@ -1488,7 +1545,7 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
       const reason = state.operator.maintenanceMode ? "maintenance-mode" : "scheduler-paused";
       await saveState();
       return {
-        ok: results.every((result) => result.ok || result.skipped),
+        ok: results.every((result) => result.ok || result.skipped || result.pending),
         skipped: results.length === 0,
         partial: results.length > 0,
         reason,
@@ -1500,6 +1557,47 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
         operatorCommands,
       };
     }
+    if (job.nonBlocking === true) {
+      if (runningJobs.has(job.id)) {
+        results.push({ job: job.id, group: job.group, ok: null,
+          skipped: true, pending: true, settled: false,
+          reason: "job-already-running", targetPath: job.targetPath });
+        await saveState();
+        continue;
+      }
+      // AIMS operations and durable child jobs can take hours. Keep observing
+      // them in this process, but release the single worker scheduling loop
+      // immediately so other content windows and recovery jobs can still fire.
+      // runJob retains the in-flight guard, terminal verification, alerts and
+      // result persistence. On restart, AIMS's durable operation ID/lease is
+      // the authority; we never force a second provider write.
+      const monitor = runJob(job, { at, trigger });
+      monitor.then((completed) => {
+        console.log(JSON.stringify({ service: SERVICE_NAME,
+          event: "detached-job-settled", job: job.id, ok: completed.ok,
+          skipped: completed.skipped || false }));
+      }).catch(async (error) => {
+        const failure = {
+          job: job.id, group: job.group, ok: false, runKey: buildRunKey(job, at),
+          trigger, errorMessage: error?.message || String(error),
+          finishedAt: new Date().toISOString(), targetPath: job.targetPath,
+        };
+        rememberResult(failure);
+        try { await saveState(); } catch (persistError) {
+          console.error(JSON.stringify({ service: SERVICE_NAME, event: "detached-job-state-save-failed",
+            job: job.id, errorName: persistError?.name || "Error" }));
+        }
+        await emitJobFailureAlert(job, failure);
+      });
+      results.push({ job: job.id, group: job.group, ok: null,
+        pending: true, settled: false, runKey: buildRunKey(job, at),
+        targetPath: job.targetPath, reason: "terminal-monitor-running" });
+      // The tick's result means only that a background monitor was started.
+      // It is never evidence that publication or remote work succeeded.
+      await saveState();
+      continue;
+    }
+
     const result = await runJob(job, { at, trigger });
     if (result.skipped) {
       // runJob's idempotency and in-flight guards return before saving state. Persist
@@ -1512,7 +1610,7 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
   }
 
   return {
-    ok: results.every((result) => result.ok || result.skipped),
+    ok: results.every((result) => result.ok || result.skipped || result.pending),
     trigger,
     tickAt: at.toISOString(),
     ran: results.length,

@@ -1145,6 +1145,7 @@ const operationWindowJobs = [
     targetPath: `/ops/run/${day}-am`,
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims"],
+    requestRetries: 0,
   })),
   aimsPostJob({
     id: "operation-friday-pm",
@@ -1154,12 +1155,65 @@ const operationWindowJobs = [
     targetPath: "/ops/run/friday-pm",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims"],
+    requestRetries: 0,
   }),
+];
+
+
+// Governed same-day backstops for EVERY AIMS content operation, not just video.
+// The original operation receipt is the idempotency boundary. A successful
+// window is a no-op; incomplete windows resume only unfinished tasks through
+// AIMS's durable receipt and its bounded recovery budget. Never force-replay.
+const operationContentBackstops = [
+  ...["monday", "tuesday", "wednesday", "thursday", "friday"].flatMap((day) =>
+    [["15:45", "afternoon"], ["21:20", "evening"]].map(([time, slot]) => aimsPostJob({
+      id: `operation-${day}-am-${slot}-backstop`,
+      group: "operations-backstop",
+      description: `Reconcile and recover unfinished ${day} AM content, without rerunning confirmed successes.`,
+      schedule: { type: "weekly", days: [day], time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 90 },
+      targetPath: `/ops/run/${day}-am`,
+      authEnv: "AIMS_API_KEY",
+      requiredServices: ["aims"],
+      requestRetries: 0,
+      consumeFailureWindow: true,
+    }))),
+  ...[["18:30", "evening"], ["22:10", "late"]].map(([time, slot]) => aimsPostJob({
+    id: `operation-friday-pm-${slot}-backstop`,
+    group: "operations-backstop",
+    description: "Reconcile and resume the original Friday podcast operation without a duplicate episode.",
+    schedule: { type: "weekly", days: ["friday"], time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 90 },
+    targetPath: "/ops/run/friday-pm",
+    authEnv: "AIMS_API_KEY",
+    requiredServices: ["aims"],
+    requestRetries: 0,
+    consumeFailureWindow: true,
+  })),
+];
+
+// Weekend editions have a fixed provider-verified 45-minute delivery window.
+// Keep recovery INSIDE that window; server-side durable delivery leases block
+// any replay of an already-dispatched or reconciliation-pending email.
+const weekendNewsletterBackstops = [
+  ...[["saturday", ["17:25", "17:40"]], ["sunday", ["05:25", "05:40"]]].flatMap(([day, times]) =>
+    times.map((time, index) => aimsPostJob({
+      id: `newsletter-ai-edge-${day}-send-backstop-${index + 1}`,
+      group: "newsletter-backstop",
+      description: `Reconcile ${day} AI Edge delivery within its provider cut-off; do not generate or double-send.`,
+      schedule: { type: "weekly", days: [day], time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 5 },
+      targetPath: `/newsletter/weekend/send/${day}`,
+      authEnv: "AIMS_API_KEY",
+      requiredServices: ["aims"],
+      requestRetries: 0,
+      consumeFailureWindow: true,
+      responsePolicy: { checks: [{ type: "equals", path: "ok", value: true,
+        message: "The weekend edition was neither dispatched nor already confirmed as sent." }] },
+    }))),
 ];
 
 
 export const baseJobs = [
   ...operationWindowJobs,
+  ...operationContentBackstops,
   rssRewrite,
   outreachBatchNext,
   ...outreachScheduledJobs,
@@ -1175,6 +1229,7 @@ export const baseJobs = [
   newsletterAiEdgeGenerate,
   newsletterAiEdgeSend,
   ...weekendNewsletterJobs,
+  ...weekendNewsletterBackstops,
   ...zernioDailyJobs,
   zernioWeeklyQuiz,
   ...monthlyAuditJobs,
@@ -1186,7 +1241,16 @@ export const baseJobs = [
   ...hiveGovernanceJobs,
   ...ramsJobs,
   ...koyebPowerJobs,
-];
+].map((job) => ({
+  ...job,
+  // Do not let one multi-hour AIMS operation or other accepted async job
+  // monopolise the single scheduler tick, starving later content backstops.
+  // Only status-polled/durable work uses this mode; normal provider writes
+  // remain synchronous and governed by their own idempotency contracts.
+  nonBlocking: job.group === "operations"
+    || job.group === "operations-backstop"
+    || Boolean(job.asyncStatus),
+}));
 
 function boolEnv(name, fallback = true) {
   const raw = process.env[name];
@@ -1244,7 +1308,7 @@ function shouldHavePretriggers(job) {
   return job?.authEnv === "AIMS_API_KEY"
     && ["weekly", "monthly", "nth-weekday-monthly", "once"].includes(job.schedule?.type)
     && !job.managedPretrigger
-    && job.group !== "operations";
+    && !["operations", "operations-backstop", "newsletter-backstop"].includes(job.group);
 }
 
 function buildPretriggerJobs(sourceJobs) {
