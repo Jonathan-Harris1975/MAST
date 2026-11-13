@@ -60,6 +60,18 @@ At **04:00 Europe/London on day 1**, MAST starts the complete Comms Hub housekee
 
 Every **Saturday at 08:00 Europe/London**, MAST requests the separate quarantine review. That job reports unresolved items and raises AIMS operator notifications; it does not request their deletion. Configure the window with `MAST_COMMS_QUARANTINE_REVIEW_TIME` and `MAST_COMMS_QUARANTINE_REVIEW_CATCH_UP_MINUTES`.
 
+Every **Monday at 08:00 Europe/London**, MAST runs `comms-hub-weekly-quarantine-tidy` against
+AIMS `POST /comms-hub/maintenance/quarantine-tidy` with `dryRun:false`. The native scheduler owns
+its durable run window, health/preflight/warmup checks, two bounded transport retries, result history
+and failure alerts. A twelve-hour catch-up window permits one run after downtime. The response
+must confirm successful applied cleanup, rather than a preview. This is an ecosystem job with no
+ChatGPT schedule or LLM call. Configure its window with `MAST_COMMS_QUARANTINE_TIDY_TIME` and
+`MAST_COMMS_QUARANTINE_TIDY_CATCH_UP_MINUTES`; the defaults require no new environment settings.
+AIMS retains unresolved, running and uncertain work, records each closure, and only purges eligible
+terminal history after its configured retention (180 days in production). The Saturday review and
+monthly housekeeping remain separate jobs.
+
+
 AIMS owns downstream councils and RAMS hand-off. MAST waits for terminal completion and does not separately schedule individual RAMS remediation pipelines.
 
 ### HIVE monthly governance ownership
