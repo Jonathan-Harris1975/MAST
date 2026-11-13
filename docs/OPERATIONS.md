@@ -47,7 +47,7 @@ Do not delete run keys during recovery. Full alerting, operator-control and depl
 
 MAST retains the 10:00 weekday AIMS operation and Friday podcast operation as the canonical creation triggers. Each existing AIMS operation has a daily durable receipt and bounded recovery budget. Confirmed successful tasks are reused, unfinished tasks are recovered, and the force-rerun flag is not used.
 
-For each weekday AM window, MAST rechecks at **15:45** and **21:20** Europe/London. The Friday PM podcast window is rechecked at **18:30** and **22:10**. These are guarded reconciliations, not new content runs. Each sends at most one POST per check and inspects the terminal AIMS job, not the HTTP acknowledgement. Speculative HTTP POST retries are disabled for all canonical and backstop operation triggers.
+For each weekday AM window, MAST rechecks at **15:45** and **21:20** Europe/London. The Friday PM podcast window is rechecked at **18:30** and **22:10**. These are guarded reconciliations, not new content runs. Each sends at most one POST per check and inspects the terminal AIMS job, not the HTTP acknowledgement. Backstops carry the canonical operation's idempotency key while retaining distinct scheduler run keys. Speculative HTTP POST retries are disabled for all canonical and backstop operation triggers.
 
 For AI Edge weekend delivery, the original Saturday **17:10** and Sunday **05:10** jobs have backstops at **17:25 / 17:40** and **05:25 / 05:40**. These remain before the source-of-truth **17:55 / 05:55** cut-off. AIMS's durable delivery lease treats already-confirmed sends as no-ops and holds ambiguous handoffs for reconciliation.
 

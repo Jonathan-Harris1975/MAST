@@ -99,7 +99,7 @@ test("failed provider POSTs are not immediately replayed and 2xx JSON failures a
     process.env.MAST_STATE_BACKEND = "local";
     process.env.STATE_FILE = path.join(temp, "state.json");
     process.env.AIMS_API_KEY = "test-token";
-    const { runJob } = await import(`../src/scheduler.js?provider-failure=${Date.now()}`);
+    const { getStatus, runJob } = await import(`../src/scheduler.js?provider-failure=${Date.now()}`);
     const job = { id: "provider-batch-test", group: "outreach", method: "POST",
       schedule: { type: "weekly", days: ["friday"], time: "16:00",
         timezone: "Europe/London", catchUpMinutes: 120 },
@@ -117,6 +117,7 @@ test("failed provider POSTs are not immediately replayed and 2xx JSON failures a
     assert.equal(next.ok, false);
     assert.equal(next.status, 200);
     assert.equal(next.providerReportedFailure, true);
+    assert.equal((await getStatus()).state.recentResults[0].providerReportedFailure, true);
     assert.equal(calls, 2);
   } finally {
     if (originalBackend === undefined) delete process.env.MAST_STATE_BACKEND;
