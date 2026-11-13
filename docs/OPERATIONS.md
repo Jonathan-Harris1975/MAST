@@ -43,6 +43,16 @@ Pause scheduling, inspect the failed downstream contract, run one deliberately s
 
 Do not delete run keys during recovery. Full alerting, operator-control and deployment-watcher instructions are in [`OPERATIONAL_ALERTING.md`](OPERATIONAL_ALERTING.md).
 
+## Automated content continuity backstops
+
+MAST retains the 10:00 weekday AIMS operation and Friday podcast operation as the canonical creation triggers. Each existing AIMS operation has a daily durable receipt and bounded recovery budget. Confirmed successful tasks are reused, unfinished tasks are recovered, and the force-rerun flag is not used.
+
+For each weekday AM window, MAST rechecks at **15:45** and **21:20** Europe/London. The Friday PM podcast window is rechecked at **18:30** and **22:10**. These are guarded reconciliations, not new content runs. Each sends at most one POST per check and inspects the terminal AIMS job, not the HTTP acknowledgement. Speculative HTTP POST retries are disabled for all canonical and backstop operation triggers.
+
+For AI Edge weekend delivery, the original Saturday **17:10** and Sunday **05:10** jobs have backstops at **17:25 / 17:40** and **05:25 / 05:40**. These remain before the source-of-truth **17:55 / 05:55** cut-off. AIMS's durable delivery lease treats already-confirmed sends as no-ops and holds ambiguous handoffs for reconciliation.
+
+These checks are additional recovery opportunities, not guarantees against provider outages beyond the permitted window. They do not increase Blotato render caps, issue extra KDP writes, or replay outreach campaigns. Provider-specific reconciliation and budget constraints remain authoritative.
+
 ## Read-only production Worker smoke
 
 The Koyeb Worker smoke accepts only GET/HEAD requests. It checks MAST's exact deployed SHA and fresh R2 heartbeat, RAMS liveness/readiness plus its existing storage/admission policy, HIVE readiness/provider/governance state, and SQL/D1 read-only diagnostics. It does not wake a service, admit a remediation job, or run database write/delete probes. Missing or unhealthy dependencies fail visibly; no production recovery is inferred from runtime health alone. The deployment-phase Production Manager deferral remains limited to the existing self-referential release gate.
