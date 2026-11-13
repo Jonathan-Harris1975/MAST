@@ -497,16 +497,16 @@ const zernioDailyJobs = [
   }),
 ];
 
-// Queue each promotion ahead of its public slot, using yesterday's dispatched
-// AI Edge edition. These jobs are isolated from the AM newsletter delivery.
+// Queue each promotion from the previous day's dispatched issue. AIMS owns the
+// public-slot mapping; these jobs are isolated from the AM newsletter delivery.
 const zernioNewsletterPromoJobs = [
-  ["monday", "16:30"],
-  ["wednesday", "16:30"],
-  ["friday", "15:30"],
-].map(([weekday, publicSlot]) => aimsPostJob({
+  "monday",
+  "wednesday",
+  "friday",
+].map((weekday) => aimsPostJob({
   id: "zernio-newsletter-promo-" + weekday,
   group: "zernio-newsletter",
-  description: "Schedule the source-grounded AI Edge " + weekday + " promotion for " + publicSlot + " from yesterday's dispatched edition.",
+  description: "Schedule the source-grounded AI Edge " + weekday + " promotion from the previous day's dispatched issue using the AIMS-owned publish slot.",
   schedule: { type: "weekly", days: [weekday], time: "11:15", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 150 },
   targetPath: "/zernio/newsletter/promo",
   authEnv: "AIMS_API_KEY",
