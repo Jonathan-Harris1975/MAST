@@ -54,6 +54,65 @@ test("AIMS remains always-on and AM operations begin at 10:00 with catch-up prot
   }
 });
 
+test("all weekday content and podcast windows have two bounded, safe same-day backstops", () => {
+  const backstops = baseJobs.filter((job) => job.group === "operations-backstop");
+  assert.equal(backstops.length, 12);
+  assert.ok(pretriggerJobs.every((job) => job.sourceJobId
+    ? !backstops.some((backstop) => backstop.id === job.sourceJobId) : true),
+    "content recovery backstops must not multiply pretrigger jobs");
+  for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"]) {
+    for (const [slot, time] of [["afternoon", "15:45"], ["evening", "21:20"]]) {
+      const job = backstops.find((item) => item.id === `operation-${day}-am-${slot}-backstop`);
+      assert.ok(job);
+      assert.equal(job.schedule.time, time);
+      assert.deepEqual(job.schedule.days, [day]);
+      assert.equal(job.targetPath, `/ops/run/${day}-am`);
+    }
+  }
+  for (const [slot, time] of [["evening", "18:30"], ["late", "22:10"]]) {
+    const job = backstops.find((item) => item.id === `operation-friday-pm-${slot}-backstop`);
+    assert.ok(job);
+    assert.equal(job.schedule.time, time);
+    assert.equal(job.targetPath, "/ops/run/friday-pm");
+  }
+  for (const job of backstops) {
+    assert.equal(job.schedule.type, "weekly");
+    assert.equal(job.schedule.timezone, "Europe/London");
+    assert.equal(job.schedule.catchUpMinutes, 90);
+    assert.deepEqual(job.requiredServices, ["aims"]);
+    assert.equal(job.requestRetries, 0, "never speculate on an ambiguous POST");
+    assert.equal(job.consumeFailureWindow, true, "each bounded backstop runs at most once");
+    assert.equal(job.authEnv, "AIMS_API_KEY");
+  }
+  for (const job of baseJobs.filter((item) => item.group === "operations")) {
+    assert.equal(job.requestRetries, 0, "original content requests cannot speculatively replay");
+  }
+});
+
+test("weekend AI Edge editions are retried only inside their delivery cutoffs", () => {
+  const backstops = baseJobs.filter((job) => job.group === "newsletter-backstop");
+  assert.equal(backstops.length, 4);
+  for (const [day, times] of [
+    ["saturday", ["17:25", "17:40"]],
+    ["sunday", ["05:25", "05:40"]],
+  ]) {
+    for (const [index, time] of times.entries()) {
+      const job = backstops.find((item) => item.id === `newsletter-ai-edge-${day}-send-backstop-${index + 1}`);
+      assert.ok(job);
+      assert.deepEqual(job.schedule.days, [day]);
+      assert.equal(job.schedule.time, time);
+      assert.equal(job.schedule.catchUpMinutes, 5);
+      assert.equal(job.targetPath, `/newsletter/weekend/send/${day}`);
+      assert.equal(job.requestRetries, 0);
+      assert.equal(job.consumeFailureWindow, true);
+      assert.equal(job.responsePolicy.checks[0].path, "ok");
+      assert.equal(job.responsePolicy.checks[0].value, true);
+    }
+  }
+  assert.ok(pretriggerJobs.every((job) =>
+    !backstops.some((backstop) => job.sourceJobId === backstop.id)));
+});
+
 test("legacy task-level content jobs remain manual fallbacks and cannot double-fire", () => {
   for (const id of legacyContentIds) {
     const job = baseJobs.find((item) => item.id === id);
