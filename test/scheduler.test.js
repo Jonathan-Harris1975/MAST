@@ -719,8 +719,20 @@ test("AI Edge newsletter promotion runs independently on Monday Wednesday Friday
     assert.equal(job.body.dryRun, false);
     assert.equal(job.asyncStatus.statusPath, "/zernio/jobs/newsletter-promo/{id}");
     assert.equal(job.nonBlocking, true);
-    assert.match(job.description, new RegExp(slot.replace(":", ":")));
-    assert.equal(isTimedJobDue(job, new Date("2026-11-16T11:15:00Z")), day === "monday");
+    assert.ok(job.description.includes(slot));
+    assert.equal(evaluateResponsePolicy(job.asyncStatus.terminalResponsePolicy,
+      JSON.stringify({ result: { ok: true, confirmed: true, scheduled: true } })).ok, true);
+    assert.equal(evaluateResponsePolicy(job.asyncStatus.terminalResponsePolicy,
+      JSON.stringify({ result: { ok: true, confirmed: true, scheduled: false, duplicatePrevented: true } })).ok, true);
+    assert.equal(evaluateResponsePolicy(job.asyncStatus.terminalResponsePolicy,
+      JSON.stringify({ result: { ok: true, confirmed: false, scheduled: false } })).ok, false);
+    assert.equal(evaluateResponsePolicy(job.asyncStatus.terminalResponsePolicy,
+      JSON.stringify({ result: { ok: true, scheduled: true } })).ok, false,
+      "the AIMS contract explicitly requires live confirmation");
+    const dayDate = { monday: "2026-11-16", wednesday: "2026-11-18", friday: "2026-11-20" }[day];
+    assert.equal(isTimedJobDue(job, new Date(dayDate + "T11:15:00Z")), true);
+    assert.equal(isTimedJobDue(job, new Date(dayDate + "T16:30:00Z")), false);
+    assert.equal(isTimedJobDue(job, new Date("2026-11-17T11:15:00Z")), false);
   }
   assert.equal(baseJobs.find((job) => job.id === "zernio-thursday").schedule.type, "manual");
   assert.ok(baseJobs.find((job) => job.id === "operation-thursday-am"), "existing Thursday podcast promotion operation remains");
