@@ -7,7 +7,7 @@ import path from "node:path";
 import { baseJobs, HIVE_GOVERNED_REPOSITORIES, jobs, pretriggerJobs } from "../src/jobs.js";
 import { evaluateResponsePolicy } from "../src/response-policy.js";
 import { aimsBaseUrl } from "../src/service-origins.js";
-import { dueJobPriority, isTimedJobDue, jobScheduleDue, nextRunForJob, requiredServiceStates, requiredServicesReady, serviceHealthUrl } from "../src/scheduler.js";
+import { dueJobPriority, isTimedJobDue, jobScheduleDue, nextRunForJob, requiredServiceStates, requiredServicesReady, serviceHealthUrl, failedWindowRetryEligible, responseReportsFailure } from "../src/scheduler.js";
 
 function listen(server) {
   return new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -30,6 +30,44 @@ const legacyContentIds = [
   "blotato-model-verdict-publish", "blotato-ai-at-work-publish", "blotato-reality-check-publish",
   "blotato-ai-playbook-publish",
 ];
+
+test("scheduler never treats explicit JSON failure as completed content", () => {
+  for (const value of [
+    { ok: false }, { ok: true, failed: true }, { partialFailure: true },
+    { quarantined: true }, { ok: true, result: { ok: false } },
+    { ok: true, status: "completed-with-failures" },
+    { job: { status: "failed" } },
+  ]) assert.equal(responseReportsFailure(JSON.stringify(value)), true);
+  for (const value of [
+    { ok: true, status: "already_dispatched" },
+    { ok: true, status: "completed" },
+    { ok: true, skipped: true, reason: "already-delivered" },
+    { count: 5 },
+  ]) assert.equal(responseReportsFailure(JSON.stringify(value)), false);
+  assert.equal(responseReportsFailure("not json"), false);
+});
+
+test("ordinary failed jobs back off across the catch-up window and cannot replay success", () => {
+  const job = { id: "outreach-weekday-pm", group: "outreach" };
+  const key = "outreach-weekday-pm:Europe/London:2026-11-13:16:00";
+  const at = new Date("2026-11-13T16:05:00Z");
+  assert.equal(failedWindowRetryEligible(job, key, at, { recentResults: [] }), true);
+  const once = { job: job.id, runKey: key, ok: false,
+    finishedAt: "2026-11-13T16:03:00Z" };
+  assert.equal(failedWindowRetryEligible(job, key, at, { recentResults: [once] }), false);
+  assert.equal(failedWindowRetryEligible(job, key, new Date("2026-11-13T16:08:00Z"),
+    { recentResults: [once] }), true);
+  const twice = { ...once, finishedAt: "2026-11-13T16:09:00Z" };
+  assert.equal(failedWindowRetryEligible(job, key, new Date("2026-11-13T16:20:00Z"),
+    { recentResults: [twice, once] }), false);
+  assert.equal(failedWindowRetryEligible(job, key, new Date("2026-11-13T16:24:00Z"),
+    { recentResults: [twice, once] }), true);
+  const confirmed = { ...once, ok: true };
+  assert.equal(failedWindowRetryEligible(job, key, new Date("2026-11-13T17:00:00Z"),
+    { recentResults: [twice, confirmed] }), false);
+  assert.equal(failedWindowRetryEligible(job, key, at,
+    { recentResults: [{ ...once, finishedAt: null }] }), false);
+});
 
 test("MAST exposes five AM windows plus the Friday podcast window", () => {
   const operations = baseJobs.filter((job) => job.group === "operations");
