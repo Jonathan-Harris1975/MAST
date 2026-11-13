@@ -617,21 +617,33 @@ export async function loadState() {
   }
 }
 
+let stateSaveQueue = Promise.resolve();
+
 export async function saveState() {
+  // Multiple long-running status monitors may finish while the scheduler
+  // continues ticking. Write their immutable snapshots in order so an older
+  // R2 PUT cannot silently overwrite the newer run result and heartbeat.
   const body = JSON.stringify(state, null, 2);
-  if (CONFIG.stateBackend === "r2") {
-    if (!r2StateConfigured) throw new Error("MAST R2 state backend is not fully configured");
-    await stateClient().send(new PutObjectCommand({
-      Bucket: r2StateConfig.bucket,
-      Key: r2StateConfig.key,
-      Body: body,
-      ContentType: "application/json",
-      CacheControl: "no-store",
-    }));
-    return;
-  }
-  await mkdir(dirname(CONFIG.stateFile), { recursive: true });
-  await writeFile(CONFIG.stateFile, body);
+  const writeSnapshot = async () => {
+    if (CONFIG.stateBackend === "r2") {
+      if (!r2StateConfigured) throw new Error("MAST R2 state backend is not fully configured");
+      await stateClient().send(new PutObjectCommand({
+        Bucket: r2StateConfig.bucket,
+        Key: r2StateConfig.key,
+        Body: body,
+        ContentType: "application/json",
+        CacheControl: "no-store",
+      }));
+      return;
+    }
+    await mkdir(dirname(CONFIG.stateFile), { recursive: true });
+    await writeFile(CONFIG.stateFile, body);
+  };
+  const committed = stateSaveQueue.then(writeSnapshot, writeSnapshot);
+  // A failed write is still surfaced to its caller, but must not permanently
+  // poison the queue and stop later safe durability attempts.
+  stateSaveQueue = committed.catch(() => {});
+  return committed;
 }
 
 function sleep(ms) {
@@ -1545,6 +1557,40 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
         operatorCommands,
       };
     }
+    if (job.nonBlocking === true) {
+      // AIMS operations and durable child jobs can take hours. Keep observing
+      // them in this process, but release the single worker scheduling loop
+      // immediately so other content windows and recovery jobs can still fire.
+      // runJob retains the in-flight guard, terminal verification, alerts and
+      // result persistence. On restart, AIMS's durable operation ID/lease is
+      // the authority; we never force a second provider write.
+      const monitor = runJob(job, { at, trigger });
+      monitor.then((completed) => {
+        console.log(JSON.stringify({ service: SERVICE_NAME,
+          event: "detached-job-settled", job: job.id, ok: completed.ok,
+          skipped: completed.skipped || false }));
+      }).catch(async (error) => {
+        const failure = {
+          job: job.id, group: job.group, ok: false, runKey: buildRunKey(job, at),
+          trigger, errorMessage: error?.message || String(error),
+          finishedAt: new Date().toISOString(), targetPath: job.targetPath,
+        };
+        rememberResult(failure);
+        try { await saveState(); } catch (persistError) {
+          console.error(JSON.stringify({ service: SERVICE_NAME, event: "detached-job-state-save-failed",
+            job: job.id, errorName: persistError?.name || "Error" }));
+        }
+        await emitJobFailureAlert(job, failure);
+      });
+      results.push({ job: job.id, group: job.group, ok: true,
+        pending: true, settled: false, runKey: buildRunKey(job, at),
+        targetPath: job.targetPath, reason: "terminal-monitor-running" });
+      // The tick's result means only that a background monitor was started.
+      // It is never evidence that publication or remote work succeeded.
+      await saveState();
+      continue;
+    }
+
     const result = await runJob(job, { at, trigger });
     if (result.skipped) {
       // runJob's idempotency and in-flight guards return before saving state. Persist
