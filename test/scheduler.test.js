@@ -722,6 +722,13 @@ test("AI Edge newsletter promotion runs independently on Monday Wednesday Friday
     assert.equal(job.body.weekday, day);
     assert.equal(job.body.dryRun, false);
     assert.equal(job.asyncStatus.statusPath, "/zernio/jobs/newsletter-promo/{id}");
+    assert.deepEqual(job.asyncStatus.terminalResponsePolicy.checks, [
+      { type: "equals", path: "result.ok", value: true, message: "AI Edge promotion did not complete." },
+      { type: "equals", path: "result.scheduled", value: true, message: "AI Edge promotion was not confirmed on Zernio." },
+    ]);
+    assert.equal(evaluateResponsePolicy(job.asyncStatus.terminalResponsePolicy, JSON.stringify({
+      result: { ok: true, scheduled: true },
+    })).ok, true);
     assert.equal(job.nonBlocking, true);
     assert.match(job.description, new RegExp(slot));
     assert.equal(isTimedJobDue(job, new Date(`${date}T11:15:00Z`)), true);

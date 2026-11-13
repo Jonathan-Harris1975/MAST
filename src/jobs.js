@@ -523,7 +523,7 @@ const zernioNewsletterPromoJobs = [
     terminalResponsePolicy: {
       checks: [
         { type: "equals", path: "result.ok", value: true, message: "AI Edge promotion did not complete." },
-        { type: "equals", path: "result.confirmed", value: true, message: "AI Edge promotion was not confirmed on Zernio (duplicate or dry-run check)." },
+        { type: "equals", path: "result.scheduled", value: true, message: "AI Edge promotion was not confirmed on Zernio." },
       ],
     },
   },
