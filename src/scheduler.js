@@ -1528,7 +1528,7 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
         }));
         await saveState();
         return {
-          ok: results.every((result) => result.ok || result.skipped),
+          ok: results.every((result) => result.ok || result.skipped || result.pending),
           skipped: results.length === 0,
           partial: results.length > 0,
           reason: "operator-control-read-failed",
@@ -1545,7 +1545,7 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
       const reason = state.operator.maintenanceMode ? "maintenance-mode" : "scheduler-paused";
       await saveState();
       return {
-        ok: results.every((result) => result.ok || result.skipped),
+        ok: results.every((result) => result.ok || result.skipped || result.pending),
         skipped: results.length === 0,
         partial: results.length > 0,
         reason,
@@ -1559,7 +1559,7 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
     }
     if (job.nonBlocking === true) {
       if (runningJobs.has(job.id)) {
-        results.push({ job: job.id, group: job.group, ok: true,
+        results.push({ job: job.id, group: job.group, ok: null,
           skipped: true, pending: true, settled: false,
           reason: "job-already-running", targetPath: job.targetPath });
         await saveState();
@@ -1589,7 +1589,7 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
         }
         await emitJobFailureAlert(job, failure);
       });
-      results.push({ job: job.id, group: job.group, ok: true,
+      results.push({ job: job.id, group: job.group, ok: null,
         pending: true, settled: false, runKey: buildRunKey(job, at),
         targetPath: job.targetPath, reason: "terminal-monitor-running" });
       // The tick's result means only that a background monitor was started.
@@ -1610,7 +1610,7 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
   }
 
   return {
-    ok: results.every((result) => result.ok || result.skipped),
+    ok: results.every((result) => result.ok || result.skipped || result.pending),
     trigger,
     tickAt: at.toISOString(),
     ran: results.length,
