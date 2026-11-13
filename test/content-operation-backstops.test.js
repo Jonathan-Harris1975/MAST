@@ -140,6 +140,7 @@ test("an active multi-hour content operation cannot starve other due scheduler j
     token: process.env.AIMS_API_KEY,
     interval: process.env.MAST_AIMS_OPERATION_POLL_INTERVAL_MS,
     timeout: process.env.MAST_AIMS_OPERATION_TIMEOUT_MS,
+    between: process.env.BETWEEN_JOBS_MS,
   };
   let settled = false, operationPosts = 0, independentPosts = 0, polls = 0;
   const server = http.createServer((req, res) => {
@@ -168,6 +169,7 @@ test("an active multi-hour content operation cannot starve other due scheduler j
     process.env.AIMS_API_KEY = "test-token";
     process.env.MAST_AIMS_OPERATION_POLL_INTERVAL_MS = "10";
     process.env.MAST_AIMS_OPERATION_TIMEOUT_MS = "3000";
+    process.env.BETWEEN_JOBS_MS = "1";
     const origin = `http://127.0.0.1:${server.address().port}`;
     const schedule = { type: "weekly", days: ["friday"], time: "10:00",
       timezone: "Europe/London", catchUpMinutes: 120 };
@@ -185,7 +187,7 @@ test("an active multi-hour content operation cannot starve other due scheduler j
     const at = new Date("2026-11-13T10:00:00.000Z");
     const first = await Promise.race([
       runDueJobs({ at, trigger: "test" }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("scheduler tick blocked by operation poll")), 1500)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("scheduler tick blocked by operation poll")), 3000)),
     ]);
     assert.equal(first.ran, 2);
     assert.equal(first.results[0].pending, true);
@@ -211,6 +213,7 @@ test("an active multi-hour content operation cannot starve other due scheduler j
       ["MAST_STATE_BACKEND", "backend"], ["STATE_FILE", "file"],
       ["AIMS_API_KEY", "token"], ["MAST_AIMS_OPERATION_POLL_INTERVAL_MS", "interval"],
       ["MAST_AIMS_OPERATION_TIMEOUT_MS", "timeout"],
+      ["BETWEEN_JOBS_MS", "between"],
     ]) {
       if (old[field] === undefined) delete process.env[key];
       else process.env[key] = old[field];
