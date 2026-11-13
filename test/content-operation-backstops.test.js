@@ -129,3 +129,93 @@ test("failed provider POSTs are not immediately replayed and 2xx JSON failures a
     await rm(temp, { recursive: true, force: true });
   }
 });
+
+test("an active multi-hour content operation cannot starve other due scheduler jobs", async () => {
+  const { jobs } = await import("../src/jobs.js");
+  const oldJobs = jobs.slice();
+  const temp = await mkdtemp(path.join(os.tmpdir(), "mast-nonblocking-"));
+  const old = {
+    backend: process.env.MAST_STATE_BACKEND,
+    file: process.env.STATE_FILE,
+    token: process.env.AIMS_API_KEY,
+    interval: process.env.MAST_AIMS_OPERATION_POLL_INTERVAL_MS,
+    timeout: process.env.MAST_AIMS_OPERATION_TIMEOUT_MS,
+  };
+  let settled = false, operationPosts = 0, independentPosts = 0, polls = 0;
+  const server = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if (req.method === "POST" && req.url === "/ops/run/friday-am") {
+      operationPosts += 1;
+      res.end(JSON.stringify({ ok: true, job: { id: "2026-11-13:friday-am", status: "accepted" } }));
+    } else if (req.method === "GET" && req.url === "/ops/jobs/2026-11-13%3Afriday-am") {
+      polls += 1;
+      res.end(JSON.stringify({ ok: true, job: {
+        id: "2026-11-13:friday-am", status: settled ? "completed" : "running",
+        failures: 0, results: settled ? [{ name: "newsletter-send", ok: true }] : [],
+      } }));
+    } else if (req.method === "POST" && req.url === "/outreach/batch/next") {
+      independentPosts += 1;
+      res.end(JSON.stringify({ ok: true, processed: 1 }));
+    } else {
+      res.statusCode = 404;
+      res.end(JSON.stringify({ ok: false, error: "unexpected-route", path: req.url }));
+    }
+  });
+  await listen(server);
+  try {
+    process.env.MAST_STATE_BACKEND = "local";
+    process.env.STATE_FILE = path.join(temp, "state.json");
+    process.env.AIMS_API_KEY = "test-token";
+    process.env.MAST_AIMS_OPERATION_POLL_INTERVAL_MS = "10";
+    process.env.MAST_AIMS_OPERATION_TIMEOUT_MS = "3000";
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    const schedule = { type: "weekly", days: ["friday"], time: "10:00",
+      timezone: "Europe/London", catchUpMinutes: 120 };
+    jobs.splice(0, jobs.length,
+      { id: "nonblocking-operation", group: "operations", method: "POST",
+        schedule, url: `${origin}/ops/run/friday-am`, targetPath: "/ops/run/friday-am",
+        authEnv: "AIMS_API_KEY", requiredServices: [], body: {}, requestRetries: 0,
+        nonBlocking: true },
+      { id: "independent-queued-job", group: "outreach", method: "POST",
+        schedule, url: `${origin}/outreach/batch/next`, targetPath: "/outreach/batch/next",
+        authEnv: "AIMS_API_KEY", requiredServices: [], body: {}, requestRetries: 0,
+        nonBlocking: false },
+    );
+    const { runDueJobs, getStatus } = await import(`../src/scheduler.js?nonblocking=${Date.now()}`);
+    const at = new Date("2026-11-13T10:00:00.000Z");
+    const first = await Promise.race([
+      runDueJobs({ at, trigger: "test" }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("scheduler tick blocked by operation poll")), 1500)),
+    ]);
+    assert.equal(first.ran, 2);
+    assert.equal(first.results[0].pending, true);
+    assert.equal(first.results[0].settled, false);
+    assert.equal(operationPosts, 1);
+    assert.equal(independentPosts, 1, "next job must execute while operation is still pending");
+    settled = true;
+    let confirmed = false;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const status = await getStatus();
+      if (status.state?.recentResults?.some((entry) =>
+          entry.job === "nonblocking-operation" && entry.ok === true)) {
+        confirmed = true;
+        break;
+      }
+    }
+    assert.equal(confirmed, true, "background monitor must persist verified terminal success");
+    assert.ok(polls >= 1);
+  } finally {
+    jobs.splice(0, jobs.length, ...oldJobs);
+    for (const [key, field] of [
+      ["MAST_STATE_BACKEND", "backend"], ["STATE_FILE", "file"],
+      ["AIMS_API_KEY", "token"], ["MAST_AIMS_OPERATION_POLL_INTERVAL_MS", "interval"],
+      ["MAST_AIMS_OPERATION_TIMEOUT_MS", "timeout"],
+    ]) {
+      if (old[field] === undefined) delete process.env[key];
+      else process.env[key] = old[field];
+    }
+    await close(server);
+    await rm(temp, { recursive: true, force: true });
+  }
+});
