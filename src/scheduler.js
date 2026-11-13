@@ -986,6 +986,22 @@ async function fetchWithRetry(url, options, config) {
   throw lastError || new Error("Request failed before response was created");
 }
 
+export function responseReportsFailure(responseText = "") {
+  // A 2xx transport status is not evidence of a completed provider operation.
+  // Preserve successful deliberate no-ops (already dispatched) but fail on an
+  // explicit negative acknowledgement, even when a route returned HTTP 200.
+  let payload;
+  try { payload = JSON.parse(responseText); } catch { return false; }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
+  const status = String(payload.status || payload.job?.status || "").trim().toLowerCase();
+  return payload.ok === false
+    || payload.failed === true
+    || payload.partialFailure === true
+    || payload.quarantined === true
+    || payload.result?.ok === false
+    || ["failed", "completed-with-failures", "partial-failure"].includes(status);
+}
+
 function valueAtPath(value, path = "") {
   return String(path || "").split(".").filter(Boolean).reduce((current, key) => current?.[key], value);
 }
@@ -1284,7 +1300,8 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
     const responsePolicy = response.ok && operationOk && asyncOk
       ? evaluateResponsePolicy(job.responsePolicy, responseText)
       : { ok: true, checked: false, failures: [] };
-    const jobOk = response.ok && operationOk && asyncOk && responsePolicy.ok;
+    const providerReportedFailure = response.ok && responseReportsFailure(responseText);
+    const jobOk = response.ok && operationOk && asyncOk && responsePolicy.ok && !providerReportedFailure;
     const terminalSemanticFailure = response.ok && operationOk && asyncOk && !responsePolicy.ok;
     const finishedAt = new Date();
 
@@ -1311,6 +1328,7 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
         responsePolicy: asyncJob.terminalResponsePolicy || null,
       } : null,
       responsePolicy,
+      providerReportedFailure,
       payload: payload || null,
       startedAt: startedAt.toISOString(),
       finishedAt: finishedAt.toISOString(),
