@@ -1211,7 +1211,16 @@ export const baseJobs = [
   ...hiveGovernanceJobs,
   ...ramsJobs,
   ...koyebPowerJobs,
-];
+].map((job) => ({
+  ...job,
+  // Do not let one multi-hour AIMS operation or other accepted async job
+  // monopolise the single scheduler tick, starving later content backstops.
+  // Only status-polled/durable work uses this mode; normal provider writes
+  // remain synchronous and governed by their own idempotency contracts.
+  nonBlocking: job.group === "operations"
+    || job.group === "operations-backstop"
+    || Boolean(job.asyncStatus),
+}));
 
 function boolEnv(name, fallback = true) {
   const raw = process.env[name];
