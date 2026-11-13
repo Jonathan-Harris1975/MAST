@@ -994,7 +994,8 @@ async function fetchWithRetry(url, options, config) {
   for (let attempt = 0; attempt <= config.requestRetries; attempt += 1) {
     try {
       const response = await fetchWithTimeout(url, options, config.requestTimeoutMs);
-      if (response.ok || attempt === config.requestRetries) return response;
+      if (response.ok || ![408, 429, 500, 502, 503, 504].includes(response.status)
+          || attempt === config.requestRetries) return response;
       lastError = new Error(`HTTP ${response.status} ${response.statusText}`);
     } catch (error) {
       lastError = error;
@@ -1300,9 +1301,14 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
   console.log(JSON.stringify({ ...logBase, event: "job-started", payload: payload || null }));
 
   try {
-    const requestConfig = Number.isInteger(job.requestRetries) && job.requestRetries >= 0
-      ? { ...CONFIG, requestRetries: job.requestRetries }
-      : CONFIG;
+    // Never blindly resend a POST whose transport response is uncertain:
+    // provider writes may already have happened. GET probes remain retryable,
+    // and bounded scheduled rechecks use the original deterministic run key.
+    const requestConfig = {
+      ...CONFIG,
+      requestRetries: Number.isInteger(job.requestRetries) && job.requestRetries >= 0
+        ? job.requestRetries : (job.method === "POST" ? 0 : CONFIG.requestRetries),
+    };
     const response = await fetchWithRetry(job.url, {
       method: job.method,
       headers,
