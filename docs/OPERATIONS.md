@@ -51,7 +51,7 @@ For each weekday AM window, MAST rechecks at **15:45** and **21:20** Europe/Lond
 
 For AI Edge weekend delivery, the original Saturday **17:10** and Sunday **05:10** jobs have backstops at **17:25 / 17:40** and **05:25 / 05:40**. These remain before the source-of-truth **17:55 / 05:55** cut-off. AIMS's durable delivery lease treats already-confirmed sends as no-ops and holds ambiguous handoffs for reconciliation.
 
-These checks are additional recovery opportunities, not guarantees against provider outages beyond the permitted window. They do not increase Blotato render caps, issue extra KDP writes, or replay outreach campaigns. Provider-specific reconciliation and budget constraints remain authoritative.
+Ordinary scheduled jobs now treat explicit failed JSON acknowledgements as failures, even when the HTTP transport reports 200. After an observed failure, scheduler retries are spaced 5, 15, 45 and then 60 minutes apart within the original catch-up window, rather than blindly resubmitted on every 20-second tick. A previously confirmed success blocks a repeat even if the durable run key was interrupted. Provider-specific idempotency remains mandatory for any write.\n\nThese checks are additional recovery opportunities, not guarantees against provider outages beyond the permitted window. They do not increase Blotato render caps, issue extra KDP writes, or replay outreach campaigns. Provider-specific reconciliation and budget constraints remain authoritative.
 
 ## Read-only production Worker smoke
 
