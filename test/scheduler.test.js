@@ -701,10 +701,14 @@ test("monthly HIVE repository refresh follows the second RAMS/AIMS audit and wai
 
 
 test("AI Edge newsletter promotion runs independently on Monday Wednesday Friday", () => {
-  const expected = [["monday", "16:30"], ["wednesday", "16:30"], ["friday", "15:30"]];
+  const expected = [
+    ["monday", "16:30", "2026-11-16"],
+    ["wednesday", "16:30", "2026-11-18"],
+    ["friday", "15:30", "2026-11-20"],
+  ];
   const items = baseJobs.filter((job) => job.group === "zernio-newsletter");
   assert.equal(items.length, 3, "exactly three weekly promotions; no daily advertising flood");
-  for (const [day, slot] of expected) {
+  for (const [day, slot, date] of expected) {
     const job = items.find((item) => item.id === "zernio-newsletter-promo-" + day);
     assert.ok(job, "missing newsletter job for " + day);
     assert.equal(job.targetPath, "/zernio/newsletter/promo");
@@ -719,8 +723,9 @@ test("AI Edge newsletter promotion runs independently on Monday Wednesday Friday
     assert.equal(job.body.dryRun, false);
     assert.equal(job.asyncStatus.statusPath, "/zernio/jobs/newsletter-promo/{id}");
     assert.equal(job.nonBlocking, true);
-    assert.match(job.description, new RegExp(slot.replace(":", ":")));
-    assert.equal(isTimedJobDue(job, new Date("2026-11-16T11:15:00Z")), day === "monday");
+    assert.match(job.description, new RegExp(slot));
+    assert.equal(isTimedJobDue(job, new Date(`${date}T11:15:00Z`)), true);
+    assert.equal(isTimedJobDue(job, new Date(`${date}T13:46:00Z`)), false);
   }
   assert.equal(baseJobs.find((job) => job.id === "zernio-thursday").schedule.type, "manual");
   assert.ok(baseJobs.find((job) => job.id === "operation-thursday-am"), "existing Thursday podcast promotion operation remains");
