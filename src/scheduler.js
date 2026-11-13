@@ -398,6 +398,22 @@ function settledOperationFailure(job, runKey, currentState = state) {
   return null;
 }
 
+export function failedWindowRetryEligible(job, runKey, at = new Date(), currentState = state) {
+  // A definite success must not be replayed if a prior process crashed just
+  // before updating lastRunKeys. Only failed attempts may be rechecked.
+  const attempts = (currentState.recentResults || [])
+    .filter((result) => result.job === job.id && result.runKey === runKey && result.skipped !== true);
+  if (attempts.some((result) => result.ok === true)) return false;
+  const latest = attempts[0];
+  if (!latest || latest.ok !== false) return true;
+  const lastFinished = Date.parse(latest.finishedAt || "");
+  if (!Number.isFinite(lastFinished)) return false; // missing time: do not busy-loop blindly
+  // Space retries across the catch-up window instead of resubmitting every
+  // 20-second tick. This is independent of the per-request HTTP retry budget.
+  const minutes = [5, 15, 45, 60][Math.min(attempts.length - 1, 3)];
+  return at.getTime() >= lastFinished + minutes * 60_000;
+}
+
 export function jobScheduleDue(job, at = new Date(), currentState = state) {
   if (job.schedule?.type === "interval") {
     return isIntervalJobDue(job, at, currentState);
@@ -409,7 +425,12 @@ export function jobScheduleDue(job, at = new Date(), currentState = state) {
   // the normal catch-up window. This never creates a new late operation run.
   if (recovery && isTimedJobDue({ ...job, schedule: { ...job.schedule, catchUpMinutes: 24 * 60 } }, at, currentState)) return true;
   if (!isTimedJobDue(job, at, currentState)) return false;
-  return currentState.lastRunKeys?.[job.id] !== runKey;
+  if (currentState.lastRunKeys?.[job.id] === runKey) return false;
+  // Explicit operation recovery has its own durable AIMS claim/attempt budget.
+  // Ordinary jobs instead use a bounded backoff to prevent retry storms.
+  return job.group === "operations"
+    ? true
+    : failedWindowRetryEligible(job, runKey, at, currentState);
 }
 
 export function dueJobsAt(at = new Date(), currentState = state) {
