@@ -1558,6 +1558,13 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
       };
     }
     if (job.nonBlocking === true) {
+      if (runningJobs.has(job.id)) {
+        results.push({ job: job.id, group: job.group, ok: true,
+          skipped: true, pending: true, settled: false,
+          reason: "job-already-running", targetPath: job.targetPath });
+        await saveState();
+        continue;
+      }
       // AIMS operations and durable child jobs can take hours. Keep observing
       // them in this process, but release the single worker scheduling loop
       // immediately so other content windows and recovery jobs can still fire.
