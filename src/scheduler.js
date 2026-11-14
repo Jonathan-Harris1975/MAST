@@ -704,6 +704,25 @@ async function pingServiceHealth(serviceKey) {
 }
 
 
+export async function ramsPauseReadiness(fetchImpl = fetchWithTimeout) {
+  const url = serviceHealthUrl("rams");
+  if (!url) return { safe: false, reason: "rams-health-unconfigured" };
+  try {
+    const response = await fetchImpl(url, { method: "GET", headers: { "user-agent": USER_AGENT } }, CONFIG.serviceHealthProbeTimeoutMs);
+    if (!response.ok) return { safe: false, reason: "rams-health-unavailable" };
+    const payload = await response.json();
+    const state = payload?.lifecycle?.state;
+    if (payload?.status !== "ok" || !["online", "standby", "busy"].includes(state)) {
+      return { safe: false, reason: "rams-work-state-unverified" };
+    }
+    if (state === "busy" || Object.values(payload.pipelines || {}).some(value => value === "running")) {
+      return { safe: false, reason: "rams-remediation-active" };
+    }
+    return { safe: true };
+  } catch { return { safe: false, reason: "rams-work-state-unavailable" }; }
+}
+
+
 async function reconcileDueJobServiceReadiness(at = new Date()) {
   const blocked = jobs.filter((job) => jobScheduleDue(job, at, state) && !requiredServicesReady(job, state));
   if (!blocked.length) return { changed: false, blocked: [] };
@@ -1274,6 +1293,12 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
 
   // A service mid-request should never be paused out from under it: skip this run and
   // let the next scheduled pause (or an operator) retry once it is no longer busy.
+  if (job.lifecycle?.action === "pause" && job.lifecycle.service === "rams") {
+    const gate = await ramsPauseReadiness();
+    if (!gate.safe) return { job: job.id, group: job.group, ok: true, skipped: true,
+      reason: gate.reason, runKey, trigger, startedAt: startedAt.toISOString(), finishedAt: new Date().toISOString(), durationMs: 0 };
+    setServiceLifecycle("rams", "online", { reason: "fresh-remediation-idle-probe" });
+  }
   if (job.lifecycle?.action === "pause") {
     const current = getServiceLifecycle(job.lifecycle.service);
     if (current?.state === "busy") {
