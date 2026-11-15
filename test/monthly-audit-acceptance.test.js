@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { auditAcceptance } from '../scripts/monthlyAuditAcceptance.js';
+import { auditAcceptance, ensureRamsReady } from '../scripts/monthlyAuditAcceptance.js';
 const sha='a'.repeat(40);
 const response=(body,status=200)=>new Response(JSON.stringify(body),{status});
 const options=fetchImpl=>({env:{AIMS_API_KEY:'test-key'},fetchImpl,pause:async()=>{},log:()=>{}});
@@ -33,4 +33,26 @@ test('new acceptance uses a stable idempotency key and follows durable pending s
   assert.equal(result.status,'completed');
   assert.equal(JSON.parse(started.body).force,true);
   assert.equal(started.headers['x-idempotency-key'],result.sessionId);
+});
+
+test('the transported runner can probe RAMS without importing a second scheduler',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const source=await readFile(new URL('../scripts/monthlyAuditAcceptance.js',import.meta.url),'utf8');
+  const transported=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+  let requests=0;
+  await transported.ensureRamsReady({env:{},fetchImpl:async()=>{requests++;return response({status:'ready'});}});
+  assert.equal(requests,1);
+});
+test('paused RAMS is resumed through its configured provider identity before audits',async()=>{
+  const requests=[];
+  await ensureRamsReady({env:{KOYEB_TOKEN:'test-key',KOYEB_SERVICE_ID_RAMS:'a'.repeat(36)},pause:async()=>{},
+    fetchImpl:async(url,options)=>{
+      requests.push({url,...options});
+      if(requests.length===1)return response({},503);
+      if(options.method==='POST')return response({},202);
+      return response({status:'ready'});
+    }});
+  assert.equal(requests[1].url,'https://app.koyeb.com/v1/services/'+'a'.repeat(36)+'/resume');
+  assert.equal(requests[1].headers.authorization,'Bearer test-key');
+  assert.equal(requests[2].headers,undefined);
 });
