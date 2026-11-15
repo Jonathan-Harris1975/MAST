@@ -26,7 +26,7 @@ test('new acceptance uses a stable idempotency key and follows durable pending s
   const result=await auditAcceptance('website',sha,options(async(url,request)=>{
     calls++;
     if(calls===1)return response({},404);
-    if(calls===2){started=request;return response({sessionId:'accepted'},202);}
+    if(calls===2){started=request;return response({sessionId:JSON.parse(request.body).sessionId},202);}
     if(calls===3)return response({job:{status:'running',phase:'awaiting-remediation'}});
     return response({job:{status:'completed',ramsDispatch:{status:'completed',runId:'run-1',completion:{status:'completed'}}}});
   }));
@@ -64,4 +64,24 @@ test('rejected RAMS readiness credentials cannot trigger a provider resume',asyn
     requests++;return response({},401);
   }}),/authentication was rejected/);
   assert.equal(requests,1);
+});
+
+test('website acceptance looks up the same canonical parent that AIMS persists',async()=>{
+  const urls=[];
+  const result=await auditAcceptance('website',sha,options(async(url)=>{
+    urls.push(url);
+    return response({job:{status:'completed',ramsDispatch:{status:'completed',completion:{status:'completed'}}}});
+  }));
+  assert.equal(result.sessionId,'AUD-WEBSITE-acceptance-'+sha.slice(0,16)+'-website');
+  assert.ok(urls.every(url=>url.endsWith('/'+result.sessionId)));
+});
+test('an accepted canonical session is used for subsequent status reads',async()=>{
+  let calls=0;
+  await auditAcceptance('content',sha,options(async(url,request)=>{
+    calls++;
+    if(calls===1)return response({},404);
+    if(request.method==='POST')return response({sessionId:'canonical-server-id'},202);
+    assert.ok(url.endsWith('/canonical-server-id'));
+    return response({status:'completed',result:{ramsDispatch:{status:'completed',completion:{status:'completed'}}}});
+  }));
 });

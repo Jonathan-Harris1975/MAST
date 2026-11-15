@@ -12,7 +12,7 @@ export async function auditAcceptance(kind, identity, {
   if (!TYPES[kind] || !/^[a-f0-9]{40}$/.test(identity || '')) throw new Error('Exact audit acceptance identity required');
   const token = String(env.AIMS_API_KEY || '').trim();
   if (!token) throw new Error('MAST runtime AIMS_API_KEY is not configured');
-  const sessionId = `acceptance-${identity.slice(0, 16)}-${kind}`;
+  let sessionId = `${kind === 'website' ? 'AUD-WEBSITE-' : ''}acceptance-${identity.slice(0, 16)}-${kind}`;
   const target = TYPES[kind];
   const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json',
     'x-idempotency-key': sessionId, 'user-agent': 'MAST-monthly-audit-acceptance/1.0' };
@@ -26,8 +26,11 @@ export async function auditAcceptance(kind, identity, {
   log(JSON.stringify({ event: 'audit-acceptance-planned', kind, sessionId }));
   let current = await request(target.status + sessionId);
   if (!current) {
-    await request(target.route, { method: 'POST', body: JSON.stringify({ force: true, sessionId,
+    const accepted = await request(target.route, { method: 'POST', body: JSON.stringify({ force: true, sessionId,
       requestedBy: 'MAST authorised monthly audit production acceptance' }) });
+    const acceptedId = accepted?.sessionId || accepted?.job?.sessionId;
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(acceptedId || '')) throw new Error(`${kind} acceptance omitted its canonical session ID`);
+    sessionId = acceptedId;
   }
   const deadline = Date.now() + deadlineMs;
   while (Date.now() < deadline) {
