@@ -85,3 +85,48 @@ test('an accepted canonical session is used for subsequent status reads',async()
     return response({status:'completed',result:{ramsDispatch:{status:'completed',completion:{status:'completed'}}}});
   }));
 });
+
+test('one observation returns durable pending state without a long remote process or another POST',async()=>{
+  let pauses=0;const methods=[];
+  const result=await auditAcceptance('website',sha,{...options(async(_url,request)=>{
+    methods.push(request.method||'GET');return response({job:{status:'running',phase:'awaiting-remediation'}});
+  }),singlePass:true,pause:async()=>{pauses++;}});
+  assert.equal(result.status,'running');
+  assert.equal(result.phase,'awaiting-remediation');
+  assert.equal(pauses,0);
+  assert.deepEqual(methods,['GET','GET']);
+});
+
+test('short-session workflow keeps observing the other audit after one audit fails',async()=>{
+  const {mkdtemp,mkdir,writeFile,readFile}=await import('node:fs/promises');
+  const {tmpdir}=await import('node:os');
+  const {join}=await import('node:path');
+  const {execFile}=await import('node:child_process');
+  const {promisify}=await import('node:util');
+  const dir=await mkdtemp(join(tmpdir(),'audit-observer-'));
+  const bin=join(dir,'bin');await mkdir(bin);
+  await writeFile(join(bin,'koyeb'),`#!/usr/bin/env bash
+set -eu
+file="$PROBE_TEST_DIR/$AUDIT_ACCEPTANCE_KIND.count"
+count=0
+if test -f "$file"; then count="$(cat "$file")"; fi
+count=$((count+1)); echo "$count" > "$file"
+status=running
+if test "$AUDIT_ACCEPTANCE_KIND" = content; then status=failed; elif test "$count" -ge 2; then status=completed; fi
+printf 'AUDIT_ACCEPTANCE_RESULT={"kind":"%s","status":"%s"}\\n' "$AUDIT_ACCEPTANCE_KIND" "$status"
+`,{mode:0o755});
+  await writeFile(join(bin,'sleep'),'#!/usr/bin/env bash\nexit 0\n',{mode:0o755});
+  let result;
+  try {
+    result=await promisify(execFile)('bash',['scripts/runMonthlyAuditAcceptance.sh'],{cwd:new URL('..',import.meta.url),timeout:15000,
+      env:{...process.env,PATH:bin+':'+process.env.PATH,PROBE_TEST_DIR:dir,KOYEB_TOKEN:'test-key',KOYEB_SERVICE:'service-test',
+        AUDIT_ACCEPTANCE_ID:sha,AUDIT_ACCEPTANCE_KIND:'both'}});
+    assert.fail('One audit failed; the workflow must not pass');
+  } catch(error) {
+    assert.equal(error.code,1,error.stderr);
+    result=error;
+  }
+  assert.match(result.stdout,/"status":"completed"/);
+  assert.equal((await readFile(join(dir,'website.count'),'utf8')).trim(),'2');
+  assert.equal((await readFile(join(dir,'content.count'),'utf8')).trim(),'1');
+});
