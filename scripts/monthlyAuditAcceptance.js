@@ -7,7 +7,7 @@ const TYPES = {
 
 export async function auditAcceptance(kind, identity, {
   env = process.env, fetchImpl = fetch, pause = ms => new Promise(resolve => setTimeout(resolve, ms)),
-  deadlineMs = 90 * 60 * 1000, log = console.log,
+  deadlineMs = 90 * 60 * 1000, log = console.log, singlePass = false,
 } = {}) {
   if (!TYPES[kind] || !/^[a-f0-9]{40}$/.test(identity || '')) throw new Error('Exact audit acceptance identity required');
   const token = String(env.AIMS_API_KEY || '').trim();
@@ -48,6 +48,7 @@ export async function auditAcceptance(kind, identity, {
     }
     if (status === 'failed') throw new Error(`${kind} audit failed; inspect persisted job ${sessionId}`);
     if (!['queued', 'accepted', 'running'].includes(status)) throw new Error(`${kind} audit status is invalid`);
+    if (singlePass) return {kind,sessionId,status,phase:job.phase || null};
     await pause(30000);
   }
   throw new Error(`${kind} acceptance remains unverified after its bounded observation window; job ${sessionId} is retained`);
@@ -91,8 +92,15 @@ if (process.env.AUDIT_ACCEPTANCE_REMOTE === '1') {
   await ensureRamsReady();
   let failures = 0;
   for (const selected of kinds) {
-    try { console.log(JSON.stringify(await auditAcceptance(selected, process.env.AUDIT_ACCEPTANCE_ID))); }
-    catch (error) { failures++; console.error(error.message); }
+    const singlePass = process.env.AUDIT_ACCEPTANCE_SINGLE_PASS === '1';
+    try {
+      const result=await auditAcceptance(selected, process.env.AUDIT_ACCEPTANCE_ID,{singlePass});
+      console.log((singlePass?'AUDIT_ACCEPTANCE_RESULT=':'')+JSON.stringify(result));
+    } catch (error) {
+      failures++;
+      if(singlePass) console.log('AUDIT_ACCEPTANCE_RESULT='+JSON.stringify({kind:selected,status:'failed',error:error.message}));
+      else console.error(error.message);
+    }
   }
   if (failures) process.exitCode = 1;
 }
