@@ -10,7 +10,7 @@ on:
         default: both
   push:
     branches: [main]
-    paths: [".github/workflows/monthly-audit-acceptance.yml"]
+    paths: [".github/workflows/monthly-audit-acceptance.yml", "scripts/monthlyAuditAcceptance.js"]
 
 permissions:
   contents: read

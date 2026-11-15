@@ -34,3 +34,18 @@ test('new acceptance uses a stable idempotency key and follows durable pending s
   assert.equal(JSON.parse(started.body).force,true);
   assert.equal(started.headers['x-idempotency-key'],result.sessionId);
 });
+
+test('data URL transport resolves runtime modules through absolute file URLs',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const source=await readFile(new URL('../scripts/monthlyAuditAcceptance.js',import.meta.url),'utf8');
+  const transported=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+  const seen=[];
+  const runtime=await transported.loadMastRuntime(async specifier=>{
+    const url=new URL(specifier);
+    assert.equal(url.protocol,'file:');
+    seen.push(url.pathname);
+    return url.pathname.endsWith('/scheduler.js')?{runJob:()=>{}}:{jobs:[]};
+  });
+  assert.deepEqual(seen,['/app/src/scheduler.js','/app/src/jobs.js']);
+  assert.equal(typeof runtime.runJob,'function');
+});

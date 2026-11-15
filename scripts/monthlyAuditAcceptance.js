@@ -50,12 +50,17 @@ export async function auditAcceptance(kind, identity, {
   throw new Error(`${kind} acceptance remains unverified after its bounded observation window; job ${sessionId} is retained`);
 }
 
+export async function loadMastRuntime(loader = specifier => import(specifier)) {
+  const { runJob } = await loader('file:///app/src/scheduler.js');
+  const { jobs } = await loader('file:///app/src/jobs.js');
+  return { runJob, jobs };
+}
+
 if (process.env.AUDIT_ACCEPTANCE_REMOTE === '1') {
   const kind = process.env.AUDIT_ACCEPTANCE_KIND || 'both';
   const kinds = kind === 'both' ? ['website', 'content'] : [kind];
   if (kinds.some(value => !TYPES[value])) throw new Error('Unsupported audit acceptance selection');
-  const { runJob } = await import('/app/src/scheduler.js');
-  const { jobs } = await import('/app/src/jobs.js');
+  const { runJob, jobs } = await loadMastRuntime();
   const resume = jobs.find(job => job.id === 'rams-power-resume-website-audit');
   if (!resume || !(await runJob(resume, { force: true, trigger: 'monthly-audit-acceptance' })).ok) {
     throw new Error('RAMS readiness could not be established');
