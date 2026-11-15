@@ -7,12 +7,13 @@ const TYPES = {
 
 export async function auditAcceptance(kind, identity, {
   env = process.env, fetchImpl = fetch, pause = ms => new Promise(resolve => setTimeout(resolve, ms)),
-  deadlineMs = 90 * 60 * 1000, log = console.log, singlePass = false,
+  deadlineMs = 90 * 60 * 1000, log = console.log, singlePass = false, canonicalSessionId = null,
 } = {}) {
   if (!TYPES[kind] || !/^[a-f0-9]{40}$/.test(identity || '')) throw new Error('Exact audit acceptance identity required');
   const token = String(env.AIMS_API_KEY || '').trim();
   if (!token) throw new Error('MAST runtime AIMS_API_KEY is not configured');
-  let sessionId = `${kind === 'website' ? 'AUD-WEBSITE-' : ''}acceptance-${identity.slice(0, 16)}-${kind}`;
+  if (canonicalSessionId !== null && !/^[A-Za-z0-9_-]{1,128}$/.test(canonicalSessionId)) throw new Error('Invalid canonical audit session ID');
+  let sessionId = canonicalSessionId || `${kind === 'website' ? 'AUD-WEBSITE-' : ''}acceptance-${identity.slice(0, 16)}-${kind}`;
   const target = TYPES[kind];
   const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json',
     'x-idempotency-key': sessionId, 'user-agent': 'MAST-monthly-audit-acceptance/1.0' };
@@ -26,6 +27,7 @@ export async function auditAcceptance(kind, identity, {
   log(JSON.stringify({ event: 'audit-acceptance-planned', kind, sessionId }));
   let current = await request(target.status + sessionId);
   if (!current) {
+    if (canonicalSessionId) throw new Error(`${kind} canonical parent is missing; refusing to restart its source job`);
     const accepted = await request(target.route, { method: 'POST', body: JSON.stringify({ force: true, sessionId,
       requestedBy: 'MAST authorised monthly audit production acceptance' }) });
     const acceptedId = accepted?.sessionId || accepted?.job?.sessionId;
@@ -94,7 +96,7 @@ if (process.env.AUDIT_ACCEPTANCE_REMOTE === '1') {
   for (const selected of kinds) {
     const singlePass = process.env.AUDIT_ACCEPTANCE_SINGLE_PASS === '1';
     try {
-      const result=await auditAcceptance(selected, process.env.AUDIT_ACCEPTANCE_ID,{singlePass});
+      const result=await auditAcceptance(selected, process.env.AUDIT_ACCEPTANCE_ID,{singlePass,canonicalSessionId:process.env.AUDIT_ACCEPTANCE_SESSION_ID || null});
       console.log((singlePass?'AUDIT_ACCEPTANCE_RESULT=':'')+JSON.stringify(result));
     } catch (error) {
       failures++;
