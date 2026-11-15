@@ -8,6 +8,10 @@ on:
         type: choice
         options: [both, website, content]
         default: both
+      acceptance_sha:
+        description: Existing acceptance commit to resume (blank starts the current commit)
+        type: string
+        required: false
   push:
     branches: [main]
     paths: [".github/workflows/monthly-audit-acceptance.yml", "scripts/monthlyAuditAcceptance.js"]
@@ -44,12 +48,12 @@ jobs:
           KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
           KOYEB_SERVICE: ${{ vars.KOYEB_SERVICE }}
           AUDIT_ACCEPTANCE_KIND: ${{ inputs.audit_kind || 'both' }}
+          AUDIT_ACCEPTANCE_ID: ${{ inputs.acceptance_sha || github.sha }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "${KOYEB_TOKEN:-}"
           test -n "${KOYEB_SERVICE:-}"
-          export AUDIT_ACCEPTANCE_ID="$GITHUB_SHA"
           export AUDIT_ACCEPTANCE_CODE
           AUDIT_ACCEPTANCE_CODE="$(base64 -w0 scripts/monthlyAuditAcceptance.js)"
           # Environment variables are intentionally expanded by the child shell.
