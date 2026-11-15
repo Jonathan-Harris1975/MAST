@@ -40,12 +40,12 @@ test('the transported runner can probe RAMS without importing a second scheduler
   const source=await readFile(new URL('../scripts/monthlyAuditAcceptance.js',import.meta.url),'utf8');
   const transported=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
   let requests=0;
-  await transported.ensureRamsReady({env:{},fetchImpl:async()=>{requests++;return response({status:'ready'});}});
+  await transported.ensureRamsReady({env:{RMS_API_KEY:'rams-key'},fetchImpl:async()=>{requests++;return response({status:'ready'});}});
   assert.equal(requests,1);
 });
 test('paused RAMS is resumed through its configured provider identity before audits',async()=>{
   const requests=[];
-  await ensureRamsReady({env:{KOYEB_TOKEN:'test-key',KOYEB_SERVICE_ID_RAMS:'a'.repeat(36)},pause:async()=>{},
+  await ensureRamsReady({env:{RMS_API_KEY:'rams-key',KOYEB_TOKEN:'test-key',KOYEB_SERVICE_ID_RAMS:'a'.repeat(36)},pause:async()=>{},
     fetchImpl:async(url,options)=>{
       requests.push({url,...options});
       if(requests.length===1)return response({},503);
@@ -54,5 +54,14 @@ test('paused RAMS is resumed through its configured provider identity before aud
     }});
   assert.equal(requests[1].url,'https://app.koyeb.com/v1/services/'+'a'.repeat(36)+'/resume');
   assert.equal(requests[1].headers.authorization,'Bearer test-key');
-  assert.equal(requests[2].headers,undefined);
+  assert.equal(requests[2].headers.authorization,'Bearer rams-key');
+  assert.equal(requests[1].body,'{}');
+});
+
+test('rejected RAMS readiness credentials cannot trigger a provider resume',async()=>{
+  let requests=0;
+  await assert.rejects(ensureRamsReady({env:{RMS_API_KEY:'incorrect'},fetchImpl:async()=>{
+    requests++;return response({},401);
+  }}),/authentication was rejected/);
+  assert.equal(requests,1);
 });

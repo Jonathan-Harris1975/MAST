@@ -53,18 +53,24 @@ export async function auditAcceptance(kind, identity, {
 export async function ensureRamsReady({ env = process.env, fetchImpl = fetch,
   pause = ms => new Promise(resolve => setTimeout(resolve, ms)), deadlineMs = 180000 } = {}) {
   const readyUrl = 'https://static-helaina-jonathanharris-6df5d241.koyeb.app/readyz';
+  const ramsToken = String(env.RMS_API_KEY || env.RAMS_API_KEY || '').trim();
+  if (!ramsToken) throw new Error('MAST runtime RMS_API_KEY is not configured');
   const ready = async () => {
+    let response;
     try {
-      const response = await fetchImpl(readyUrl, { redirect: 'error', signal: AbortSignal.timeout(15000) });
-      return response.ok && (await response.json()).status === 'ready';
+      response = await fetchImpl(readyUrl, { headers: { authorization: `Bearer ${ramsToken}` },
+        redirect: 'error', signal: AbortSignal.timeout(15000) });
     } catch { return false; }
+    if ([401,403].includes(response.status)) throw new Error('RAMS readiness authentication was rejected');
+    return response.ok && (await response.json()).status === 'ready';
   };
   if (await ready()) return;
   const serviceId = String(env.KOYEB_SERVICE_ID_RAMS || '').trim();
   const token = String(env.KOYEB_TOKEN || '').trim();
   if (!/^[a-f0-9-]{36}$/.test(serviceId) || !token) throw new Error('RAMS resume configuration is unavailable');
   const response = await fetchImpl(`https://app.koyeb.com/v1/services/${serviceId}/resume`, {
-    method: 'POST', headers: { authorization: `Bearer ${token}` }, redirect: 'error', signal: AbortSignal.timeout(30000),
+    method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: '{}', redirect: 'error', signal: AbortSignal.timeout(30000),
   });
   if (![200, 202, 204, 409].includes(response.status)) throw new Error(`RAMS resume returned HTTP ${response.status}`);
   const deadline = Date.now() + deadlineMs;
