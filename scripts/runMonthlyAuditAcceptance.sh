@@ -19,11 +19,12 @@ for round in $(seq 1 180); do
   pending=0
   for kind in "${selected[@]}"; do
     test ! -f "$work_dir/$kind.finished" || continue
-    export AUDIT_ACCEPTANCE_KIND="$kind"
+    export AUDIT_ACCEPTANCE_KIND="$kind" AUDIT_ACCEPTANCE_SESSION_ID=""
+    if test -f "$work_dir/$kind.session"; then AUDIT_ACCEPTANCE_SESSION_ID="$(cat "$work_dir/$kind.session")"; fi
     log_file="$work_dir/$kind.log"
     # The child shell expands existing runtime configuration, not user input.
     # shellcheck disable=SC2016
-    timeout 300 script -q -e -c 'koyeb services exec "$KOYEB_SERVICE" env -- AUDIT_ACCEPTANCE_REMOTE=1 AUDIT_ACCEPTANCE_SINGLE_PASS=1 AUDIT_ACCEPTANCE_ID="$AUDIT_ACCEPTANCE_ID" AUDIT_ACCEPTANCE_KIND="$AUDIT_ACCEPTANCE_KIND" node --input-type=module -e '\''await import("data:text/javascript;base64," + process.argv[1]);'\'' "$AUDIT_ACCEPTANCE_CODE"' /dev/null < /dev/null > "$log_file" 2>&1 || true
+    timeout 300 script -q -e -c 'koyeb services exec "$KOYEB_SERVICE" env -- AUDIT_ACCEPTANCE_REMOTE=1 AUDIT_ACCEPTANCE_SINGLE_PASS=1 AUDIT_ACCEPTANCE_ID="$AUDIT_ACCEPTANCE_ID" AUDIT_ACCEPTANCE_KIND="$AUDIT_ACCEPTANCE_KIND" AUDIT_ACCEPTANCE_SESSION_ID="$AUDIT_ACCEPTANCE_SESSION_ID" node --input-type=module -e '\''await import("data:text/javascript;base64," + process.argv[1]);'\'' "$AUDIT_ACCEPTANCE_CODE"' /dev/null < /dev/null > "$log_file" 2>&1 || true
     result="$(node --input-type=module - "$log_file" <<'JS'
 import fs from 'node:fs';
 const marker='AUDIT_ACCEPTANCE_RESULT=';
@@ -49,6 +50,12 @@ JS
     echo "$result"
     echo 0 > "$work_dir/$kind.errors"
     status="$(RESULT_JSON="$result" node --input-type=module -e 'console.log(JSON.parse(process.env.RESULT_JSON).status)')"
+    session_id="$(RESULT_JSON="$result" node --input-type=module -e 'const id=JSON.parse(process.env.RESULT_JSON).sessionId;if(/^[A-Za-z0-9_-]{1,128}$/.test(id||""))console.log(id)')"
+    if test -n "$session_id"; then echo "$session_id" > "$work_dir/$kind.session"; fi
+    if test -z "$session_id" && [[ "$status" =~ ^(queued|accepted|running)$ ]]; then
+      echo "Pending $kind observation omitted a safe canonical identity" >&2
+      failed=1; touch "$work_dir/$kind.finished"; continue
+    fi
     case "$status" in
       completed) touch "$work_dir/$kind.finished" ;;
       failed) failed=1; touch "$work_dir/$kind.finished" ;;

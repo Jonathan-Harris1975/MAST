@@ -113,8 +113,10 @@ if test -f "$file"; then count="$(cat "$file")"; fi
 count=$((count+1)); echo "$count" > "$file"
 status=running
 if test "$AUDIT_ACCEPTANCE_KIND" = content; then status=failed; elif test "$count" -ge 2; then status=completed; fi
-printf 'AUDIT_ACCEPTANCE_RESULT={"kind":"%s","status":"%s"}\\n' "$AUDIT_ACCEPTANCE_KIND" "$status"
+if test "$AUDIT_ACCEPTANCE_KIND" = website && test "$count" -ge 2; then test "$AUDIT_ACCEPTANCE_SESSION_ID" = server-canonical-website; fi
+printf 'AUDIT_ACCEPTANCE_RESULT={"kind":"%s","status":"%s","sessionId":"server-canonical-%s"}\\n' "$AUDIT_ACCEPTANCE_KIND" "$status" "$AUDIT_ACCEPTANCE_KIND"
 `,{mode:0o755});
+  await writeFile(join(bin,'curl'),'#!/usr/bin/env bash\nexit 0\n',{mode:0o755});
   await writeFile(join(bin,'sleep'),'#!/usr/bin/env bash\nexit 0\n',{mode:0o755});
   let result;
   try {
@@ -129,4 +131,17 @@ printf 'AUDIT_ACCEPTANCE_RESULT={"kind":"%s","status":"%s"}\\n' "$AUDIT_ACCEPTAN
   assert.match(result.stdout,/"status":"completed"/);
   assert.equal((await readFile(join(dir,'website.count'),'utf8')).trim(),'2');
   assert.equal((await readFile(join(dir,'content.count'),'utf8')).trim(),'1');
+});
+
+
+test('later short observations reuse the returned canonical ID and cannot restart a missing parent',async()=>{
+  const requests=[];
+  const result=await auditAcceptance('content',sha,{...options(async(url,request)=>{
+    requests.push({url,method:request.method||'GET'});return response({status:'running'});
+  }),singlePass:true,canonicalSessionId:'server-canonical-content'});
+  assert.equal(result.sessionId,'server-canonical-content');
+  assert.ok(requests.every(request=>request.url.endsWith('/server-canonical-content')&&request.method==='GET'));
+  await assert.rejects(auditAcceptance('content',sha,{...options(async(_url,request)=>{
+    assert.equal(request.method,undefined);return response({},404);
+  }),singlePass:true,canonicalSessionId:'server-canonical-content'}),/refusing to restart/);
 });
