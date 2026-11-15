@@ -1,0 +1,57 @@
+name: Monthly audit production acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      audit_kind:
+        description: Audit to exercise through verified repair completion
+        type: choice
+        options: [both, website, content]
+        default: both
+  push:
+    branches: [main]
+    paths: [".github/workflows/monthly-audit-acceptance.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monthly-audit-production-acceptance
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    if: >-
+      ${{ github.ref == 'refs/heads/main' &&
+          (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run monthly acceptance]')) }}
+    runs-on: ubuntu-latest
+    environment: Koyeb
+    timeout-minutes: 200
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate acceptance invariants
+        run: node --test test/monthly-audit-acceptance.test.js
+      - name: Install verified Koyeb CLI
+        run: bash scripts/install_koyeb_cli.sh
+      - name: Exercise the audits using existing MAST runtime credentials
+        env:
+          KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
+          KOYEB_SERVICE: ${{ vars.KOYEB_SERVICE }}
+          AUDIT_ACCEPTANCE_KIND: ${{ inputs.audit_kind || 'both' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${KOYEB_TOKEN:-}"
+          test -n "${KOYEB_SERVICE:-}"
+          export AUDIT_ACCEPTANCE_ID="$GITHUB_SHA"
+          export AUDIT_ACCEPTANCE_CODE
+          AUDIT_ACCEPTANCE_CODE="$(base64 -w0 scripts/monthlyAuditAcceptance.js)"
+          # Environment variables are intentionally expanded by the child shell.
+          # shellcheck disable=SC2016
+          script -q -e -c 'koyeb services exec "$KOYEB_SERVICE" env -- AUDIT_ACCEPTANCE_REMOTE=1 AUDIT_ACCEPTANCE_ID="$AUDIT_ACCEPTANCE_ID" AUDIT_ACCEPTANCE_KIND="$AUDIT_ACCEPTANCE_KIND" node --input-type=module -e '\''await import("data:text/javascript;base64," + process.argv[1]);'\'' "$AUDIT_ACCEPTANCE_CODE"' /dev/null < /dev/null
