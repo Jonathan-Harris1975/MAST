@@ -607,7 +607,7 @@ const kdpWeeklyJobs = [
 
   aimsPostJob({
     id: "kdp-print-rollout-capacity-plan", group: "kdp",
-    description: "Plan up to three existing books per day for paperback and hardcover, Monday–Thursday only. Capacity planning never creates or submits KDP titles.",
+    description: "Plan within KDP's two-new-title weekly cap per print format, Monday–Thursday only. Capacity planning never creates or submits KDP titles.",
     schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"], time: "17:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 45 },
     targetPath: "/kdp/print/rollout/plan/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
     body: {},
