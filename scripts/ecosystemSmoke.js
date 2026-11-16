@@ -251,9 +251,11 @@ async function main() {
     });
     console.log('ok 3 - RAMS ready through HIVE Koyeb lifecycle');
   } else {
-    const ramsHealth = await requestJson(new URL('/health', ramsBase), {
+    // RAMS may be cold-starting on Koyeb. A one-shot 15s liveness probe
+    // previously aborted the whole ecosystem test before readiness retries.
+    const ramsHealth = await waitForJson(new URL('/health', ramsBase), {
       headers: requestHeaders(ramsBase, bearer(rmsApiKey)),
-    });
+    }, (body) => body?.status === 'ok');
     assertOk(ramsHealth.body?.status === 'ok', 'RAMS process liveness did not report ok');
     console.log('ok 3 - RAMS read-only process liveness; lifecycle wake not requested');
   }
