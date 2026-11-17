@@ -176,6 +176,9 @@ const runningJobs = new Set();
 // Different MAST job IDs may target the same expensive production pipeline.
 // Hold a lane until the remote operation/async poll has truly settled.
 const activeExecutionLanes = new Map();
+// Reserve a lane immediately when a detached monitor is dispatched, before
+// its first asynchronous state load. This closes the same-tick launch race.
+const pendingExecutionLanes = new Map();
 const settledOperationProbes = new Map();
 const SETTLED_OPERATION_PROBE_MS = 60_000;
 
@@ -1261,11 +1264,14 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
     };
   }
 
-  if (job.executionLane && activeExecutionLanes.has(job.executionLane)) {
+  const laneOwner = job.executionLane
+    ? activeExecutionLanes.get(job.executionLane) || pendingExecutionLanes.get(job.executionLane)
+    : null;
+  if (laneOwner && laneOwner !== job.id) {
     return {
       job: job.id, group: job.group, ok: null, skipped: true, pending: true,
       reason: "execution-lane-busy", busyLane: job.executionLane,
-      activeJob: activeExecutionLanes.get(job.executionLane),
+      activeJob: laneOwner,
       runKey, trigger, startedAt: startedAt.toISOString(),
       finishedAt: new Date().toISOString(), durationMs: 0, targetPath: job.targetPath,
     };
@@ -1612,11 +1618,14 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
       };
     }
     if (job.nonBlocking === true) {
-      if (job.executionLane && activeExecutionLanes.has(job.executionLane)) {
+      const occupiedLane = job.executionLane
+        ? activeExecutionLanes.get(job.executionLane) || pendingExecutionLanes.get(job.executionLane)
+        : null;
+      if (occupiedLane && occupiedLane !== job.id) {
         results.push({ job: job.id, group: job.group, ok: null,
           skipped: true, pending: true, settled: false,
           reason: "execution-lane-busy", busyLane: job.executionLane,
-          activeJob: activeExecutionLanes.get(job.executionLane), targetPath: job.targetPath });
+          activeJob: occupiedLane, targetPath: job.targetPath });
         await saveState();
         continue;
       }
@@ -1633,12 +1642,19 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
       // runJob retains the in-flight guard, terminal verification, alerts and
       // result persistence. On restart, AIMS's durable operation ID/lease is
       // the authority; we never force a second provider write.
+      if (job.executionLane) pendingExecutionLanes.set(job.executionLane, job.id);
       const monitor = runJob(job, { at, trigger });
       monitor.then((completed) => {
+        if (job.executionLane && pendingExecutionLanes.get(job.executionLane) === job.id) {
+          pendingExecutionLanes.delete(job.executionLane);
+        }
         console.log(JSON.stringify({ service: SERVICE_NAME,
           event: "detached-job-settled", job: job.id, ok: completed.ok,
           skipped: completed.skipped || false }));
       }).catch(async (error) => {
+        if (job.executionLane && pendingExecutionLanes.get(job.executionLane) === job.id) {
+          pendingExecutionLanes.delete(job.executionLane);
+        }
         const failure = {
           job: job.id, group: job.group, ok: false, runKey: buildRunKey(job, at),
           trigger, errorMessage: error?.message || String(error),
@@ -1827,6 +1843,7 @@ export async function getStatus() {
     pretriggerJobCount: jobs.filter((job) => job.managedPretrigger).length,
     runningJobs: [...runningJobs],
     activeExecutionLanes: Object.fromEntries(activeExecutionLanes),
+    pendingExecutionLanes: Object.fromEntries(pendingExecutionLanes),
     state: {
       startedAt: state.startedAt,
       lastTickAt: state.lastTickAt,
