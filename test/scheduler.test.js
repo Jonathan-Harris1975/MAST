@@ -4,7 +4,7 @@ import http from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { baseJobs, HIVE_GOVERNED_REPOSITORIES, jobs, pretriggerJobs } from "../src/jobs.js";
+import { baseJobs, collisionSafeAuditClock, HIVE_GOVERNED_REPOSITORIES, jobs, pretriggerJobs } from "../src/jobs.js";
 import { evaluateResponsePolicy } from "../src/response-policy.js";
 import { aimsBaseUrl } from "../src/service-origins.js";
 import { buildRequestHeaders, buildRunKey, dueJobPriority, isTimedJobDue, jobScheduleDue, nextRunForJob, requiredServiceStates, requiredServicesReady, serviceHealthUrl, failedWindowRetryEligible, responseReportsFailure } from "../src/scheduler.js";
@@ -537,10 +537,10 @@ test("website and AIMS audits run on the first and second Fridays outside weeken
   const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
   const aims = baseJobs.find((job) => job.id === "aims-audit-pipeline");
   assert.deepEqual(website.schedule, {
-    type: "nth-weekday-monthly", weekday: "friday", occurrence: 1, time: process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "19:30", timezone: "Europe/London", catchUpMinutes: 180,
+    type: "nth-weekday-monthly", weekday: "friday", occurrence: 1, time: collisionSafeAuditClock(process.env.MAST_WEBSITE_AUDIT_RUN_TIME, "12:00", "19:30"), timezone: "Europe/London", catchUpMinutes: 180,
   });
   assert.deepEqual(aims.schedule, {
-    type: "nth-weekday-monthly", weekday: "friday", occurrence: 2, time: process.env.MAST_AIMS_AUDIT_RUN_TIME || "19:30", timezone: "Europe/London", catchUpMinutes: 180,
+    type: "nth-weekday-monthly", weekday: "friday", occurrence: 2, time: collisionSafeAuditClock(process.env.MAST_AIMS_AUDIT_RUN_TIME, "18:00", "19:30"), timezone: "Europe/London", catchUpMinutes: 180,
   });
   assert.equal(website.targetPath, "/audits/monthly/website");
   assert.equal(aims.targetPath, "/audits/monthly/aims");
@@ -577,7 +577,7 @@ test("first-Friday website audit wakes RAMS at 19:00 while AIMS stays online", (
   assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-website-audit"), false);
   const wake = baseJobs.find((job) => job.id === "rams-power-resume-website-audit");
   assert.deepEqual(wake.schedule, {
-    type: "nth-weekday-monthly", weekday: "friday", occurrence: 1, time: process.env.MAST_WEBSITE_AUDIT_WAKE_TIME || "19:00", timezone: "Europe/London", catchUpMinutes: 120,
+    type: "nth-weekday-monthly", weekday: "friday", occurrence: 1, time: collisionSafeAuditClock(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME, "11:30", "19:00"), timezone: "Europe/London", catchUpMinutes: 120,
   });
   assert.equal(isTimedJobDue(wake, new Date("2026-08-07T18:00:00.000Z")), true);
 });
@@ -589,7 +589,7 @@ test("second-Friday AIMS audit wake and run have catch-up protection", () => {
   assert.equal(audit.schedule.catchUpMinutes, Number(process.env.MAST_AIMS_AUDIT_RUN_CATCH_UP_MINUTES || 180));
   assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-aims-audit"), false);
   const wake = baseJobs.find((job) => job.id === "rams-power-resume-aims-audit");
-  assert.equal(wake.schedule.time, process.env.MAST_AIMS_AUDIT_WAKE_TIME || "19:00");
+  assert.equal(wake.schedule.time, collisionSafeAuditClock(process.env.MAST_AIMS_AUDIT_WAKE_TIME, "17:45", "19:00"));
   assert.equal(wake.schedule.catchUpMinutes, Number(process.env.MAST_AIMS_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 });
 
@@ -758,4 +758,13 @@ test("AI Edge promotion terminal policy matches AIMS confirmation and duplicate 
     "a dry run is not a live schedule");
   assert.equal(evaluate({ ok: true, scheduled: true }).ok, false,
     "missing confirmation must fail closed");
+});
+
+
+test("legacy Koyeb Friday audit settings migrate safely without overriding new operator choices", () => {
+  assert.equal(collisionSafeAuditClock("", "12:00", "19:30"), "19:30");
+  assert.equal(collisionSafeAuditClock("12:00", "12:00", "19:30"), "19:30");
+  assert.equal(collisionSafeAuditClock("18:00", "18:00", "19:30"), "19:30");
+  assert.equal(collisionSafeAuditClock("11:30", "11:30", "19:00"), "19:00");
+  assert.equal(collisionSafeAuditClock("20:15", "12:00", "19:30"), "20:15");
 });
