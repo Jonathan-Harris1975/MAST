@@ -623,17 +623,17 @@ const kdpWeeklyJobs = [
 
 
   aimsPostJob({
-    id: "kdp-print-rollout-capacity-plan", group: "kdp",
-    description: "Run read-only print capacity planning in the isolated late-evening Monday–Thursday lane; never create or submit KDP titles.",
-    schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"], time: "22:15", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 90 },
-    targetPath: "/kdp/print/rollout/plan/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
+    id: "kdp-print-production", group: "kdp",
+    description: "Build verified paperback/hardback interiors and covers, then create and submit eligible print editions using AIMS authenticated KDP and durable quotas.",
+    schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"], time: "22:15", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 20 },
+    targetPath: "/kdp/print/production/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
     body: {},
     requestRetries: 0,
     asyncStatus: {
-      responseIdField: "sessionId", statusPath: "/kdp/jobs/print-rollout-plan/{id}", statusField: "status",
+      responseIdField: "sessionId", statusPath: "/kdp/jobs/print-production/{id}", statusField: "status",
       terminalResponsePolicy: { checks: [
-        { type: "equals", path: "result.ok", value: true, message: "KDP print rollout capacity planning failed." },
-        { type: "equals", path: "result.kdpWritesPerformed", value: false, message: "Capacity planning must not create or submit a print title." },
+        { type: "equals", path: "result.ok", value: true, message: "KDP live print production returned blocked or uncertain editions." },
+        { type: "equals", path: "result.schemaVersion", value: 1, message: "KDP print production did not return the live worker contract." },
       ] },
     },
   }),
