@@ -177,3 +177,19 @@ KDP worker has finished purely from scheduled times. Before enabling live print
 publication, AIMS must enforce cross-workflow exclusion and print-specific
 durable state, QA, title identity and quota gates. Friday remains free of
 existing-catalogue print jobs.
+
+
+Published paperback and hardback prices are independently reconciled by AIMS at
+**17:40 and 19:40 Europe/London, Monday–Thursday**, using
+POST /kdp/audit/pricing/print/run with dryRun=false. This supplements, rather
+than replaces, the existing 16:35, 18:35 and 21:00 Kindle royalty-floor runs.
+AIMS reads signed-in KDP print prices and the print PDF's final page count,
+maintains at least £4.50 UK/$6 US estimated Amazon-direct royalties, applies a
+10% retail headroom with .99 rounding, and blocks prices over sensible format
+ceilings. Updates are restricted to independently verified live print editions.
+The price maintenance R2 ledger records intent before KDP Publish, avoids blind
+retries and allows up to five days for KDP's retail price propagation.
+MAST requires a production result with schemaVersion=1 and ok=true. An empty
+live print catalogue is a successful no-op, not proof any print book has been
+published. Friday remains reserved for new books, and no retries occur after
+an ambiguous remote publish.
