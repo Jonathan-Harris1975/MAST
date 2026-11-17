@@ -89,6 +89,8 @@ def main() -> int:
             source = file.read_text(encoding='utf-8')
         except UnicodeDecodeError:
             continue
+        except FileNotFoundError:
+            continue
         except OSError as exc:
             raise RuntimeError(f'Could not inspect {file}; refusing to skip policy check') from exc
         for line, name in find_signatures(source):

@@ -29,6 +29,7 @@ jobs:
           fetch-depth: 0
       - name: Enforce owner approval before repository forking
         run: |
+          set -euo pipefail
           python3 .github/scripts/no_fork_guard.py --self-test
           python3 .github/scripts/no_fork_guard.py
       - name: Repository secret policy scan
