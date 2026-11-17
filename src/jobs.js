@@ -539,6 +539,47 @@ const zernioNewsletterPromoJobs = [
   },
 }));
 
+// Formerly hidden inside the Monday/Thursday daily Zernio operation: these
+// independent heavy editorial tasks now have distinct receipts and bounded
+// catch-up windows. A failed weekly extra cannot misreport the daily post.
+const zernioWeeklyEditorialJobs = [
+  {
+    id: "zernio-weekly-mini-series",
+    weekday: "monday", time: "14:30",
+    lane: "weekly-mini-series", path: "/zernio/mini-series/weekly",
+    description: "Research and schedule the optional evidence-led Zernio weekly mini-series independently of Monday's daily post.",
+  },
+  {
+    id: "zernio-thursday-podcast-promo",
+    weekday: "thursday", time: "14:30",
+    lane: "podcast-thursday-promo", path: "/zernio/podcast/thursday-promo",
+    description: "Schedule the source-verified Thursday podcast promotion independently of Thursday's daily Zernio post.",
+  },
+].map(({ id, weekday, time, lane, path, description }) => aimsPostJob({
+  id, group: "zernio-editorial",
+  description,
+  schedule: { type: "weekly", days: [weekday], time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 150 },
+  targetPath: path,
+  authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
+  body: { dryRun: false },
+  requestRetries: 0,
+  consumeFailureWindow: true,
+  asyncStatus: {
+    responseIdField: "sessionId",
+    statusPath: `/zernio/jobs/${lane}/{id}`,
+    statusField: "status",
+    successStatuses: ["completed"],
+    pendingStatuses: ["queued", "running", "accepted"],
+    failureStatuses: ["failed"],
+    terminalResponsePolicy: { checks: [
+      { type: "equals", path: "result.ok", value: true,
+        message: "Standalone Zernio weekly editorial job did not pass its source and publication checks." },
+      { type: "equals", path: "result.partialFailure", value: false, allowMissing: true,
+        message: "Zernio weekly editorial job was only partially completed." },
+    ] },
+  },
+}));
+
 const zernioWeeklyQuiz = aimsPostJob({
   id: "zernio-weekly-quiz",
   group: "zernio-quiz",
@@ -1332,6 +1373,7 @@ export const baseJobs = [
   ...weekendNewsletterBackstops,
   ...zernioDailyJobs,
   ...zernioNewsletterPromoJobs,
+  ...zernioWeeklyEditorialJobs,
   zernioWeeklyQuiz,
   ...monthlyAuditJobs,
   ...kdpWeeklyJobs,
@@ -1357,7 +1399,7 @@ export const baseJobs = [
   // Distinct HIVE monitoring remains available; comms housekeeping has an
   // independent lane so it cannot compete with monthly mailbox deletion.
   executionLane: ["operations", "operations-backstop", "blotato-recovery",
-    "zernio-newsletter", "audits", "kdp", "outreach"].includes(job.group)
+    "zernio-newsletter", "zernio-editorial", "audits", "kdp", "outreach"].includes(job.group)
     ? "aims-heavy" : ["email-maintenance", "comms-maintenance"].includes(job.group)
       ? "aims-comms" : job.group === "hive-governance-monthly"
         ? "hive-monthly" : null,
