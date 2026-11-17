@@ -605,6 +605,27 @@ const kdpRoyaltyFloorJobs = ["16:35", "18:35", "21:00"].map((time) => aimsPostJo
   },
 }));
 
+// Reuse the existing KDP pricing lane, but govern print independently of
+// Kindle's £4.50 delivery-adjusted royalty corrections. One print edition
+// per run; AIMS shares the R2 KDP-research lease for all remote price writes.
+const kdpPrintPricingJobs = ["17:40", "19:40"].map((time) => aimsPostJob({
+  id: `kdp-print-pricing-${time.replace(":", "")}`,
+  group: "kdp",
+  description: "Monitor published paperback and hardback prices; update one verified edition when UK/US margins or sensible retail bounds need correction.",
+  schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"],
+    time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 15 },
+  targetPath: "/kdp/audit/pricing/print/run",
+  authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
+  body: { dryRun: false }, requestRetries: 0,
+  asyncStatus: {
+    responseIdField: "sessionId", statusPath: "/kdp/jobs/audit-print-pricing/{id}", statusField: "status",
+    terminalResponsePolicy: { checks: [
+      { type: "equals", path: "result.ok", value: true, message: "Print pricing has unresolved KDP errors or price updates." },
+      { type: "equals", path: "result.schemaVersion", value: 1, message: "Print repricer did not return the production contract." },
+    ] },
+  },
+}));
+
 const kdpWeeklyJobs = [
   aimsPostJob({
     id: "kdp-print-preflight", group: "kdp",
@@ -1293,6 +1314,7 @@ export const baseJobs = [
   ...monthlyAuditJobs,
   ...kdpWeeklyJobs,
   ...kdpRoyaltyFloorJobs,
+  ...kdpPrintPricingJobs,
   zernioEbooksWeekly,
   ...blotatoVideoJobs,
   ...blotatoRecoveryJobs,
