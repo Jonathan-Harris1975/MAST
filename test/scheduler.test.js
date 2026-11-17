@@ -626,7 +626,7 @@ test("website audit dispatch requires both AIMS and RAMS readiness", () => {
 
 test("schedule eligibility remains visible even when the lifecycle ledger is stale", () => {
   const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
-  const at = new Date("2026-08-07T11:00:00.000Z");
+  const at = new Date("2026-08-07T18:30:00.000Z");
   const staleState = { lastRunKeys: {}, intervalLastRunAt: {}, services: { aims: { state: "offline" } } };
   assert.equal(jobScheduleDue(website, at, staleState), true);
   assert.equal(requiredServicesReady(website, staleState), false);
