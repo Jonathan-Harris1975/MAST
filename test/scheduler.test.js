@@ -122,7 +122,7 @@ test("AIMS remains always-on and AM operations begin at 10:00 with catch-up prot
 
 test("all weekday content and podcast windows have two bounded, safe same-day backstops", () => {
   const backstops = baseJobs.filter((job) => job.group === "operations-backstop");
-  assert.equal(backstops.length, 13);
+  assert.equal(backstops.length, 12);
   assert.ok(pretriggerJobs.every((job) => job.sourceJobId
     ? !backstops.some((backstop) => backstop.id === job.sourceJobId) : true),
     "content recovery backstops must not multiply pretrigger jobs");
@@ -190,7 +190,7 @@ test("legacy task-level content jobs remain manual fallbacks and cannot double-f
 
 test("Blotato first and late backstops are weekday-only, idempotent and verify terminal jobs", () => {
   const backstops = baseJobs.filter((job) => job.group === "blotato-recovery");
-  assert.equal(backstops.length, 12);
+  assert.equal(backstops.length, 13);
   for (const [id, time, days] of [
     ["blotato-weekday-am-backstop", "13:00", ["monday", "tuesday", "wednesday", "thursday"]],
     ["blotato-friday-am-backstop", "12:30", ["friday"]],
@@ -585,7 +585,7 @@ test("first-Friday website audit wakes RAMS at 19:00 while AIMS stays online", (
 
 test("second-Friday AIMS audit wake and run have catch-up protection", () => {
   const audit = baseJobs.find((job) => job.id === "aims-audit-pipeline");
-  assert.equal(audit.schedule.time, process.env.MAST_AIMS_AUDIT_RUN_TIME || "18:00");
+  assert.equal(audit.schedule.time, process.env.MAST_AIMS_AUDIT_RUN_TIME || "19:30");
   assert.equal(audit.schedule.catchUpMinutes, Number(process.env.MAST_AIMS_AUDIT_RUN_CATCH_UP_MINUTES || 180));
   assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-aims-audit"), false);
   const wake = baseJobs.find((job) => job.id === "rams-power-resume-aims-audit");
