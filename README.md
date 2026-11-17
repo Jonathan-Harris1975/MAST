@@ -170,6 +170,7 @@ metering paperback and hardcover creation and first submission. KDP may apply
 a lower account ceiling; an observed denial stops the batch and fails MAST.
 Friday remains reserved for the new-book service.
 The acceptance contract requires `result.schemaVersion: 1`, `result.ok: true`,
+`result.capacity.weeklyLimitPerFormat: 10`,
 `result.maxBooksPerRun: 3`, `result.quotaUsageAfter.weeklyLimitPerFormat: 10`
 and `result.externalWeeklyLimitDetected: false`. MAST cannot guarantee an earlier asynchronous
 KDP worker has finished purely from scheduled times. Before enabling live print
