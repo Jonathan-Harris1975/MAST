@@ -624,7 +624,7 @@ const kdpWeeklyJobs = [
 
   aimsPostJob({
     id: "kdp-print-production", group: "kdp",
-    description: "Build verified paperback/hardback interiors and covers, then create and submit eligible print editions using AIMS authenticated KDP and durable quotas.",
+    description: "Submit up to ten existing books weekly in paperback and hardcover, with 3-book session capacity, persistent per-format quota tracking and KDP platform-limit circuit breaking.",
     schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"], time: "22:15", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 20 },
     targetPath: "/kdp/print/production/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
     body: {},
@@ -634,6 +634,10 @@ const kdpWeeklyJobs = [
       terminalResponsePolicy: { checks: [
         { type: "equals", path: "result.ok", value: true, message: "KDP live print production returned blocked or uncertain editions." },
         { type: "equals", path: "result.schemaVersion", value: 1, message: "KDP print production did not return the live worker contract." },
+        { type: "equals", path: "result.capacity.weeklyLimitPerFormat", value: 10, message: "The AIMS runtime KDP print weekly limit has not been set to ten." },
+        { type: "equals", path: "result.maxBooksPerRun", value: 3, message: "KDP print production is not configured to process three books per evening." },
+        { type: "equals", path: "result.quotaUsageAfter.weeklyLimitPerFormat", value: 10, message: "KDP print weekly quota ceiling is not configured to ten per format." },
+        { type: "equals", path: "result.externalWeeklyLimitDetected", value: false, message: "KDP rejected the requested print publication rate: stop and review account limit." },
       ] },
     },
   }),
