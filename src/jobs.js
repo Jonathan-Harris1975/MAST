@@ -796,6 +796,7 @@ const blotatoRecoveryJobs = [
     ["12:30", ["friday"], "blotato-friday-am-backstop"],
     ["17:15", WEEKDAYS_MON_TO_FRI, "blotato-weekday-am-late-backstop"]]
     .map(([time, days, id]) => aimsPostJob({
+    id,
     group: "blotato-recovery",
     description: `${time} weekday check: retry the existing AM Blotato slot without a duplicate paid render.`,
     schedule: { type: "weekly", days, time,
