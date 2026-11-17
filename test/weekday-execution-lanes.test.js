@@ -50,6 +50,7 @@ test("MAST defers distinct heavy jobs on the same execution lane while independe
     assert.equal(independent.ok, true);
     assert.equal(fastRequests, 1);
     releaseSlow();
+    releaseSlow = null;
     const first = await active;
     assert.equal(first.ok, true);
     const afterRelease = await runJob(create("heavy-b", "aims-heavy", "/fast"), { at: date, force: true });
