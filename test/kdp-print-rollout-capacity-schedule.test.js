@@ -18,6 +18,7 @@ test("live print production dispatches the AIMS publishing worker Monday–Thurs
   assert.deepEqual(job.asyncStatus.terminalResponsePolicy.checks.map(({ path, value }) => ({ path, value })), [
     { path: "result.ok", value: true },
     { path: "result.schemaVersion", value: 1 },
+    { path: "result.capacity.weeklyLimitPerFormat", value: 10 },
     { path: "result.maxBooksPerRun", value: 3 },
     { path: "result.quotaUsageAfter.weeklyLimitPerFormat", value: 10 },
     { path: "result.externalWeeklyLimitDetected", value: false },
