@@ -21,8 +21,8 @@ There are no AIMS standby windows. Blotato provider publication times remain own
 
 ## Governed audit windows
 
-- First Friday: RAMS resumes at 11:30 and the website audit runs at 12:00.
-- Second Friday: RAMS resumes at 17:45 and the AIMS/content master audit runs at 18:00.
+- First Friday: RAMS resumes at 19:00 and the website audit runs at 19:30, after the Friday podcast and ordinary content-production slots.
+- Second Friday: RAMS resumes at 19:00 and the AIMS/content master audit runs at 19:30, after the Friday podcast and first recovery window.
 
 AIMS and HIVE remain online throughout. RAMS pause is completion-driven.
 

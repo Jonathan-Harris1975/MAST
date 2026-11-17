@@ -10,12 +10,22 @@ const AM_OPERATION_TIME = String(process.env.MAST_AM_OPERATION_TIME || "10:00");
 const AM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
 const FRIDAY_PM_OPERATION_TIME = String(process.env.MAST_PODCAST_OPERATION_TIME || "13:00");
 const FRIDAY_PM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
-const WEBSITE_AUDIT_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME || "11:30");
-const WEBSITE_AUDIT_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "12:00");
+/**
+ * Existing Koyeb workers may retain the original Friday audit env values.
+ * Migrate only those known legacy defaults, otherwise an older deployment
+ * setting would silently defeat the new podcast/audit deconfliction.
+ * Explicit non-legacy operator overrides remain supported.
+ */
+export function collisionSafeAuditClock(value, previous, revised) {
+  const actual = String(value ?? "").trim();
+  return !actual || actual === previous ? revised : actual;
+}
+const WEBSITE_AUDIT_WAKE_TIME = collisionSafeAuditClock(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME, "11:30", "19:00");
+const WEBSITE_AUDIT_RUN_TIME = collisionSafeAuditClock(process.env.MAST_WEBSITE_AUDIT_RUN_TIME, "12:00", "19:30");
 const WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 const WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES || 180));
-const AIMS_AUDIT_WAKE_TIME = String(process.env.MAST_AIMS_AUDIT_WAKE_TIME || "17:45");
-const AIMS_AUDIT_RUN_TIME = String(process.env.MAST_AIMS_AUDIT_RUN_TIME || "18:00");
+const AIMS_AUDIT_WAKE_TIME = collisionSafeAuditClock(process.env.MAST_AIMS_AUDIT_WAKE_TIME, "17:45", "19:00");
+const AIMS_AUDIT_RUN_TIME = collisionSafeAuditClock(process.env.MAST_AIMS_AUDIT_RUN_TIME, "18:00", "19:30");
 const AIMS_AUDIT_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 const AIMS_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS_AUDIT_RUN_CATCH_UP_MINUTES || 180));
 const HIVE_DAILY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_DAILY_CATCH_UP_MINUTES || 180));
@@ -569,7 +579,8 @@ const monthlyAuditJobs = [
     group: "audits",
     description: `Run the complete AIMS audit at ${AIMS_AUDIT_RUN_TIME} on the second Friday of each month. AIMS owns the full council/report/RAMS sequence.`,
     schedule: { type: "nth-weekday-monthly", weekday: "friday", occurrence: 2, time: AIMS_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AIMS_AUDIT_RUN_CATCH_UP_MINUTES },
-    pretriggerOffsets: { health: 178, preflight: 112, warmup: 23 },
+    // Every audit readiness probe now follows its 19:00 RAMS wake.
+    pretriggerOffsets: { health: 20, preflight: 15, warmup: 10 },
     targetPath: "/audits/monthly/aims",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims", "rams"],
@@ -663,9 +674,13 @@ const kdpWeeklyJobs = [
     },
   }),
 
-  ...["12:05", "13:05", "14:05", "16:05", "20:05"].map((time) => aimsPostJob({
+  // Tuesday–Thursday research owns 12:00–15:00; never start a signed-in
+  // update-verification session at 12:05 while research is still running.
+  ...["12:05", "13:05", "14:05", "15:20", "20:05"].map((time) => aimsPostJob({
     id: `kdp-update-verification-${time.replace(":", "")}`, group: "kdp", description: "Submit eligible queued updates in-window and verify prior KDP publications.",
-    schedule: { type: "weekly", days: EVERY_DAY, time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 45 },
+    schedule: { type: "weekly", days: time === "12:05"
+      ? ["friday", "saturday", "sunday"] : EVERY_DAY,
+      time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 45 },
     targetPath: "/kdp/research/updates/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
     asyncStatus: {
       responseIdField: "sessionId", statusPath: "/kdp/jobs/weekly-update-verification/{id}", statusField: "status",
@@ -775,11 +790,16 @@ const blotatoRecoveryStatus = {
   },
 };
 const blotatoRecoveryJobs = [
-  ...["13:00", "17:15"].map((time, index) => aimsPostJob({
-    id: index === 0 ? "blotato-weekday-am-backstop" : "blotato-weekday-am-late-backstop",
+  // Friday podcast owns 13:00; move only Friday’s AM video recovery
+  // earlier instead of launching two expensive AIMS operations together.
+  ...[["13:00", WEEKDAYS_MON_TO_FRI.slice(0, 4), "blotato-weekday-am-backstop"],
+    ["12:30", ["friday"], "blotato-friday-am-backstop"],
+    ["17:15", WEEKDAYS_MON_TO_FRI, "blotato-weekday-am-late-backstop"]]
+    .map(([time, days, id]) => aimsPostJob({
+    id,
     group: "blotato-recovery",
     description: `${time} weekday check: retry the existing AM Blotato slot without a duplicate paid render.`,
-    schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time,
+    schedule: { type: "weekly", days, time,
       timezone: LOCAL_TIME_ZONE, catchUpMinutes: 90 },
     targetPath: "/blotato/autoshorts/schedule",
     authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
@@ -1157,7 +1177,9 @@ const hiveGovernanceMonthlyJobs = [
     id: "hive-optimisation-stats-snapshot",
     group: "hive-governance-monthly",
     description: "Pull optimisation-engine decision/experiment stats for the monthly executive governance report.",
-    schedule: { type: "monthly", dayOfMonth: 1, time: "07:16", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
+    // The stats snapshot must follow completed Council/governance, not merely
+    // start 16 minutes after a potentially multi-hour monthly process.
+    schedule: { type: "posttrigger", sourceJobId: "hive-monthly-governance-review", delayMinutes: 15 },
     targetPath: "/v1/optimisation/stats",
     consumeFailureWindow: true,
     responsePolicy: { checks: [{ type: "equals", path: "ok", value: true, message: "HIVE optimisation ledger could not be read for the monthly snapshot." }] },
@@ -1331,6 +1353,14 @@ export const baseJobs = [
   nonBlocking: job.group === "operations"
     || job.group === "operations-backstop"
     || Boolean(job.asyncStatus),
+  // One heavyweight AIMS pipeline at a time, regardless of its MAST job ID.
+  // Distinct HIVE monitoring remains available; comms housekeeping has an
+  // independent lane so it cannot compete with monthly mailbox deletion.
+  executionLane: ["operations", "operations-backstop", "blotato-recovery",
+    "zernio-newsletter", "audits", "kdp", "outreach"].includes(job.group)
+    ? "aims-heavy" : ["email-maintenance", "comms-maintenance"].includes(job.group)
+      ? "aims-comms" : job.group === "hive-governance-monthly"
+        ? "hive-monthly" : null,
 }));
 
 function boolEnv(name, fallback = true) {
