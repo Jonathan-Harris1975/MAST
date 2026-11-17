@@ -161,11 +161,12 @@ Tuesday–Thursday submission window and five-minute minimum delay. Later daily
 checks verify publication without permitting out-of-window submissions. Deploy
 the companion AIMS update route before this schedule change.
 
-The **print capacity planner only** runs Monday–Thursday at 22:15 Europe/London,
-with a 90-minute scheduler catch-up allowance (ending 23:45). This avoids the
-18:35/21:00 KDP royalty-floor and 20:05 update-verification *dispatch windows*.
-It is not a print creation or submission worker, and requires
-`kdpWritesPerformed: false`. MAST cannot guarantee an earlier asynchronous
+The **live print production worker** runs Monday–Thursday at 22:15 Europe/London,
+with a 20-minute scheduler catch-up allowance. It uses the existing authenticated
+AIMS KDP browser, private PDF/cover generation, D1 state, and per-format creation/
+first-submission quotas. Friday remains reserved for the new-book service.
+It requires
+`result.schemaVersion: 1` and `result.ok: true`. MAST cannot guarantee an earlier asynchronous
 KDP worker has finished purely from scheduled times. Before enabling live print
 publication, AIMS must enforce cross-workflow exclusion and print-specific
 durable state, QA, title identity and quota gates. Friday remains free of
