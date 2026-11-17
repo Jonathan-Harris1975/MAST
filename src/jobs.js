@@ -579,7 +579,8 @@ const monthlyAuditJobs = [
     group: "audits",
     description: `Run the complete AIMS audit at ${AIMS_AUDIT_RUN_TIME} on the second Friday of each month. AIMS owns the full council/report/RAMS sequence.`,
     schedule: { type: "nth-weekday-monthly", weekday: "friday", occurrence: 2, time: AIMS_AUDIT_RUN_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: AIMS_AUDIT_RUN_CATCH_UP_MINUTES },
-    pretriggerOffsets: { health: 178, preflight: 112, warmup: 23 },
+    // Every audit readiness probe now follows its 19:00 RAMS wake.
+    pretriggerOffsets: { health: 20, preflight: 15, warmup: 10 },
     targetPath: "/audits/monthly/aims",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims", "rams"],
