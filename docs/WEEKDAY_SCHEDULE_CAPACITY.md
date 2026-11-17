@@ -24,6 +24,7 @@ Schedule changes preserve existing daily content generation, publishing controls
 | 12:30 | — | — | Friday AM video recovery (moved from 13:00) |
 | 13:00 | AM video recovery | AM video recovery | Podcast operation (unchanged) |
 | 13:05, 14:05 | KDP update verification | KDP update verification after research has started | KDP update verification plus Friday 12:05 recovery |
+| 14:30 | Independent Zernio weekly mini-series | Thursday only: independent podcast social promotion | — |
 | 15:20 | KDP update verification (moved from 16:05) | Same | Same |
 | 15:30 | KDP print preflight | — | — |
 | 15:45 | AIMS content recovery/backstop | Same | Same |
