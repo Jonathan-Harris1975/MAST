@@ -173,6 +173,9 @@ let state = { ...DEFAULT_STATE, startedAt: new Date().toISOString() };
 let loaded = false;
 let stateLoadError = null;
 const runningJobs = new Set();
+// Different MAST job IDs may target the same expensive production pipeline.
+// Hold a lane until the remote operation/async poll has truly settled.
+const activeExecutionLanes = new Map();
 const settledOperationProbes = new Map();
 const SETTLED_OPERATION_PROBE_MS = 60_000;
 
@@ -1258,6 +1261,16 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
     };
   }
 
+  if (job.executionLane && activeExecutionLanes.has(job.executionLane)) {
+    return {
+      job: job.id, group: job.group, ok: null, skipped: true, pending: true,
+      reason: "execution-lane-busy", busyLane: job.executionLane,
+      activeJob: activeExecutionLanes.get(job.executionLane),
+      runKey, trigger, startedAt: startedAt.toISOString(),
+      finishedAt: new Date().toISOString(), durationMs: 0, targetPath: job.targetPath,
+    };
+  }
+
   // Resume is idempotent. Probe the target before calling Koyeb so an already-running
   // service cannot turn a harmless wake request into a failed schedule window.
   if (job.lifecycle?.action === "resume") {
@@ -1318,10 +1331,12 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
     }
   }
 
-  runningJobs.add(job.id);
-
+  // Resolve configuration before reserving a lane. Header validation may throw
+  // (for example, when credentials are absent) and must not leak a reservation.
   const payload = buildPayload(job, at);
   const headers = buildRequestHeaders(job, runKey);
+  runningJobs.add(job.id);
+  if (job.executionLane) activeExecutionLanes.set(job.executionLane, job.id);
 
   const body = payload === undefined ? undefined : JSON.stringify(payload);
   if (body !== undefined) {
@@ -1480,6 +1495,9 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
     return result;
   } finally {
     runningJobs.delete(job.id);
+    if (job.executionLane && activeExecutionLanes.get(job.executionLane) === job.id) {
+      activeExecutionLanes.delete(job.executionLane);
+    }
   }
 }
 
@@ -1594,6 +1612,14 @@ export async function runDueJobs({ at = new Date(), trigger = "scheduled-tick" }
       };
     }
     if (job.nonBlocking === true) {
+      if (job.executionLane && activeExecutionLanes.has(job.executionLane)) {
+        results.push({ job: job.id, group: job.group, ok: null,
+          skipped: true, pending: true, settled: false,
+          reason: "execution-lane-busy", busyLane: job.executionLane,
+          activeJob: activeExecutionLanes.get(job.executionLane), targetPath: job.targetPath });
+        await saveState();
+        continue;
+      }
       if (runningJobs.has(job.id)) {
         results.push({ job: job.id, group: job.group, ok: null,
           skipped: true, pending: true, settled: false,
@@ -1800,6 +1826,7 @@ export async function getStatus() {
     jobCount: jobs.length,
     pretriggerJobCount: jobs.filter((job) => job.managedPretrigger).length,
     runningJobs: [...runningJobs],
+    activeExecutionLanes: Object.fromEntries(activeExecutionLanes),
     state: {
       startedAt: state.startedAt,
       lastTickAt: state.lastTickAt,
