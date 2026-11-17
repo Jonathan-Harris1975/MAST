@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { baseJobs } from "../src/jobs.js";
+import { baseJobs, pretriggerJobs } from "../src/jobs.js";
 import { isTimedJobDue } from "../src/scheduler.js";
 
 test("free podcast discovery is scheduled once weekly without changing production windows", () => {
@@ -23,4 +23,5 @@ test("free podcast discovery is scheduled once weekly without changing productio
   assert.equal(baseJobs.find(x => x.id === "podcast-run").schedule.type, "manual");
   assert.ok(baseJobs.find(x => x.id === "aims-audit-pipeline"));
   assert.equal(baseJobs.filter(x => x.id === "podcast-organic-discovery-weekly").length, 1);
+  assert.equal(pretriggerJobs.filter(x => x.sourceJobId === "podcast-organic-discovery-weekly").length, 0);
 });
