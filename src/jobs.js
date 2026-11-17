@@ -10,12 +10,22 @@ const AM_OPERATION_TIME = String(process.env.MAST_AM_OPERATION_TIME || "10:00");
 const AM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
 const FRIDAY_PM_OPERATION_TIME = String(process.env.MAST_PODCAST_OPERATION_TIME || "13:00");
 const FRIDAY_PM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
-const WEBSITE_AUDIT_WAKE_TIME = String(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME || "19:00");
-const WEBSITE_AUDIT_RUN_TIME = String(process.env.MAST_WEBSITE_AUDIT_RUN_TIME || "19:30");
+/**
+ * Existing Koyeb workers may retain the original Friday audit env values.
+ * Migrate only those known legacy defaults, otherwise an older deployment
+ * setting would silently defeat the new podcast/audit deconfliction.
+ * Explicit non-legacy operator overrides remain supported.
+ */
+export function collisionSafeAuditClock(value, previous, revised) {
+  const actual = String(value ?? "").trim();
+  return !actual || actual === previous ? revised : actual;
+}
+const WEBSITE_AUDIT_WAKE_TIME = collisionSafeAuditClock(process.env.MAST_WEBSITE_AUDIT_WAKE_TIME, "11:30", "19:00");
+const WEBSITE_AUDIT_RUN_TIME = collisionSafeAuditClock(process.env.MAST_WEBSITE_AUDIT_RUN_TIME, "12:00", "19:30");
 const WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 const WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_WEBSITE_AUDIT_RUN_CATCH_UP_MINUTES || 180));
-const AIMS_AUDIT_WAKE_TIME = String(process.env.MAST_AIMS_AUDIT_WAKE_TIME || "19:00");
-const AIMS_AUDIT_RUN_TIME = String(process.env.MAST_AIMS_AUDIT_RUN_TIME || "19:30");
+const AIMS_AUDIT_WAKE_TIME = collisionSafeAuditClock(process.env.MAST_AIMS_AUDIT_WAKE_TIME, "17:45", "19:00");
+const AIMS_AUDIT_RUN_TIME = collisionSafeAuditClock(process.env.MAST_AIMS_AUDIT_RUN_TIME, "18:00", "19:30");
 const AIMS_AUDIT_WAKE_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS_AUDIT_WAKE_CATCH_UP_MINUTES || 120));
 const AIMS_AUDIT_RUN_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AIMS_AUDIT_RUN_CATCH_UP_MINUTES || 180));
 const HIVE_DAILY_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_HIVE_DAILY_CATCH_UP_MINUTES || 180));
