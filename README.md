@@ -165,9 +165,7 @@ The **live print production worker** runs Monday–Thursday at 22:15 Europe/Lond
 with a 20-minute scheduler catch-up allowance. It uses the existing authenticated
 AIMS KDP browser, private PDF/cover generation, D1 state, and per-format creation/
 first-submission quotas. Friday remains reserved for the new-book service.
-It requires
-`kdpWritesPerformed: false`. MAST cannot guarantee an earlier asynchronous
-KDP worker has finished purely from scheduled times. Before enabling live print
-publication, AIMS must enforce cross-workflow exclusion and print-specific
-durable state, QA, title identity and quota gates. Friday remains free of
-existing-catalogue print jobs.
+It requires `result.schemaVersion: 1`. MAST cannot guarantee an earlier
+asynchronous KDP worker has finished purely from scheduled times. AIMS must
+enforce cross-workflow exclusion and print-specific durable state, QA, title
+identity and quota gates. Friday remains free of existing-catalogue print jobs.
