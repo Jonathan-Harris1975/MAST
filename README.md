@@ -39,14 +39,14 @@ The current architecture has **six consolidated operation triggers**:
 
 `MAST_PODCAST_OPERATION_TIME` controls the Friday podcast start (default `13:00`). It replaces `MAST_FRIDAY_PM_OPERATION_TIME`, so an existing production override for the former evening slot cannot retain the old start time. The `friday-pm` operation ID and weekly Friday cadence are unchanged.
 
-AIMS owns sequencing inside each content window. An explicit terminal, non-retryable failed AIMS response consumes that schedule window while retaining the failure result; MAST does not replay it on every tick. Retryable and unclassified failures retain normal recovery, and the next scheduled day has a separate run key. Individual RSS, Zernio, Blotato, blog and weekday newsletter routes remain manual recovery controls. Friday also prepares both AI Edge weekend editions. MAST delivers the prepared Saturday debate at 17:10 and Sunday reflection at 05:10 Europe/London, with 30-minute recovery and no weekend generation. See [weekend newsletter scheduling](docs/NEWSLETTER_WEEKEND_SCHEDULE.md). Outreach is the deliberate exception: MAST owns two weekday triggers at **09:00** and **16:00 Europe/London**. The five Blotato recovery controls use `/blotato/shorts/:lane/schedule`; production recovery does not call the disabled immediate-publish route. MAST also schedules **13:00 and 17:15 weekday AM backstops** and **16:30 and 21:15 weekday lane-specific PM backstops** through the existing idempotent scheduled routes. These backstops inspect terminal Blotato job status, consume a failed attempt rather than repeatedly charging, and delegate paid-video reconciliation to AIMS. Existing manual controls remain available.
+AIMS owns sequencing inside each content window. An explicit terminal, non-retryable failed AIMS response consumes that schedule window while retaining the failure result; MAST does not replay it on every tick. Retryable and unclassified failures retain normal recovery, and the next scheduled day has a separate run key. Individual RSS, Zernio, Blotato, blog and weekday newsletter routes remain manual recovery controls. Friday also prepares both AI Edge weekend editions. MAST delivers the prepared Saturday debate at 17:10 and Sunday reflection at 05:10 Europe/London, with 30-minute recovery and no weekend generation. See [weekend newsletter scheduling](docs/NEWSLETTER_WEEKEND_SCHEDULE.md). Outreach is the deliberate exception: MAST owns two weekday triggers at **09:00** and **16:00 Europe/London**. The five Blotato recovery controls use `/blotato/shorts/:lane/schedule`; production recovery does not call the disabled immediate-publish route. MAST also schedules **13:00 Monday–Thursday, 12:30 Friday and 17:15 weekday AM backstops** and **16:30 and 21:15 weekday lane-specific PM backstops** through the existing idempotent scheduled routes. These backstops inspect terminal Blotato job status, consume a failed attempt rather than repeatedly charging, and delegate paid-video reconciliation to AIMS. Existing manual controls remain available.
 
 ### Audit schedule
 
 - **Every Monday at 12:00:** trigger the KDP public audit; at 12:15, refresh the signed-in KDP setup metadata snapshot. Tuesday through Thursday at 12:00, trigger or resume KDP research. AIMS enforces its London time window, audit freshness, search quota, and batch cursor. MAST reports incomplete results as failures.
 
-- **First Friday:** resume RAMS at 11:30 and run the website audit at 12:00.
-- **Second Friday:** resume RAMS at 17:45 and run the AIMS/content governance audit at 18:00.
+- **First Friday:** resume RAMS at 19:00 and run the website audit at 19:30, after the 13:00 podcast and its early recovery.
+- **Second Friday:** resume RAMS at 19:00 and run the AIMS/content governance audit at 19:30, after the 13:00 podcast and its early recovery.
 
 ### Daily cache maintenance
 
@@ -155,7 +155,7 @@ Restrict ingress at the hosting/CDN layer wherever a service does not need gener
 
 See `.env.example`, `docs/OPERATIONS.md`, `docs/POWER_MANAGEMENT.md`, `docs/OPERATIONAL_ALERTING.md` and `SECURITY.md`.
 
-KDP optimisation reconciliation runs at 12:05, 13:05, 14:05, 16:05 and 20:05
+KDP optimisation reconciliation runs at 13:05, 14:05, 15:20 and 20:05 daily, plus 12:05 on Friday–Sunday only
 Europe/London through AIMS `/kdp/research/updates/run`. AIMS enforces the separate
 Tuesday–Thursday submission window and five-minute minimum delay. Later daily
 checks verify publication without permitting out-of-window submissions. Deploy
