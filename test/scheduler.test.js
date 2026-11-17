@@ -600,6 +600,22 @@ test("website audit pretriggers run after the 19:00 wake", () => {
   assert.deepEqual(stages, { health: 20, preflight: 15, warmup: 10 });
 });
 
+test("second-Friday audit probes follow RAMS wake, never its standby period", () => {
+  const stages = Object.fromEntries(pretriggerJobs
+    .filter(job => job.sourceJobId === "aims-audit-pipeline")
+    .map(job => [job.pretriggerStage, job.pretriggerOffsetMinutes]));
+  assert.deepEqual(stages, { health: 20, preflight: 15, warmup: 10 });
+  const audit = baseJobs.find(job => job.id === "aims-audit-pipeline");
+  const wake = baseJobs.find(job => job.id === "rams-power-resume-aims-audit");
+  const minutes = clock => {
+    const [hours, mins] = clock.split(":").map(Number);
+    return hours * 60 + mins;
+  };
+  for (const offset of Object.values(stages)) {
+    assert.ok(minutes(audit.schedule.time) - offset > minutes(wake.schedule.time));
+  }
+});
+
 test("website audit dispatch requires both AIMS and RAMS readiness", () => {
   const website = baseJobs.find((job) => job.id === "website-audit-pipeline");
   assert.deepEqual(website.requiredServices, ["aims", "rams"]);
