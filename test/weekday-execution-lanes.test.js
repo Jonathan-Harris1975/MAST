@@ -90,6 +90,6 @@ test("every weekday heavy primary launch gets an explicit lane and no same-minut
   const audits = baseJobs.filter(j => ["website-audit-pipeline", "aims-audit-pipeline"].includes(j.id));
   for (const j of audits) {
     assert.equal(j.executionLane, "aims-heavy");
-    assert.equal(j.schedule.time, process.env["MAST_" + (j.id === "website-audit-pipeline" ? "WEBSITE" : "AIMS") + "_AUDIT_RUN_TIME"] || "19:30");
+    assert.equal(j.schedule.time, "19:30");
   }
 });
