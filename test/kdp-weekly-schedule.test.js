@@ -27,7 +27,12 @@ test("MAST triggers the KDP audit Monday and research Tuesday to Thursday in Lon
 test("MAST verifies pending publications independently of weekly research", () => {
   const job = baseJobs.find((item) => item.id === "kdp-update-verification-1205");
   assert.equal(job.schedule.time, "12:05");
-  assert.equal(job.schedule.days.length, 7);
+  assert.deepEqual(job.schedule.days, ["friday", "saturday", "sunday"]);
+  const later = baseJobs.find((item) => item.id === "kdp-update-verification-1520");
+  assert.equal(later.schedule.time, "15:20");
+  assert.equal(later.schedule.days.length, 7);
+  assert.equal(job.executionLane, "aims-heavy");
+  assert.equal(later.executionLane, "aims-heavy");
   assert.equal(job.targetPath, "/kdp/research/updates/run");
   assert.equal(job.authEnv, "AIMS_API_KEY");
   assert.equal(job.asyncStatus.statusPath, "/kdp/jobs/weekly-update-verification/{id}");
