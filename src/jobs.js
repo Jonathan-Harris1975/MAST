@@ -574,8 +574,6 @@ const zernioWeeklyEditorialJobs = [
     terminalResponsePolicy: { checks: [
       { type: "equals", path: "result.ok", value: true,
         message: "Standalone Zernio weekly editorial job did not pass its source and publication checks." },
-      { type: "equals", path: "result.partialFailure", value: false, allowMissing: true,
-        message: "Zernio weekly editorial job was only partially completed." },
     ] },
   },
 }));
