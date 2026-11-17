@@ -588,6 +588,23 @@ const monthlyAuditJobs = [
   }),
 ];
 
+const kdpRoyaltyFloorJobs = ["16:35", "18:35", "21:00"].map((time) => aimsPostJob({
+  id: `kdp-uk-royalty-floor-${time.replace(":", "")}`,
+  group: "kdp",
+  description: "Reconcile one existing UK Kindle price against the £4.50 delivery-adjusted royalty floor; exact title and publication checks.",
+  schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"],
+    time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 30 },
+  targetPath: "/kdp/audit/pricing/royalty-floor/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
+  body: { dryRun: false },
+  requestRetries: 0,
+  asyncStatus: {
+    responseIdField: "sessionId", statusPath: "/kdp/jobs/audit-royalty-floor/{id}", statusField: "status",
+    terminalResponsePolicy: { checks: [
+      { type: "equals", path: "result.ok", value: true, message: "KDP royalty-floor reconciliation needs attention." },
+    ] },
+  },
+}));
+
 const kdpWeeklyJobs = [
   aimsPostJob({
     id: "kdp-print-preflight", group: "kdp",
@@ -1271,6 +1288,7 @@ export const baseJobs = [
   zernioWeeklyQuiz,
   ...monthlyAuditJobs,
   ...kdpWeeklyJobs,
+  ...kdpRoyaltyFloorJobs,
   zernioEbooksWeekly,
   ...blotatoVideoJobs,
   ...blotatoRecoveryJobs,
