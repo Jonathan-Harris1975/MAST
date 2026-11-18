@@ -1161,8 +1161,8 @@ const hiveGovernanceWeeklyJobs = [
   hiveJob({
     id: "hive-weekly-lifecycle-report",
     group: "hive-governance-weekly",
-    description: "Ask HIVE to assemble and persist the deterministic eight-repository weekly lifecycle overview.",
-    schedule: { type: "weekly", days: ["monday"], time: "07:05", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
+    description: "Refresh the current ISO-week lifecycle overview every evening so evidence published after Monday is included.",
+    schedule: { type: "weekly", days: EVERY_DAY, time: "19:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
     targetPath: "/v1/system/lifecycle-reports/weekly",
     method: "POST",
     body: {},
