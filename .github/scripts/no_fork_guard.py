@@ -13,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_EXTENSIONS = frozenset({'.py', '.js', '.cjs', '.mjs', '.ts', '.tsx', '.sh', '.bash', '.go', '.rb', '.ps1', '.yml', '.yaml'})
-IGNORED_DIRECTORIES = frozenset({'node_modules', '.venv', 'venv', 'vendor', 'coverage', 'dist', 'build', 'test', 'tests', '__fixtures__', 'fixtures', 'docs'})
+IGNORED_DIRECTORIES = frozenset({'node_modules', '.venv', 'venv', 'vendor', 'coverage', 'dist', 'build', '__fixtures__', 'fixtures', 'docs'})
 IGNORED_FILE = '.github/scripts/no_fork_guard.py'
 SIGNATURES = (
     ('GitHub CLI fork command', re.compile(r'\bgh\s+repo\s+fork\b', re.I)),
@@ -88,6 +88,8 @@ def main() -> int:
         try:
             source = file.read_text(encoding='utf-8')
         except UnicodeDecodeError:
+            continue
+        except FileNotFoundError:
             continue
         except OSError as exc:
             raise RuntimeError(f'Could not inspect {file}; refusing to skip policy check') from exc
