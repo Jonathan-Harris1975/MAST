@@ -426,7 +426,7 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
     ["hive-repo-health-check", ["weekly", "06:05", "/v1/system/repo-health"]],
     ["hive-provider-health-check", ["weekly", "06:10", "/v1/providers/health"]],
     ["hive-env-audit", ["weekly", "06:25", "/v1/environment/audit"]],
-    ["hive-weekly-lifecycle-report", ["weekly", "07:05", "/v1/system/lifecycle-reports/weekly"]],
+    ["hive-weekly-lifecycle-report", ["weekly", "19:10", "/v1/system/lifecycle-reports/weekly"]],
    ]);
   for (const [id, [type, time, path]] of expected) {
     const job = baseJobs.find((item) => item.id === id);
@@ -471,6 +471,8 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
   );
 
   const lifecycle = baseJobs.find((job) => job.id === "hive-weekly-lifecycle-report");
+  assert.deepEqual(lifecycle.schedule.days, ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
+  assert.equal(lifecycle.schedule.catchUpMinutes, Number(process.env.MAST_HIVE_DAILY_CATCH_UP_MINUTES || 180));
   assert.equal(evaluateResponsePolicy(lifecycle.responsePolicy, JSON.stringify({ ok: true })).ok, false);
   assert.equal(evaluateResponsePolicy(lifecycle.responsePolicy, JSON.stringify({
     ok: true, report: { scope: "current_heads_at_observation", evidence_complete: false,
