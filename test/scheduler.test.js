@@ -426,7 +426,7 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
     ["hive-repo-health-check", ["weekly", "06:05", "/v1/system/repo-health"]],
     ["hive-provider-health-check", ["weekly", "06:10", "/v1/providers/health"]],
     ["hive-env-audit", ["weekly", "06:25", "/v1/environment/audit"]],
-    ["hive-weekly-lifecycle-report", ["weekly", "07:05", "/v1/system/lifecycle-reports/weekly"]],
+    ["hive-weekly-lifecycle-report", ["weekly", "19:10", "/v1/system/lifecycle-reports/weekly"]],
    ]);
   for (const [id, [type, time, path]] of expected) {
     const job = baseJobs.find((item) => item.id === id);
@@ -471,6 +471,8 @@ test("HIVE governance and optimisation schedules are fully wired", () => {
   );
 
   const lifecycle = baseJobs.find((job) => job.id === "hive-weekly-lifecycle-report");
+  assert.deepEqual(lifecycle.schedule.days, ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
+  assert.equal(lifecycle.schedule.catchUpMinutes, Number(process.env.MAST_HIVE_DAILY_CATCH_UP_MINUTES || 180));
   assert.equal(evaluateResponsePolicy(lifecycle.responsePolicy, JSON.stringify({ ok: true })).ok, false);
   assert.equal(evaluateResponsePolicy(lifecycle.responsePolicy, JSON.stringify({
     ok: true, report: { scope: "current_heads_at_observation", evidence_complete: false,
@@ -692,13 +694,14 @@ test("no temporary or one-off audit fires remain in the production schedule", ()
   assert.equal(pretriggerJobs.some((job) => /recovery|2026-08-03/.test(job.sourceJobId || job.id)), false);
 });
 
-test("monthly HIVE repository refresh follows the second RAMS/AIMS audit and waits for Intelligence", () => {
+test("monthly HIVE repository refresh is independent of audit success and awaits Intelligence", () => {
   const job = baseJobs.find((item) => item.id === "hive-repositories-monthly-refresh");
   assert.ok(job, "monthly repository refresh should be scheduled");
   assert.deepEqual(job.schedule, {
-    type: "posttrigger",
-    sourceJobId: "aims-audit-pipeline",
-    delayMinutes: 15,
+    type: "nth-weekday-monthly",
+    weekday: "saturday", occurrence: 2, time: "19:00",
+    timezone: "Europe/London",
+    catchUpMinutes: Number(process.env.MAST_HIVE_MONTHLY_CATCH_UP_MINUTES || 1020),
   });
   assert.equal(job.method, "POST");
   assert.equal(job.targetPath, "/v1/repositories/refresh-all");
@@ -723,6 +726,24 @@ test("monthly HIVE repository refresh follows the second RAMS/AIMS audit and wai
   assert.deepEqual(catalogueCheck.values, HIVE_GOVERNED_REPOSITORIES);
 });
 
+
+test("HIVE missing snapshot bootstrap is idempotent, independent and bounded", () => {
+  const bootstrap = baseJobs.find((job) => job.id === "hive-repository-snapshot-bootstrap");
+  assert.ok(bootstrap);
+  assert.equal(bootstrap.group, "hive-repositories");
+  assert.deepEqual(bootstrap.schedule.days, ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
+  assert.equal(bootstrap.schedule.type, "weekly");
+  assert.equal(bootstrap.schedule.time, "07:35");
+  assert.equal(bootstrap.targetPath, "/v1/repositories/refresh-all?missing_only=true");
+  assert.equal(bootstrap.authEnv, "HIVE_ADMIN_BEARER_TOKEN");
+  assert.deepEqual(bootstrap.requiredServices, ["hive"]);
+  assert.equal(bootstrap.requestRetries, 0);
+  assert.equal(bootstrap.consumeFailureWindow, true);
+  assert.equal(bootstrap.asyncStatus.responseIdField, "job_id");
+  assert.deepEqual(bootstrap.asyncStatus.successStatuses, ["completed"]);
+  assert.deepEqual(bootstrap.asyncStatus.failureStatuses, ["completed-with-failures", "failed"]);
+  assert.equal(bootstrap.asyncStatus.terminalResponsePolicy.checks[0].path, "ok");
+});
 
 test("AI Edge newsletter promotion runs independently on Monday Wednesday Friday", () => {
   const expected = ["monday", "wednesday", "friday"];
