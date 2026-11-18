@@ -139,7 +139,7 @@ For an AIMS hostname migration or emergency cut-over:
 1. Set the new origin in `AIMS_BASE_URL`; do not alter individual job paths.
 2. Run `npm test` (or at minimum `node --test test/aims-base-url-contract.test.js`) against the proposed origin value.
 3. Deploy MAST with the new environment value.
-4. Confirm the smoke-only MAST OIDC readiness workflow has checked reachability of all eight governed GitHub repositories and default branches; this does not establish provider trust or a merge/deployment guarantee. HIVE `/v1/system/repo-health` remains an operational health view, not the canonical repository-online authority.
+4. The retired MAST OIDC readiness workflow is not an operational gate. The daily estate verifier checks the seven other governed repositories; its results do not establish provider trust or a merge/deployment guarantee. HIVE `/v1/system/repo-health` remains an operational health view, not the canonical repository-online authority.
 5. Run the governed ecosystem smoke and confirm AIMS readiness, the Worker heartbeat and downstream paths.
 6. Review the actual `suite-health-ping` result in MAST's durable state and HIVE operational events before considering the cut-over complete; the external smoke does not trigger a Worker job.
 

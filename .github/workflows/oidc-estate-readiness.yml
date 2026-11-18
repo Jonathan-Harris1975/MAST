@@ -38,7 +38,6 @@ jobs:
             { name: "HIVE-UI", id: 1268367441 },
             { name: "IRS", id: 1206529096 },
             { name: "RAMS", id: 1231842308 },
-            { name: "MAST", id: 1230128339 },
             { name: "jonathan-harris-website", id: 1170187039 },
           ];
           const api = "https://api.github.com";
