@@ -1229,8 +1229,8 @@ const hiveGovernanceMonthlyJobs = [
 const hiveRepositoryMonthlyRefresh = hiveJob({
   id: "hive-repositories-monthly-refresh",
   group: "hive-repositories",
-  description: "After the second-Friday AIMS/RAMS audit sequence completes, download fresh governed GitHub snapshots and run HIVE Repository Intelligence for every repository.",
-  schedule: { type: "posttrigger", sourceJobId: "aims-audit-pipeline", delayMinutes: 15 },
+  description: "Independently refresh all governed repository snapshots after the second-Friday audit window, even if that audit fails.",
+  schedule: { type: "nth-weekday-monthly", weekday: "saturday", occurrence: 2, time: "19:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_MONTHLY_CATCH_UP_MINUTES },
   targetPath: "/v1/repositories/refresh-all",
   method: "POST",
   requestRetries: 0,
@@ -1261,11 +1261,40 @@ const hiveRepositoryMonthlyRefresh = hiveJob({
   },
 });
 
+// A daily, idempotent recovery check fills only absent repository snapshots.
+// A fully registered estate never runs an LLM or downloads archives for this job.
+const hiveRepositorySnapshotBootstrap = hiveJob({
+  id: "hive-repository-snapshot-bootstrap",
+  group: "hive-repositories",
+  description: "Recover missing governed HIVE repository snapshots independently of monthly audit success.",
+  schedule: { type: "weekly", days: EVERY_DAY, time: "07:35", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
+  targetPath: "/v1/repositories/refresh-all?missing_only=true",
+  method: "POST",
+  requestRetries: 0,
+  consumeFailureWindow: true,
+  asyncStatus: {
+    responseIdField: "job_id",
+    statusPath: "/v1/repositories/refresh-jobs/{id}",
+    statusField: "status",
+    successStatuses: ["completed"],
+    pendingStatuses: ["accepted", "running"],
+    failureStatuses: ["completed-with-failures", "failed"],
+    terminalResponsePolicy: {
+      checks: [
+        { type: "equals", path: "ok", value: true, message: "Governed repository bootstrap did not complete successfully." },
+        { type: "equals", path: "failed_count", value: 0, message: "One or more governed repository snapshots could not be restored." },
+        { type: "arrayEveryEquals", path: "results", key: "ok", value: true, message: "A missing repository failed ingestion or Intelligence." },
+      ],
+    },
+  },
+});
+
 const hiveGovernanceJobs = [
   ...hiveGovernanceDailyJobs,
   ...hiveGovernanceWeeklyJobs,
   ...hiveGovernanceMonthlyJobs,
   hiveRepositoryMonthlyRefresh,
+  hiveRepositorySnapshotBootstrap,
 ];
 
 
