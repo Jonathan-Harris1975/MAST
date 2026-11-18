@@ -114,20 +114,15 @@ test("standalone smoke rejects malformed source SHAs before checkout", async () 
 });
 
 
-test("OIDC estate verification is safely dispatched after local readiness succeeds", async () => {
-  const estate = await readFile(new URL("../.github/workflows/oidc-estate-readiness.yml", import.meta.url), "utf8");
-  const readiness = await readFile(new URL("../.github/workflows/oidc-readiness.yml", import.meta.url), "utf8");
-  assert.doesNotMatch(estate, /^  workflow_run:/m);
-  assert.match(estate, /schedule:/);
-  assert.match(estate, /workflow_dispatch:/);
-  assert.match(estate, /exact current main SHA/);
-  assert.match(readiness, /dispatch-estate-readiness:[\s\S]*?needs: \[github-oidc\]/);
-  assert.match(readiness, /actions: write/);
-  assert.ok(readiness.includes('tip="$(gh api "repos/${GITHUB_REPOSITORY}/branches/main" --jq .commit.sha)"'));
-  assert.ok(readiness.includes('if [ "$tip" != "$GITHUB_SHA" ]; then'));
-  assert.ok(readiness.includes("gh workflow run oidc-estate-readiness.yml --ref main"));
-  assert.match(readiness, /needs\.github-oidc\.result == 'success'/);
+test("retired OIDC readiness and estate verification cannot silently return", async () => {
+  for (const workflow of ["oidc-readiness.yml", "oidc-estate-readiness.yml"]) {
+    await assert.rejects(
+      readFile(new URL(`../.github/workflows/${workflow}`, import.meta.url), "utf8"),
+      { code: "ENOENT" },
+    );
+  }
 });
+
 test("trusted automation requires an explicit repair App ID", async () => {
   const workflow = await readFile(
     new URL("../.github/workflows/trusted-automation.yml", import.meta.url),
