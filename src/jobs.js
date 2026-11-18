@@ -587,6 +587,25 @@ const zernioWeeklyQuiz = aimsPostJob({
   authEnv: "AIMS_API_KEY",
 });
 
+// Free, read-only podcast search discovery evidence. The associated AIMS
+// endpoint has a same-day private R2 reuse guard. Run outside production
+// publishing windows; failures remain isolated from podcast operations.
+const podcastOrganicDiscoveryWeekly = aimsPostJob({
+  id: "podcast-organic-discovery-weekly",
+  group: "podcast-discovery",
+  description: "Capture free UK Apple catalogue and Podcast Index search samples for the monthly podcast growth audit.",
+  schedule: { type: "weekly", days: ["wednesday"], time: "14:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 45 },
+  targetPath: "/ops/podcast-growth/snapshot",
+  authEnv: "AIMS_API_KEY",
+  requiredServices: ["aims"],
+  body: {},
+  requestRetries: 0,
+  consumeFailureWindow: false,
+  responsePolicy: { checks: [
+    { type: "equals", path: "ok", value: true, message: "Podcast search evidence was unavailable; publishing remains unaffected." },
+  ] },
+});
+
 const monthlyAuditJobs = [
   aimsPostJob({
     id: "website-audit-pipeline",
@@ -1374,6 +1393,7 @@ export const baseJobs = [
   ...zernioWeeklyEditorialJobs,
   zernioWeeklyQuiz,
   ...monthlyAuditJobs,
+  podcastOrganicDiscoveryWeekly,
   ...kdpWeeklyJobs,
   ...kdpRoyaltyFloorJobs,
   ...kdpPrintPricingJobs,
@@ -1459,7 +1479,7 @@ function shouldHavePretriggers(job) {
   return job?.authEnv === "AIMS_API_KEY"
     && ["weekly", "monthly", "nth-weekday-monthly", "once"].includes(job.schedule?.type)
     && !job.managedPretrigger
-    && !["operations", "operations-backstop", "newsletter-backstop"].includes(job.group);
+    && !["operations", "operations-backstop", "newsletter-backstop", "podcast-discovery"].includes(job.group);
 }
 
 function buildPretriggerJobs(sourceJobs) {
