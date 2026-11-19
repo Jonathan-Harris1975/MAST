@@ -48,7 +48,16 @@ export async function auditAcceptance(kind, identity, {
       }
       return { kind, sessionId, status, runId: handoff.runId, reportJsonUrl: job.finalReportJsonUrl || job.result?.reportJsonUrl };
     }
-    if (status === 'failed') throw new Error(`${kind} audit failed; inspect persisted job ${sessionId}`);
+    if (status === 'failed') {
+      const phaseNames = ['digital-growth','seo-aeo-geo','mobile-ux','council-and-final-report',
+        'controlled-audit-failure','awaiting-remediation','remediation-blocked','final-report-set-failed'];
+      const states = ['queued','accepted','running','completed','failed'];
+      const sourceStages = Object.fromEntries(['digitalGrowth','seoAeoGeo','mobileUx'].filter(name => job.stages?.[name])
+        .map(name => [name,states.includes(job.stages[name].status)?job.stages[name].status:'unknown']));
+      throw Object.assign(new Error(`${kind} audit failed; inspect persisted job ${sessionId}`), {
+        acceptanceObservation:{sessionId,phase:phaseNames.includes(job.phase)?job.phase:null,sourceStages},
+      });
+    }
     if (!['queued', 'accepted', 'running'].includes(status)) throw new Error(`${kind} audit status is invalid`);
     if (singlePass) return {kind,sessionId,status,phase:job.phase || null};
     await pause(30000);
@@ -100,7 +109,7 @@ if (process.env.AUDIT_ACCEPTANCE_REMOTE === '1') {
       console.log((singlePass?'AUDIT_ACCEPTANCE_RESULT=':'')+JSON.stringify(result));
     } catch (error) {
       failures++;
-      if(singlePass) console.log('AUDIT_ACCEPTANCE_RESULT='+JSON.stringify({kind:selected,status:'failed',error:error.message}));
+      if(singlePass) console.log('AUDIT_ACCEPTANCE_RESULT='+JSON.stringify({kind:selected,status:'failed',error:error.message,...error.acceptanceObservation}));
       else console.error(error.message);
     }
   }
