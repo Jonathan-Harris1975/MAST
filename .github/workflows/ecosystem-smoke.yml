@@ -70,7 +70,7 @@ jobs:
             source_sha: e.SOURCE_SHA, workflow_run: e.GITHUB_RUN_ID,
             run_attempt: e.GITHUB_RUN_ATTEMPT, status: "worker-api-smoke-green",
             scope: "MAST exact deployment and downstream read-only health/policy; caller deployment is not attested",
-            mutation_probes: "not_run", oidc_scope: "smoke-only; no provider trust or federation proof",
+            mutation_probes: "not_run",
           }) + "\n");
           NODE
       - name: Retain Worker/API-smoke launch evidence
