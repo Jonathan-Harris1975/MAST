@@ -9,6 +9,20 @@ test('acceptance rejects invalid identity before any external action',async()=>{
   await assert.rejects(auditAcceptance('other',sha,options(()=>assert.fail())),/identity/);
   await assert.rejects(auditAcceptance('website','bad',options(()=>assert.fail())),/identity/);
 });
+
+test('failed observations retain canonical identity and safe source states without raw provider errors',async()=>{
+  await assert.rejects(auditAcceptance('website',sha,options(async()=>response({job:{
+    status:'failed',phase:'controlled-audit-failure',error:{message:'private provider detail'},callbackToken:'secret',
+    stages:{seoAeoGeo:{status:'failed',error:'private source detail'},mobileUx:{status:'completed'},unexpected:{status:'secret'}}
+  }}))),error=>{
+    assert.deepEqual(error.acceptanceObservation,{
+      sessionId:'AUD-WEBSITE-acceptance-'+sha.slice(0,16)+'-website',phase:'controlled-audit-failure',
+      sourceStages:{seoAeoGeo:'failed',mobileUx:'completed'},
+    });
+    assert.doesNotMatch(JSON.stringify(error.acceptanceObservation),/secret|private|unexpected/);
+    return true;
+  });
+});
 test('an accepted or old completed report cannot certify repair completion',async()=>{
   await assert.rejects(auditAcceptance('website',sha,options(async()=>response({job:{status:'completed',ramsDispatch:{status:'accepted'}}}))),/without verified/);
 });
