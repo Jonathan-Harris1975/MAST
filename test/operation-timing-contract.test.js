@@ -7,7 +7,7 @@ test("production operation timing assumes AIMS is continuously available", () =>
   assert.equal(baseJobs.some((job) => job.group === "power-aims"), false);
   const monday = baseJobs.find((job) => job.id === "operation-monday-am");
   const fridayPm = baseJobs.find((job) => job.id === "operation-friday-pm");
-  assert.equal(monday.schedule.time, process.env.MAST_AM_OPERATION_TIME || "10:00");
+  assert.equal(monday.schedule.time, process.env.MAST_AM_OPERATION_TIME || "08:00");
   assert.equal(fridayPm.schedule.time, process.env.MAST_PODCAST_OPERATION_TIME || "13:00");
   assert.equal(fridayPm.schedule.catchUpMinutes, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
   assert.deepEqual(fridayPm.requiredServices, ["aims"]);
@@ -17,7 +17,7 @@ test("production operation timing assumes AIMS is continuously available", () =>
 
 test("production env patch keeps operation polling and canonical times", async () => {
   const patch = await readFile(new URL("../MAST-KOYEB-PRODUCTION-ENV-PATCH.txt", import.meta.url), "utf8");
-  assert.match(patch, /^MAST_AM_OPERATION_TIME=10:00$/m);
+  assert.match(patch, /^MAST_AM_OPERATION_TIME=08:00$/m);
   assert.match(patch, /^MAST_AM_OPERATION_CATCH_UP_MINUTES=180$/m);
   assert.match(patch, /^MAST_PODCAST_OPERATION_TIME=13:00$/m);
   assert.match(patch, /^MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES=180$/m);
