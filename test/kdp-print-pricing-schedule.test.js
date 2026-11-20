@@ -24,7 +24,7 @@ test("print pricing doesn't replace any existing Kindle royalty-floor update or 
     assert.ok(baseJobs.find(job => job.id === "kdp-uk-royalty-floor-" + time.replace(":", "")));
   }
   const print = baseJobs.find(job => job.id === "kdp-print-production");
-  assert.equal(print.schedule.time, "16:00");
+  assert.equal(print.schedule.time, "16:10");
   assert.equal(print.schedule.days.includes("friday"), false);
   assert.equal(baseJobs.some(job => job.id.startsWith("kdp-print-pricing-") &&
     job.schedule.days.includes("friday")), false);
