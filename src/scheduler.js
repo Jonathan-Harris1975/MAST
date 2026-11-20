@@ -1486,6 +1486,18 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
       durationMs: finishedAt.getTime() - startedAt.getTime(),
     };
 
+    // A timeout, malformed response or missing async sessionId can occur AFTER
+    // the downstream POST has already been accepted. Honour the job's one-shot
+    // failure-window policy on this exception path as well as returned HTTP
+    // failures; never replay a potentially mutating KDP publish blindly.
+    if (job.consumeFailureWindow) {
+      if (job.schedule?.type === "interval") {
+        state.intervalLastRunAt[job.id] = finishedAt.toISOString();
+      } else {
+        state.lastRunKeys[job.id] = runKey;
+      }
+    }
+
     if (job.lifecycle) {
       setServiceLifecycle(job.lifecycle.service, "offline", {
         reason: `scheduled-${job.lifecycle.action}-request-failed`,
