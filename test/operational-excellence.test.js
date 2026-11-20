@@ -61,7 +61,7 @@ test("operator pause during a due-job batch defers remaining work for the next t
 
   try {
     const scheduler = await import(`../src/scheduler.js?ops-batch-test=${Date.now()}`);
-    const at = new Date("2026-10-21T05:15:00.000Z"); // 06:15 Europe/London
+    const at = new Date("2026-10-21T06:15:00.000Z"); // 07:15 Europe/London
     const stopped = await scheduler.runDueJobs({ at, trigger: "operator-control-batch-test" });
 
     assert.equal(stopped.partial, true);
