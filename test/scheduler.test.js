@@ -236,8 +236,9 @@ test("Blotato first and late backstops are weekday-only, idempotent and verify t
   }
 });
 
-test("Outreach is fully automated twice each weekday under MAST", () => {
-  for (const [id, time] of [["outreach-weekday-am", "09:00"], ["outreach-weekday-pm", "16:00"]]) {
+test("Outreach is automated once each weekday under MAST", () => {
+  assert.equal(baseJobs.filter((job) => job.group === "outreach" && job.schedule.type !== "manual").length, 1);
+  for (const [id, time] of [["outreach-weekday-am", "09:00"]]) {
     const job = baseJobs.find((item) => item.id === id);
     assert.ok(job);
     assert.deepEqual(job.schedule.days, ["monday", "tuesday", "wednesday", "thursday", "friday"]);
