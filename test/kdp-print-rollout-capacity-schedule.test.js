@@ -10,6 +10,7 @@ test("live print production dispatches the AIMS publishing worker Monday–Thurs
   assert.deepEqual(job.schedule.days, ["monday", "tuesday", "wednesday", "thursday"]);
   assert.equal(job.schedule.time, "16:10");
   assert.equal(job.schedule.catchUpMinutes, 20);
+  assert.equal(job.consumeFailureWindow, true, "Never replay a failed KDP print POST in the same window");
   assert.equal(job.schedule.timezone, "Europe/London");
   assert.equal(job.targetPath, "/kdp/print/production/run");
   assert.equal(job.authEnv, "AIMS_API_KEY");
@@ -45,4 +46,24 @@ test("print publication stays within the daytime production window and uses the 
     if (!job.schedule.days.some(day => print.schedule.days.includes(day))) continue;
     assert.equal(job.executionLane, "aims-heavy", job.id + " must share the KDP serialisation lane");
   }
+});
+
+test("late KDP maintenance stays eligible while print production occupies the shared lane", () => {
+  const late = [
+    ["kdp-uk-royalty-floor-1635", 145],
+    ["kdp-uk-royalty-floor-1735", 85],
+    ["kdp-update-verification-1705", 115],
+    ["kdp-print-pricing-1710", 110],
+  ];
+  for (const [id, catchUpMinutes] of late) {
+    const job = baseJobs.find(item => item.id === id);
+    assert.ok(job, id);
+    assert.equal(job.executionLane, "aims-heavy", id);
+    assert.equal(job.schedule.catchUpMinutes, catchUpMinutes, id);
+    const [hour, minute] = job.schedule.time.split(":").map(Number);
+    assert.equal(hour * 60 + minute + catchUpMinutes, 19 * 60, id);
+  }
+  const print = baseJobs.find(item => item.id === "kdp-print-production");
+  assert.equal(print.schedule.catchUpMinutes, 20, "KDP print must not start at 17:40 and starve downstream jobs");
+  assert.equal(print.consumeFailureWindow, true, "a failed KDP mutation must be settled for the day");
 });
