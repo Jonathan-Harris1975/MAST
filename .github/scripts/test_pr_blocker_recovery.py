@@ -640,6 +640,38 @@ class Recovery(unittest.TestCase):
         self.assertEqual(events, ["reserve", "mark-rejected", "reserve", "ack"])
         self.assertIn("dispatch-state: accepted", comments[1]["body"])
 
+    def test_missing_or_malformed_handoff_timestamp_is_stale(self):
+        sha = "a" * 40
+        marker = f"<!-- kilo-auto-repair:{sha}:review -->"
+        for created_at in (None, "not-a-timestamp"):
+            with self.subTest(created_at=created_at):
+                comments = [{
+                    "user": {"login": "github-actions[bot]"},
+                    "body": marker + "\ndispatch-state: accepted",
+                    "created_at": created_at,
+                }]
+
+                def api(method, path, payload=None):
+                    if method == "POST" and path.endswith("/comments"):
+                        return {"id": 99}
+                    if method == "PATCH" and path.endswith("/issues/comments/99"):
+                        return {}
+                    raise AssertionError((method, path, payload))
+
+                accepted = MagicMock()
+                accepted.__enter__.return_value.status = 202
+                with (
+                    patch.object(m.router, "all_pages", return_value=comments),
+                    patch.object(m.router, "active_implementation", return_value=None),
+                    patch.object(m.router, "api", side_effect=api),
+                    patch.object(m.router, "valid_kilo_webhook_url", return_value=True),
+                    patch.object(m.router, "machine_contract", return_value="machine contract"),
+                    patch.object(m.router.urllib.request, "urlopen", return_value=accepted),
+                    patch.dict(os.environ, {"KILO_REPAIR_TRIGGER_URL": "https://example.invalid/repair"}),
+                    patch("builtins.print"),
+                ):
+                    self.assertEqual(m.router.dispatch(self.pr, "review", ["finding"]), "requested")
+
     def test_blocker_recovery_runs_after_router_failure_without_bypassing_safety(self):
         workflow = (Path(__file__).parents[1] / "workflows/pr-issue-repair.yml").read_text()
         lines = workflow.splitlines()

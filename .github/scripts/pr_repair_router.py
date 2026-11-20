@@ -13,6 +13,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 from kilo_webhook_url import valid_kilo_webhook_url
 from kilo_failure_classifier import repairable_failed_steps
@@ -341,13 +342,12 @@ def dispatch(pr: dict, kind: str, findings: list[str]) -> str:
     matching_markers = [c for c in markers if marker in c["body"]]
     if matching_markers and any("dispatch-state: rejected-http-" not in c["body"] for c in matching_markers):
         # A webhook receipt is not evidence of an implemented repair.
-        from datetime import datetime, timezone
         latest = max(str(c.get("created_at") or "") for c in matching_markers)
         try:
             age = (datetime.now(timezone.utc) - datetime.fromisoformat(
                 latest.replace("Z", "+00:00"))).total_seconds()
         except (ValueError, TypeError):
-            age = 0
+            age = 6 * 3600 + 1
         if age < 6 * 3600 or active_implementation(pr) is not None:
             print(f"PR #{number} has a recent handoff or verified implementation; skipping.")
             return 'already-requested'
