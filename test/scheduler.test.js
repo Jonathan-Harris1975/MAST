@@ -110,11 +110,11 @@ test("MAST exposes five AM windows plus the Friday podcast window", () => {
   }
 });
 
-test("AIMS remains always-on and AM operations begin at 10:00 with catch-up protection", () => {
+test("AIMS remains always-on and AM operations begin at 08:00 with catch-up protection", () => {
   assert.equal(baseJobs.some((job) => job.id.startsWith("aims-power-")), false);
   for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"]) {
     const am = baseJobs.find((job) => job.id === `operation-${day}-am`);
-    assert.equal(am.schedule.time, process.env.MAST_AM_OPERATION_TIME || "10:00");
+    assert.equal(am.schedule.time, process.env.MAST_AM_OPERATION_TIME || "08:00");
     assert.equal(am.schedule.catchUpMinutes, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
     assert.deepEqual(am.requiredServices, ["aims"]);
   }
