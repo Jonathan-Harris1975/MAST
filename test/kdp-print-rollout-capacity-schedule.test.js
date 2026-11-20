@@ -9,7 +9,8 @@ test("live print production dispatches the AIMS publishing worker Monday–Thurs
   assert.equal(job.schedule.type, "weekly");
   assert.deepEqual(job.schedule.days, ["monday", "tuesday", "wednesday", "thursday"]);
   assert.equal(job.schedule.time, "16:10");
-  assert.equal(job.schedule.catchUpMinutes, 20);
+  assert.equal(job.schedule.catchUpMinutes, 90);
+  assert.equal(job.consumeFailureWindow, true, "Never replay a failed KDP print POST in the same window");
   assert.equal(job.schedule.timezone, "Europe/London");
   assert.equal(job.targetPath, "/kdp/print/production/run");
   assert.equal(job.authEnv, "AIMS_API_KEY");
