@@ -6,9 +6,9 @@
 
 ## Evidence and scheduling decisions
 
-Read-only production R2 observation: `metasystem/state/mast/scheduler-state.json` (17 November, 08:06 UTC). Its 80-entry rolling result history is **not** a comprehensive historical duration database. It showed Monday 16 November's weekly KDP public audit finishing in about 1.8 minutes, metadata sync in about 9.2 minutes, and a 10:00 AIMS content operation returning after 13.7 minutes with terminal content failures. The 16:00 Outreach trigger returned 429 and retried at 16:05, alongside the old KDP 16:05 verification. The original 13:00 Friday Blotato backstop also had exactly the same launch time as the Friday podcast. Both need separation.
+Read-only production R2 observation: `metasystem/state/mast/scheduler-state.json` (17 November, 08:06 UTC). Its 80-entry rolling result history is **not** a comprehensive historical duration database. It showed Monday 16 November's weekly KDP public audit finishing in about 1.8 minutes, metadata sync in about 9.2 minutes, and a 10:00 AIMS content operation returning after 13.7 minutes with terminal content failures. The 16:00 Outreach trigger returned 429 and retried at 16:05, alongside the old KDP 16:05 verification. The Friday podcast now starts at 12:30 and the Friday Blotato AM backstop at 13:30, avoiding simultaneous launches.
 
-Schedule changes preserve existing daily content generation, publishing controls, KDP research and print throughput. The primary AIMS content window stays at 10:00 and the Friday podcast at 13:00. The weekday workload has different service-level risk and must not be declared safe based on non-overlapping clock times alone.
+Schedule changes preserve existing daily content generation, publishing controls, KDP research and print throughput. The primary AIMS content window stays at 10:00 and the Friday podcast at 12:30. The weekday workload has different service-level risk and must not be declared safe based on non-overlapping clock times alone.
 
 ## Target weekday starts
 
@@ -21,8 +21,9 @@ Schedule changes preserve existing daily content generation, publishing controls
 | 11:15 | AI Edge Zernio promo | Wednesday only | AI Edge Zernio promo |
 | 12:00 | Weekly KDP public audit | KDP research (authenticated update slots do **not** start at 12:05) | No scheduled KDP research |
 | 12:15 | KDP signed-in metadata synchronisation | — | — |
-| 12:30 | — | — | Friday AM video recovery (moved from 13:00) |
-| 13:00 | AM video recovery | AM video recovery | Podcast operation (unchanged) |
+| 12:30 | — | — | Friday podcast operation |
+| 13:00 | AM video recovery | AM video recovery | — |
+| 13:30 | — | — | Friday AM video recovery |
 | 13:05, 14:05 | KDP update verification | KDP update verification after research has started | KDP update verification plus Friday 12:05 recovery |
 | 14:30 | Independent Zernio weekly mini-series | Thursday only: independent podcast social promotion | — |
 | 15:20 | KDP update verification (moved from 16:05) | Same | Same |
