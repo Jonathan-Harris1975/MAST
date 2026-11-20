@@ -127,7 +127,7 @@ test("all weekday content and podcast windows have two bounded, safe same-day ba
     ? !backstops.some((backstop) => backstop.id === job.sourceJobId) : true),
     "content recovery backstops must not multiply pretrigger jobs");
   for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"]) {
-    for (const [slot, time] of [["afternoon", "15:45"], ["evening", "18:00"]]) {
+    for (const [slot, time] of [["afternoon", "15:45"], ["evening", day === "friday" ? "17:45" : "18:00"]]) {
       const job = backstops.find((item) => item.id === `operation-${day}-am-${slot}-backstop`);
       assert.ok(job);
       assert.equal(job.schedule.time, time);
@@ -144,8 +144,8 @@ test("all weekday content and podcast windows have two bounded, safe same-day ba
   for (const job of backstops) {
     assert.equal(job.schedule.type, "weekly");
     assert.equal(job.schedule.timezone, "Europe/London");
-    const expectedCatchUp = job.schedule.time === "18:00" ? 60
-      : job.schedule.time === "18:00" ? 30 : 90;
+    const expectedCatchUp = job.id === "operation-friday-pm-late-backstop" ? 30
+      : job.id.endsWith("-am-evening-backstop") ? 60 : 90;
     assert.equal(job.schedule.catchUpMinutes, expectedCatchUp);
     const [hour, minute] = job.schedule.time.split(":").map(Number);
     assert.ok(hour * 60 + minute + job.schedule.catchUpMinutes <= 19 * 60,
