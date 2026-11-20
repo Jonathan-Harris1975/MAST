@@ -196,16 +196,7 @@ const outreachScheduledJobs = [
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims"],
   }),
-  aimsPostJob({
-    id: "outreach-weekday-pm",
-    group: "outreach",
-    description: "Automatically process the afternoon Outreach batch on weekdays.",
-    schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "16:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
-    pretriggerOffsets: { health: 179, preflight: 111, warmup: 29 },
-    targetPath: "/outreach/batch/next",
-    authEnv: "AIMS_API_KEY",
-    requiredServices: ["aims"],
-  }),
+
 ];
 
 const cloudflareDailyPurge = aimsPostJob({
