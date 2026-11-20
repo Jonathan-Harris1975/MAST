@@ -634,7 +634,7 @@ const kdpRoyaltyFloorJobs = ["14:35", "16:35", "17:35"].map((time) => aimsPostJo
   group: "kdp",
   description: "Reconcile one existing UK Kindle price against the £4.50 delivery-adjusted royalty floor; exact title and publication checks.",
   schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"],
-    time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 30 },
+    time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: time === "16:35" ? 145 : time === "17:35" ? 85 : 30 },
   targetPath: "/kdp/audit/pricing/royalty-floor/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
   body: { dryRun: false },
   requestRetries: 0,
@@ -654,7 +654,7 @@ const kdpPrintPricingJobs = ["15:40", "17:10"].map((time) => aimsPostJob({
   group: "kdp",
   description: "Monitor published paperback and hardback prices; update one verified edition when UK/US margins or sensible retail bounds need correction.",
   schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"],
-    time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 15 },
+    time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: time === "17:10" ? 110 : 15 },
   targetPath: "/kdp/audit/pricing/print/run",
   authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
   body: { dryRun: false }, requestRetries: 0,
@@ -687,7 +687,7 @@ const kdpWeeklyJobs = [
   aimsPostJob({
     id: "kdp-print-production", group: "kdp",
     description: "Submit up to ten existing books weekly in paperback and hardcover, with 3-book session capacity, persistent per-format quota tracking and KDP platform-limit circuit breaking.",
-    schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"], time: "16:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 90 },
+    schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"], time: "16:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 20 },
     targetPath: "/kdp/print/production/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
     body: {},
     requestRetries: 0,
@@ -714,7 +714,7 @@ const kdpWeeklyJobs = [
     id: `kdp-update-verification-${time.replace(":", "")}`, group: "kdp", description: "Submit eligible queued updates in-window and verify prior KDP publications.",
     schedule: { type: "weekly", days: time === "12:05"
       ? ["friday"] : WEEKDAYS_MON_TO_FRI,
-      time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 45 },
+      time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: time === "17:05" ? 115 : 45 },
     targetPath: "/kdp/research/updates/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
     asyncStatus: {
       responseIdField: "sessionId", statusPath: "/kdp/jobs/weekly-update-verification/{id}", statusField: "status",
