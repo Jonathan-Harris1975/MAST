@@ -8,7 +8,7 @@ test("live print production dispatches the AIMS publishing worker Monday–Thurs
   assert.equal(job.group, "kdp");
   assert.equal(job.schedule.type, "weekly");
   assert.deepEqual(job.schedule.days, ["monday", "tuesday", "wednesday", "thursday"]);
-  assert.equal(job.schedule.time, "16:00");
+  assert.equal(job.schedule.time, "16:10");
   assert.equal(job.schedule.catchUpMinutes, 20);
   assert.equal(job.schedule.timezone, "Europe/London");
   assert.equal(job.targetPath, "/kdp/print/production/run");
