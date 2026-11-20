@@ -8,7 +8,7 @@ test("live print production dispatches the AIMS publishing worker Monday–Thurs
   assert.equal(job.group, "kdp");
   assert.equal(job.schedule.type, "weekly");
   assert.deepEqual(job.schedule.days, ["monday", "tuesday", "wednesday", "thursday"]);
-  assert.equal(job.schedule.time, "22:15");
+  assert.equal(job.schedule.time, "16:00");
   assert.equal(job.schedule.catchUpMinutes, 20);
   assert.equal(job.schedule.timezone, "Europe/London");
   assert.equal(job.targetPath, "/kdp/print/production/run");
@@ -33,15 +33,16 @@ test("Monday source preflight and Friday book creation are untouched", () => {
   assert.equal(preflight.schedule.time, "15:30");
 });
 
-test("other KDP dispatch and catch-up windows close before live print begins", () => {
+test("print publication stays within the daytime production window and uses the serialised KDP lane", () => {
   const print = baseJobs.find(item => item.id === "kdp-print-production");
   const minutes = clock => { const [hours, mins] = clock.split(":").map(Number); return hours * 60 + mins; };
   assert.ok(minutes(print.schedule.time) + print.schedule.catchUpMinutes < minutes("23:45"));
+  assert.equal(print.executionLane, "aims-heavy");
+  assert.ok(minutes(print.schedule.time) >= minutes("07:00"));
+  assert.ok(minutes(print.schedule.time) + print.schedule.catchUpMinutes <= minutes("19:00"));
   for (const job of baseJobs.filter(item => item.group === "kdp" && item.id !== print.id)) {
     if (job.schedule.type !== "weekly") continue;
     if (!job.schedule.days.some(day => print.schedule.days.includes(day))) continue;
-    const lastDispatch = minutes(job.schedule.time) + (job.schedule.catchUpMinutes ?? 0);
-    assert.ok(lastDispatch < minutes(print.schedule.time),
-      job.id + " has a KDP dispatch/catch-up window overlapping print publication");
+    assert.equal(job.executionLane, "aims-heavy", job.id + " must share the KDP serialisation lane");
   }
 });
