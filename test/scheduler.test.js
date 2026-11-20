@@ -135,7 +135,7 @@ test("all weekday content and podcast windows have two bounded, safe same-day ba
       assert.equal(job.targetPath, `/ops/run/${day}-am`);
     }
   }
-  for (const [slot, time] of [["evening", "17:00"], ["late", "18:30"]]) {
+  for (const [slot, time] of [["evening", "17:00"], ["late", "18:00"]]) {
     const job = backstops.find((item) => item.id === `operation-friday-pm-${slot}-backstop`);
     assert.ok(job);
     assert.equal(job.schedule.time, time);
@@ -145,7 +145,7 @@ test("all weekday content and podcast windows have two bounded, safe same-day ba
     assert.equal(job.schedule.type, "weekly");
     assert.equal(job.schedule.timezone, "Europe/London");
     const expectedCatchUp = job.schedule.time === "18:00" ? 60
-      : job.schedule.time === "18:30" ? 30 : 90;
+      : job.schedule.time === "18:00" ? 30 : 90;
     assert.equal(job.schedule.catchUpMinutes, expectedCatchUp);
     const [hour, minute] = job.schedule.time.split(":").map(Number);
     assert.ok(hour * 60 + minute + job.schedule.catchUpMinutes <= 19 * 60,
@@ -198,7 +198,7 @@ test("Blotato first and late backstops are weekday-only, idempotent and verify t
   assert.equal(backstops.length, 13);
   for (const [id, time, days] of [
     ["blotato-weekday-am-backstop", "13:00", ["monday", "tuesday", "wednesday", "thursday"]],
-    ["blotato-friday-am-backstop", "12:30", ["friday"]],
+    ["blotato-friday-am-backstop", "13:30", ["friday"]],
     ["blotato-weekday-am-late-backstop", "17:15", ["monday", "tuesday", "wednesday", "thursday", "friday"]],
   ]) {
     const am = backstops.find((job) => job.id === id);
@@ -513,22 +513,22 @@ test("Friday PM starts the podcast at the configured recovery time while AIMS re
   assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-friday-podcast"), false);
   const job = baseJobs.find((item) => item.id === "operation-friday-pm");
   assert.deepEqual(job.schedule.days, ["friday"]);
-  assert.equal(job.schedule.time, process.env.MAST_PODCAST_OPERATION_TIME || "13:00");
+  assert.equal(job.schedule.time, process.env.MAST_PODCAST_OPERATION_TIME || "12:30");
   assert.equal(job.schedule.catchUpMinutes, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
   assert.deepEqual(job.requiredServices, ["aims"]);
   assert.equal(job.targetPath, "/ops/run/friday-pm");
   assert.match(job.description, /podcast-only/i);
 });
 
-test("Friday podcast starts at 13:00 UK time in GMT and BST", () => {
+test("Friday podcast starts at 12:30 UK time in GMT and BST", () => {
   const job = baseJobs.find((item) => item.id === "operation-friday-pm");
   // Use the canonical time regardless of optional deployment overrides.
-  const scheduled = { ...job, schedule: { ...job.schedule, time: "13:00" } };
+  const scheduled = { ...job, schedule: { ...job.schedule, time: "12:30" } };
   assert.equal(job.schedule.timezone, "Europe/London");
-  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T12:59:00Z")), false);
-  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T13:00:00Z")), true);
-  assert.equal(isTimedJobDue(scheduled, new Date("2026-07-10T11:59:00Z")), false);
-  assert.equal(isTimedJobDue(scheduled, new Date("2026-07-10T12:00:00Z")), true);
+  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T12:29:00Z")), false);
+  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T12:30:00Z")), true);
+  assert.equal(isTimedJobDue(scheduled, new Date("2026-07-10T11:29:00Z")), false);
+  assert.equal(isTimedJobDue(scheduled, new Date("2026-07-10T11:30:00Z")), true);
   assert.equal(isTimedJobDue(scheduled, new Date("2026-11-12T13:00:00Z")), false);
   assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T17:45:00Z")), false);
 });
