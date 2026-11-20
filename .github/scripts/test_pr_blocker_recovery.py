@@ -1,6 +1,7 @@
 """Behavioural blocker-recovery tests; all network calls are mocked."""
 
 import copy
+from datetime import datetime, timezone
 import json
 from io import StringIO
 import os
@@ -572,7 +573,8 @@ class Recovery(unittest.TestCase):
             patch.object(
                 m.router,
                 "all_pages",
-                return_value=[{"user": {"login": "github-actions[bot]"}, "body": marker}],
+                return_value=[{"user": {"login": "github-actions[bot]"}, "body": marker,
+                               "created_at": datetime.now(timezone.utc).isoformat()}],
             ),
             patch.object(m.router, "api") as api,
         ):
