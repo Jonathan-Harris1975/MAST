@@ -1340,12 +1340,12 @@ const operationContentBackstops = [
       requestRetries: 0,
       consumeFailureWindow: true,
     }))),
-  ...[["17:00", "evening"], ["18:30", "late"]].map(([time, slot]) => aimsPostJob({
+  ...[["17:00", "evening"], ["18:00", "late"]].map(([time, slot]) => aimsPostJob({
     id: `operation-friday-pm-${slot}-backstop`,
     group: "operations-backstop",
     description: "Reconcile and resume the original Friday podcast operation without a duplicate episode.",
     schedule: { type: "weekly", days: ["friday"], time, timezone: LOCAL_TIME_ZONE,
-      catchUpMinutes: time === "18:30" ? 30 : 90 },
+      catchUpMinutes: time === "18:00" ? 30 : 90 },
     targetPath: "/ops/run/friday-pm",
     operationRecoveryOf: "operation-friday-pm",
     authEnv: "AIMS_API_KEY",
