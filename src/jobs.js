@@ -1327,12 +1327,12 @@ const operationWindowJobs = [
 // AIMS's durable receipt and its bounded recovery budget. Never force-replay.
 const operationContentBackstops = [
   ...["monday", "tuesday", "wednesday", "thursday", "friday"].flatMap((day) =>
-    [["15:45", "afternoon"], ["18:00", "evening"]].map(([time, slot]) => aimsPostJob({
+    [["15:45", "afternoon"], [day === "friday" ? "17:45" : "18:00", "evening"]].map(([time, slot]) => aimsPostJob({
       id: `operation-${day}-am-${slot}-backstop`,
       group: "operations-backstop",
       description: `Reconcile and recover unfinished ${day} AM content, without rerunning confirmed successes.`,
       schedule: { type: "weekly", days: [day], time, timezone: LOCAL_TIME_ZONE,
-        catchUpMinutes: time === "18:00" ? 60 : 90 },
+        catchUpMinutes: slot === "evening" ? 60 : 90 },
       targetPath: `/ops/run/${day}-am`,
       operationRecoveryOf: `operation-${day}-am`,
       authEnv: "AIMS_API_KEY",
