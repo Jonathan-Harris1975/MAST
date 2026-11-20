@@ -687,7 +687,7 @@ const kdpWeeklyJobs = [
   aimsPostJob({
     id: "kdp-print-production", group: "kdp",
     description: "Submit up to ten existing books weekly in paperback and hardcover, with 3-book session capacity, persistent per-format quota tracking and KDP platform-limit circuit breaking.",
-    schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"], time: "16:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 20 },
+    schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"], time: "16:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 20 },
     targetPath: "/kdp/print/production/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
     body: {},
     requestRetries: 0,
