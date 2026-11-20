@@ -8,7 +8,7 @@ const EVERY_DAY = ["monday", "tuesday", "wednesday", "thursday", "friday", "satu
 const WEEKDAYS_MON_TO_FRI = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 const AM_OPERATION_TIME = String(process.env.MAST_AM_OPERATION_TIME || "08:00");
 const AM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
-const FRIDAY_PM_OPERATION_TIME = String(process.env.MAST_PODCAST_OPERATION_TIME || "13:00");
+const FRIDAY_PM_OPERATION_TIME = String(process.env.MAST_PODCAST_OPERATION_TIME || "12:30");
 const FRIDAY_PM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
 /**
  * Existing Koyeb workers may retain the original Friday audit env values.
@@ -824,10 +824,10 @@ const blotatoRecoveryStatus = {
   },
 };
 const blotatoRecoveryJobs = [
-  // Friday podcast owns 13:00; move only Friday’s AM video recovery
-  // earlier instead of launching two expensive AIMS operations together.
+  // Friday podcast owns 12:30; keep Friday AM video recovery at 13:30
+  // instead of launching two expensive AIMS operations together.
   ...[["13:00", WEEKDAYS_MON_TO_FRI.slice(0, 4), "blotato-weekday-am-backstop"],
-    ["12:30", ["friday"], "blotato-friday-am-backstop"],
+    ["13:30", ["friday"], "blotato-friday-am-backstop"],
     ["17:15", WEEKDAYS_MON_TO_FRI, "blotato-weekday-am-late-backstop"]]
     .map(([time, days, id]) => aimsPostJob({
     id,
