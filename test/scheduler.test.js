@@ -127,7 +127,7 @@ test("all weekday content and podcast windows have two bounded, safe same-day ba
     ? !backstops.some((backstop) => backstop.id === job.sourceJobId) : true),
     "content recovery backstops must not multiply pretrigger jobs");
   for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"]) {
-    for (const [slot, time] of [["afternoon", "15:45"], ["evening", "21:20"]]) {
+    for (const [slot, time] of [["afternoon", "15:45"], ["evening", "18:00"]]) {
       const job = backstops.find((item) => item.id === `operation-${day}-am-${slot}-backstop`);
       assert.ok(job);
       assert.equal(job.schedule.time, time);
@@ -135,7 +135,7 @@ test("all weekday content and podcast windows have two bounded, safe same-day ba
       assert.equal(job.targetPath, `/ops/run/${day}-am`);
     }
   }
-  for (const [slot, time] of [["evening", "18:30"], ["late", "22:10"]]) {
+  for (const [slot, time] of [["evening", "17:00"], ["late", "18:30"]]) {
     const job = backstops.find((item) => item.id === `operation-friday-pm-${slot}-backstop`);
     assert.ok(job);
     assert.equal(job.schedule.time, time);
@@ -422,12 +422,12 @@ test("manual Blotato recovery uses governed schedule routes, never immediate pub
 
 test("HIVE governance and optimisation schedules are fully wired", () => {
   const expected = new Map([
-    ["hive-production-manager-check", ["weekly", "06:00", "/v1/system/production-manager?force_refresh=true"]],
-    ["hive-readiness-check", ["weekly", "06:20", "/v1/runtime/readiness"]],
-    ["hive-repo-health-check", ["weekly", "06:05", "/v1/system/repo-health"]],
-    ["hive-provider-health-check", ["weekly", "06:10", "/v1/providers/health"]],
-    ["hive-env-audit", ["weekly", "06:25", "/v1/environment/audit"]],
-    ["hive-weekly-lifecycle-report", ["weekly", "19:10", "/v1/system/lifecycle-reports/weekly"]],
+    ["hive-production-manager-check", ["weekly", "07:00", "/v1/system/production-manager?force_refresh=true"]],
+    ["hive-readiness-check", ["weekly", "07:20", "/v1/runtime/readiness"]],
+    ["hive-repo-health-check", ["weekly", "07:05", "/v1/system/repo-health"]],
+    ["hive-provider-health-check", ["weekly", "07:10", "/v1/providers/health"]],
+    ["hive-env-audit", ["weekly", "07:25", "/v1/environment/audit"]],
+    ["hive-weekly-lifecycle-report", ["weekly", "18:10", "/v1/system/lifecycle-reports/weekly"]],
    ]);
   for (const [id, [type, time, path]] of expected) {
     const job = baseJobs.find((item) => item.id === id);
@@ -734,7 +734,7 @@ test("HIVE missing snapshot bootstrap is idempotent, independent and bounded", (
   assert.equal(bootstrap.group, "hive-repositories");
   assert.deepEqual(bootstrap.schedule.days, ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
   assert.equal(bootstrap.schedule.type, "weekly");
-  assert.equal(bootstrap.schedule.time, "07:35");
+  assert.equal(bootstrap.schedule.time, "08:05");
   assert.equal(bootstrap.targetPath, "/v1/repositories/refresh-all?missing_only=true");
   assert.equal(bootstrap.authEnv, "HIVE_ADMIN_BEARER_TOKEN");
   assert.deepEqual(bootstrap.requiredServices, ["hive"]);
