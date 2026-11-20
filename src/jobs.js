@@ -638,7 +638,7 @@ const monthlyAuditJobs = [
   }),
 ];
 
-const kdpRoyaltyFloorJobs = ["16:35", "18:35", "21:00"].map((time) => aimsPostJob({
+const kdpRoyaltyFloorJobs = ["14:35", "16:35", "17:35"].map((time) => aimsPostJob({
   id: `kdp-uk-royalty-floor-${time.replace(":", "")}`,
   group: "kdp",
   description: "Reconcile one existing UK Kindle price against the £4.50 delivery-adjusted royalty floor; exact title and publication checks.",
@@ -658,7 +658,7 @@ const kdpRoyaltyFloorJobs = ["16:35", "18:35", "21:00"].map((time) => aimsPostJo
 // Reuse the existing KDP pricing lane, but govern print independently of
 // Kindle's £4.50 delivery-adjusted royalty corrections. One print edition
 // per run; AIMS shares the R2 KDP-research lease for all remote price writes.
-const kdpPrintPricingJobs = ["17:40", "19:40"].map((time) => aimsPostJob({
+const kdpPrintPricingJobs = ["15:40", "17:10"].map((time) => aimsPostJob({
   id: `kdp-print-pricing-${time.replace(":", "")}`,
   group: "kdp",
   description: "Monitor published paperback and hardback prices; update one verified edition when UK/US margins or sensible retail bounds need correction.",
@@ -696,7 +696,7 @@ const kdpWeeklyJobs = [
   aimsPostJob({
     id: "kdp-print-production", group: "kdp",
     description: "Submit up to ten existing books weekly in paperback and hardcover, with 3-book session capacity, persistent per-format quota tracking and KDP platform-limit circuit breaking.",
-    schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"], time: "22:15", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 20 },
+    schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"], time: "16:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 20 },
     targetPath: "/kdp/print/production/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
     body: {},
     requestRetries: 0,
@@ -715,10 +715,10 @@ const kdpWeeklyJobs = [
 
   // Tuesday–Thursday research owns 12:00–15:00; never start a signed-in
   // update-verification session at 12:05 while research is still running.
-  ...["12:05", "13:05", "14:05", "15:20", "20:05"].map((time) => aimsPostJob({
+  ...["12:05", "13:05", "14:05", "15:20", "17:05"].map((time) => aimsPostJob({
     id: `kdp-update-verification-${time.replace(":", "")}`, group: "kdp", description: "Submit eligible queued updates in-window and verify prior KDP publications.",
     schedule: { type: "weekly", days: time === "12:05"
-      ? ["friday", "saturday", "sunday"] : EVERY_DAY,
+      ? ["friday"] : WEEKDAYS_MON_TO_FRI,
       time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 45 },
     targetPath: "/kdp/research/updates/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
     asyncStatus: {
@@ -1072,7 +1072,7 @@ const hiveGovernanceDailyJobs = [
     id: "hive-production-manager-check",
     group: "hive-governance",
     description: "Require HIVE's ecosystem Production Manager to certify the governed estate GREEN/ALLOW each day.",
-    schedule: { type: "weekly", days: EVERY_DAY, time: "06:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
+    schedule: { type: "weekly", days: EVERY_DAY, time: "07:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
     targetPath: "/v1/system/production-manager?force_refresh=true",
     responsePolicy: {
       checks: [
@@ -1085,7 +1085,7 @@ const hiveGovernanceDailyJobs = [
     id: "hive-readiness-check",
     group: "hive-governance",
     description: "Check HIVE's full runtime readiness (providers, storage, config) once a day.",
-    schedule: { type: "weekly", days: EVERY_DAY, time: "06:20", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
+    schedule: { type: "weekly", days: EVERY_DAY, time: "07:20", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
     targetPath: "/v1/runtime/readiness",
     responsePolicy: { checks: [{ type: "equals", path: "ready", value: true, message: "HIVE runtime readiness reported ready=false." }] },
   }),
@@ -1093,7 +1093,7 @@ const hiveGovernanceDailyJobs = [
     id: "hive-repo-health-check",
     group: "hive-governance",
     description: "Fetch HIVE's governed repo-ecosystem liveness/readiness report (Repository Health Review).",
-    schedule: { type: "weekly", days: EVERY_DAY, time: "06:05", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
+    schedule: { type: "weekly", days: EVERY_DAY, time: "07:05", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
     targetPath: "/v1/system/repo-health",
     responsePolicy: { checks: [{ type: "oneOf", path: "overall_status", values: ["healthy"], message: "HIVE repository ecosystem is not healthy." }] },
   }),
@@ -1101,7 +1101,7 @@ const hiveGovernanceDailyJobs = [
     id: "hive-provider-health-check",
     group: "hive-governance",
     description: "Check the health of every configured AI provider (AI Provider Monitoring).",
-    schedule: { type: "weekly", days: EVERY_DAY, time: "06:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
+    schedule: { type: "weekly", days: EVERY_DAY, time: "07:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
     targetPath: "/v1/providers/health",
     responsePolicy: { checks: [{ type: "arrayEveryEquals", path: "providers", key: "ok", value: true, message: "One or more configured HIVE providers reported unhealthy." }] },
   }),
@@ -1109,7 +1109,7 @@ const hiveGovernanceDailyJobs = [
     id: "hive-ops-events-digest",
     group: "hive-governance",
     description: "Pull the last day of redacted HIVE operational events for the executive/ops trail.",
-    schedule: { type: "weekly", days: EVERY_DAY, time: "06:15", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
+    schedule: { type: "weekly", days: EVERY_DAY, time: "07:15", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
     targetPath: "/v1/system/ops-events?limit=100",
   }),
 
@@ -1120,7 +1120,7 @@ const hiveGovernanceWeeklyJobs = [
     id: "hive-env-audit",
     group: "hive-governance-weekly",
     description: "Run HIVE's environment/config audit (Environment Validation).",
-    schedule: { type: "weekly", days: ["monday"], time: "06:25", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
+    schedule: { type: "weekly", days: ["monday"], time: "07:25", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
     targetPath: "/v1/environment/audit",
     responsePolicy: {
       checks: [
@@ -1133,14 +1133,14 @@ const hiveGovernanceWeeklyJobs = [
     id: "hive-repo-hygiene-check",
     group: "hive-governance-weekly",
     description: "Run HIVE's own repo-hygiene scan for duplicate/orphan/generated files.",
-    schedule: { type: "weekly", days: ["monday"], time: "06:30", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
+    schedule: { type: "weekly", days: ["monday"], time: "07:30", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
     targetPath: "/v1/system/repo-hygiene",
   }),
   hiveJob({
     id: "hive-vectorize-diagnostics",
     group: "hive-governance-weekly",
     description: "Check Vectorize/embeddings diagnostics (R2 Storage Validation).",
-    schedule: { type: "weekly", days: ["monday"], time: "06:40", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
+    schedule: { type: "weekly", days: ["monday"], time: "07:40", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
     targetPath: "/v1/vectorize/diagnostics",
     responsePolicy: { checks: [{ type: "equals", path: "ok", value: true, message: "HIVE Vectorize diagnostics reported ok=false." }] },
   }),
@@ -1148,21 +1148,21 @@ const hiveGovernanceWeeklyJobs = [
     id: "hive-buckets-check",
     group: "hive-governance-weekly",
     description: "Check configured R2 bucket lanes are reachable and correctly scoped.",
-    schedule: { type: "weekly", days: ["monday"], time: "06:45", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
+    schedule: { type: "weekly", days: ["monday"], time: "07:45", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
     targetPath: "/v1/buckets",
   }),
   hiveJob({
     id: "hive-connectors-check",
     group: "hive-governance-weekly",
     description: "Check the status of every registered HIVE connector (GitHub, R2, OpenRouter, AI-search).",
-    schedule: { type: "weekly", days: ["monday"], time: "06:50", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
+    schedule: { type: "weekly", days: ["monday"], time: "07:50", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_WEEKLY_CATCH_UP_MINUTES },
     targetPath: "/v1/connectors",
   }),
   hiveJob({
     id: "hive-weekly-lifecycle-report",
     group: "hive-governance-weekly",
     description: "Refresh the current ISO-week lifecycle overview every evening so evidence published after Monday is included.",
-    schedule: { type: "weekly", days: EVERY_DAY, time: "19:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
+    schedule: { type: "weekly", days: EVERY_DAY, time: "18:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
     targetPath: "/v1/system/lifecycle-reports/weekly",
     method: "POST",
     body: {},
@@ -1267,7 +1267,7 @@ const hiveRepositorySnapshotBootstrap = hiveJob({
   id: "hive-repository-snapshot-bootstrap",
   group: "hive-repositories",
   description: "Recover missing governed HIVE repository snapshots independently of monthly audit success.",
-  schedule: { type: "weekly", days: EVERY_DAY, time: "07:35", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
+  schedule: { type: "weekly", days: EVERY_DAY, time: "08:05", timezone: LOCAL_TIME_ZONE, catchUpMinutes: HIVE_DAILY_CATCH_UP_MINUTES },
   targetPath: "/v1/repositories/refresh-all?missing_only=true",
   method: "POST",
   requestRetries: 0,
@@ -1332,7 +1332,7 @@ const operationWindowJobs = [
 // AIMS's durable receipt and its bounded recovery budget. Never force-replay.
 const operationContentBackstops = [
   ...["monday", "tuesday", "wednesday", "thursday", "friday"].flatMap((day) =>
-    [["15:45", "afternoon"], ["21:20", "evening"]].map(([time, slot]) => aimsPostJob({
+    [["15:45", "afternoon"], ["18:00", "evening"]].map(([time, slot]) => aimsPostJob({
       id: `operation-${day}-am-${slot}-backstop`,
       group: "operations-backstop",
       description: `Reconcile and recover unfinished ${day} AM content, without rerunning confirmed successes.`,
@@ -1344,7 +1344,7 @@ const operationContentBackstops = [
       requestRetries: 0,
       consumeFailureWindow: true,
     }))),
-  ...[["18:30", "evening"], ["22:10", "late"]].map(([time, slot]) => aimsPostJob({
+  ...[["17:00", "evening"], ["18:30", "late"]].map(([time, slot]) => aimsPostJob({
     id: `operation-friday-pm-${slot}-backstop`,
     group: "operations-backstop",
     description: "Reconcile and resume the original Friday podcast operation without a duplicate episode.",
