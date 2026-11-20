@@ -9,7 +9,7 @@ test("print pricing automatically runs twice per weekday without touching Friday
   for (const job of jobs) {
     assert.deepEqual(job.schedule.days, ["monday","tuesday","wednesday","thursday"]);
     assert.equal(job.schedule.timezone, "Europe/London");
-    assert.equal(job.schedule.catchUpMinutes, 15);
+    assert.equal(job.schedule.catchUpMinutes, job.schedule.time === "17:10" ? 110 : 15);
     assert.equal(job.targetPath, "/kdp/audit/pricing/print/run");
     assert.deepEqual(job.body, { dryRun: false });
     assert.equal(job.requestRetries, 0);

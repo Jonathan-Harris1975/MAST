@@ -12,6 +12,7 @@ test("UK royalty-floor reconciliation uses three guarded Monday–Thursday AIMS 
     assert.equal(job.authEnv, "AIMS_API_KEY");
     assert.deepEqual(job.schedule.days, ["monday", "tuesday", "wednesday", "thursday"]);
     assert.equal(job.schedule.timezone, "Europe/London");
+    assert.equal(job.schedule.catchUpMinutes, job.schedule.time === "16:35" ? 145 : job.schedule.time === "17:35" ? 85 : 30);
     assert.deepEqual(job.body, { dryRun: false });
     assert.equal(job.requestRetries, 0);
     assert.equal(job.asyncStatus.statusPath, "/kdp/jobs/audit-royalty-floor/{id}");

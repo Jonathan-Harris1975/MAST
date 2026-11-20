@@ -31,6 +31,8 @@ test("MAST verifies pending publications independently of weekly research", () =
   const later = baseJobs.find((item) => item.id === "kdp-update-verification-1520");
   assert.equal(later.schedule.time, "15:20");
   assert.equal(later.schedule.days.length, 5);
+  const evening = baseJobs.find(item => item.id === "kdp-update-verification-1705");
+  assert.equal(evening.schedule.catchUpMinutes, 115);
   assert.equal(job.executionLane, "aims-heavy");
   assert.equal(later.executionLane, "aims-heavy");
   assert.equal(job.targetPath, "/kdp/research/updates/run");
