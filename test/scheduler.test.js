@@ -144,7 +144,12 @@ test("all weekday content and podcast windows have two bounded, safe same-day ba
   for (const job of backstops) {
     assert.equal(job.schedule.type, "weekly");
     assert.equal(job.schedule.timezone, "Europe/London");
-    assert.equal(job.schedule.catchUpMinutes, 90);
+    const expectedCatchUp = job.schedule.time === "18:00" ? 60
+      : job.schedule.time === "18:30" ? 30 : 90;
+    assert.equal(job.schedule.catchUpMinutes, expectedCatchUp);
+    const [hour, minute] = job.schedule.time.split(":").map(Number);
+    assert.ok(hour * 60 + minute + job.schedule.catchUpMinutes <= 19 * 60,
+      `${job.id} catch-up window must end by 19:00`);
     assert.deepEqual(job.requiredServices, ["aims"]);
     assert.equal(job.requestRetries, 0, "never speculate on an ambiguous POST");
     assert.equal(job.consumeFailureWindow, true, "each bounded backstop runs at most once");

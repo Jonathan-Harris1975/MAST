@@ -708,8 +708,8 @@ const kdpWeeklyJobs = [
     },
   }),
 
-  // Tuesday–Thursday research owns 12:00–15:00; never start a signed-in
-  // update-verification session at 12:05 while research is still running.
+  // 12:05 verification is Friday-only; later weekday slots overlap Tuesday–Thursday research.
+  // Keep the 17:05 weekday slot after the research window has finished.
   ...["12:05", "13:05", "14:05", "15:20", "17:05"].map((time) => aimsPostJob({
     id: `kdp-update-verification-${time.replace(":", "")}`, group: "kdp", description: "Submit eligible queued updates in-window and verify prior KDP publications.",
     schedule: { type: "weekly", days: time === "12:05"
@@ -1331,7 +1331,8 @@ const operationContentBackstops = [
       id: `operation-${day}-am-${slot}-backstop`,
       group: "operations-backstop",
       description: `Reconcile and recover unfinished ${day} AM content, without rerunning confirmed successes.`,
-      schedule: { type: "weekly", days: [day], time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 90 },
+      schedule: { type: "weekly", days: [day], time, timezone: LOCAL_TIME_ZONE,
+        catchUpMinutes: time === "18:00" ? 60 : 90 },
       targetPath: `/ops/run/${day}-am`,
       operationRecoveryOf: `operation-${day}-am`,
       authEnv: "AIMS_API_KEY",
@@ -1343,7 +1344,8 @@ const operationContentBackstops = [
     id: `operation-friday-pm-${slot}-backstop`,
     group: "operations-backstop",
     description: "Reconcile and resume the original Friday podcast operation without a duplicate episode.",
-    schedule: { type: "weekly", days: ["friday"], time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: 90 },
+    schedule: { type: "weekly", days: ["friday"], time, timezone: LOCAL_TIME_ZONE,
+      catchUpMinutes: time === "18:30" ? 30 : 90 },
     targetPath: "/ops/run/friday-pm",
     operationRecoveryOf: "operation-friday-pm",
     authEnv: "AIMS_API_KEY",
