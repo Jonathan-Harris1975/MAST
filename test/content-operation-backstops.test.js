@@ -131,6 +131,65 @@ test("failed provider POSTs are not immediately replayed and 2xx JSON failures a
   }
 });
 
+test("async-status exceptions consume opted-in failure windows and do not replay POSTs", async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), "mast-async-failure-window-"));
+  const originalBackend = process.env.MAST_STATE_BACKEND;
+  const originalFile = process.env.STATE_FILE;
+  const originalKey = process.env.AIMS_API_KEY;
+  const originalPollInterval = process.env.MAST_AIMS_OPERATION_POLL_INTERVAL_MS;
+  const originalTimeout = process.env.MAST_AIMS_OPERATION_TIMEOUT_MS;
+  let posts = 0;
+  const server = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if (req.method === "POST" && req.url === "/print") {
+      posts += 1;
+      res.end(JSON.stringify({ sessionId: "session-1" }));
+    } else if (req.method === "GET" && req.url === "/status/session-1") {
+      res.end(JSON.stringify({}));
+    } else {
+      res.statusCode = 404;
+      res.end(JSON.stringify({ error: "unexpected route" }));
+    }
+  });
+  await listen(server);
+  try {
+    process.env.MAST_STATE_BACKEND = "local";
+    process.env.STATE_FILE = path.join(temp, "state.json");
+    process.env.AIMS_API_KEY = "test-token";
+    process.env.MAST_AIMS_OPERATION_POLL_INTERVAL_MS = "1";
+    process.env.MAST_AIMS_OPERATION_TIMEOUT_MS = "100";
+    const { runJob } = await import(`../src/scheduler.js?async-failure-window=${Date.now()}`);
+    const job = { id: "async-failure-window", group: "kdp", method: "POST",
+      schedule: { type: "weekly", days: ["friday"], time: "16:00",
+        timezone: "Europe/London", catchUpMinutes: 120 },
+      url: `http://127.0.0.1:${server.address().port}/print`, targetPath: "/print",
+      authEnv: "AIMS_API_KEY", body: {}, requestRetries: 0, consumeFailureWindow: true,
+      asyncStatus: { responseIdField: "sessionId", statusPath: "/status/{id}", statusField: "status" },
+    };
+    const at = new Date("2026-11-13T16:00:00Z");
+    const first = await runJob(job, { at });
+    assert.equal(first.ok, false);
+    assert.match(first.errorMessage, /omitted status/);
+    const repeated = await runJob(job, { at });
+    assert.equal(repeated.skipped, true);
+    assert.equal(repeated.reason, "already-ran-for-this-schedule-window");
+    assert.equal(posts, 1, "a failed async status check must not repeat the mutating POST");
+  } finally {
+    if (originalBackend === undefined) delete process.env.MAST_STATE_BACKEND;
+    else process.env.MAST_STATE_BACKEND = originalBackend;
+    if (originalFile === undefined) delete process.env.STATE_FILE;
+    else process.env.STATE_FILE = originalFile;
+    if (originalKey === undefined) delete process.env.AIMS_API_KEY;
+    else process.env.AIMS_API_KEY = originalKey;
+    if (originalPollInterval === undefined) delete process.env.MAST_AIMS_OPERATION_POLL_INTERVAL_MS;
+    else process.env.MAST_AIMS_OPERATION_POLL_INTERVAL_MS = originalPollInterval;
+    if (originalTimeout === undefined) delete process.env.MAST_AIMS_OPERATION_TIMEOUT_MS;
+    else process.env.MAST_AIMS_OPERATION_TIMEOUT_MS = originalTimeout;
+    await close(server);
+    await rm(temp, { recursive: true, force: true });
+  }
+});
+
 test("an active multi-hour content operation cannot starve other due scheduler jobs", async () => {
   const { jobs } = await import("../src/jobs.js");
   const oldJobs = jobs.slice();

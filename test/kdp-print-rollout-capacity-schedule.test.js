@@ -9,7 +9,7 @@ test("live print production dispatches the AIMS publishing worker Monday–Thurs
   assert.equal(job.schedule.type, "weekly");
   assert.deepEqual(job.schedule.days, ["monday", "tuesday", "wednesday", "thursday"]);
   assert.equal(job.schedule.time, "16:10");
-  assert.equal(job.schedule.catchUpMinutes, 90);
+  assert.equal(job.schedule.catchUpMinutes, 20);
   assert.equal(job.consumeFailureWindow, true, "Never replay a failed KDP print POST in the same window");
   assert.equal(job.schedule.timezone, "Europe/London");
   assert.equal(job.targetPath, "/kdp/print/production/run");
@@ -41,6 +41,8 @@ test("print publication stays within the daytime production window and uses the 
   assert.equal(print.executionLane, "aims-heavy");
   assert.ok(minutes(print.schedule.time) >= minutes("07:00"));
   assert.ok(minutes(print.schedule.time) + print.schedule.catchUpMinutes <= minutes("19:00"));
+  assert.ok(minutes(print.schedule.time) + print.schedule.catchUpMinutes < minutes("16:35"),
+    "print catch-up must end before the next shared-lane KDP slot");
   for (const job of baseJobs.filter(item => item.group === "kdp" && item.id !== print.id)) {
     if (job.schedule.type !== "weekly") continue;
     if (!job.schedule.days.some(day => print.schedule.days.includes(day))) continue;

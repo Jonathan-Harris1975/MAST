@@ -1494,6 +1494,14 @@ export async function runJob(job, { at = new Date(), trigger = "scheduled", forc
       });
     }
 
+    if (job.consumeFailureWindow) {
+      if (job.schedule?.type === "interval") {
+        state.intervalLastRunAt[job.id] = finishedAt.toISOString();
+      } else {
+        state.lastRunKeys[job.id] = runKey;
+      }
+    }
+
     rememberResult(result);
     await saveState();
     await emitJobFailureAlert(job, result);
