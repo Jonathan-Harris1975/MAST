@@ -34,12 +34,12 @@ Schedule changes preserve existing daily content generation, publishing controls
 | 16:35, 18:35, 21:00 | Kindle royalty-floor reconciliation | Same | — |
 | 17:15 | Late AM video recovery | Same | Same |
 | 17:40, 19:40 | Published paperback/hardback price maintenance | Same | — |
-| 18:30 | — | — | Podcast recovery (unchanged) |
+| 17:00 | — | — | First podcast recovery |
 | 19:00 / 19:30 | — | — | RAMS resume / monthly website or AIMS audit, first or second Friday only |
 | 20:05 | KDP update verification | Same | Same |
 | 21:15 / 21:20 | Late PM video recovery / content operation recovery | Same | Same |
 | 22:15 | KDP print production, up to three books per night | Same | No existing-book print publishing |
-| 22:10 | — | — | Late podcast recovery (unchanged) |
+| 18:00 | — | — | Final podcast recovery before 19:00 RAMS restart |
 
 **Every day**, including weekends: KDP also has 13:05, 14:05, 15:20 and 20:05 verification. The 12:05 slot is now Friday–Sunday only. This avoids signing in at the start of Tuesday–Thursday's 12:00 research work while preserving in-window 13:05/14:05 recovery.
 
