@@ -162,7 +162,7 @@ checks verify publication without permitting out-of-window submissions. Deploy
 the companion AIMS update route before this schedule change.
 
 The **live print production worker** runs Monday–Thursday at 16:10 Europe/London,
-with a 90-minute scheduler catch-up allowance, ending at 17:40. It uses the existing authenticated
+with a 20-minute scheduler catch-up allowance, ending at 16:30. It uses the existing authenticated
 AIMS KDP browser, private PDF/cover generation, D1 state, and per-format creation/
 first-submission quotas. The operator rollout target is up to **ten books per
 UTC week**, with a maximum of three books per production day, independently
@@ -175,7 +175,7 @@ The acceptance contract requires `result.schemaVersion: 1`, `result.ok: true`,
 and `result.externalWeeklyLimitDetected: false`. MAST cannot guarantee an earlier asynchronous
 KDP worker has finished purely from scheduled times. Before enabling live print
 publication, AIMS must enforce cross-workflow exclusion and print-specific
-durable state, QA, title identity and quota gates. KDP print failures consume their own weekday publishing window rather than blindly repeating a KDP submission. Friday remains free of
+durable state, QA, title identity and quota gates. KDP print failures consume their own weekday publishing window rather than blindly repeating a KDP submission. Late KDP price and verification checks remain catch-up eligible until 19:00 when the shared KDP browser lane is occupied. Friday remains free of
 existing-catalogue print jobs.
 
 
