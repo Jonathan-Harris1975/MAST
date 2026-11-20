@@ -38,7 +38,7 @@ test("operator control can pause the Worker without a deployment", async () => {
 
 test("operator pause during a due-job batch defers remaining work for the next tick", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "mast-ops-batch-"));
-  const envNames = ["MAST_STATE_BACKEND", "STATE_FILE", "SCHEDULER_ENABLED", "HIVE_ADMIN_BEARER_TOKEN", "BETWEEN_JOBS_MS"];
+  const envNames = ["MAST_STATE_BACKEND", "STATE_FILE", "SCHEDULER_ENABLED", "HIVE_ADMIN_BEARER_TOKEN", "AIMS_API_KEY", "BETWEEN_JOBS_MS"];
   const previous = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
   const originalFetch = globalThis.fetch;
   let calls = 0;
@@ -47,6 +47,7 @@ test("operator pause during a due-job batch defers remaining work for the next t
   process.env.STATE_FILE = path.join(tempDir, "state.json");
   process.env.SCHEDULER_ENABLED = "true";
   process.env.HIVE_ADMIN_BEARER_TOKEN = "test-token";
+  process.env.AIMS_API_KEY = "test-token";
   process.env.BETWEEN_JOBS_MS = "0";
   await import("node:fs/promises").then(({ writeFile }) => writeFile(
     process.env.STATE_FILE,
@@ -61,7 +62,7 @@ test("operator pause during a due-job batch defers remaining work for the next t
 
   try {
     const scheduler = await import(`../src/scheduler.js?ops-batch-test=${Date.now()}`);
-    const at = new Date("2026-10-21T05:15:00.000Z"); // 06:15 Europe/London
+    const at = new Date("2026-10-24T06:15:00.000Z"); // Saturday 07:15 Europe/London, during the HIVE batch
     const stopped = await scheduler.runDueJobs({ at, trigger: "operator-control-batch-test" });
 
     assert.equal(stopped.partial, true);
