@@ -155,8 +155,8 @@ Restrict ingress at the hosting/CDN layer wherever a service does not need gener
 
 See `.env.example`, `docs/OPERATIONS.md`, `docs/POWER_MANAGEMENT.md`, `docs/OPERATIONAL_ALERTING.md` and `SECURITY.md`.
 
-KDP optimisation reconciliation runs at 13:05, 14:05, 15:20 and 20:05 daily, plus 12:05 on Friday–Sunday only
-Europe/London through AIMS `/kdp/research/updates/run`. AIMS enforces the separate
+KDP optimisation reconciliation runs at 13:05, 14:05, 15:20 and 17:05 on weekdays,
+plus 12:05 on Friday only, Europe/London, through AIMS `/kdp/research/updates/run`. AIMS enforces the separate
 Tuesday–Thursday submission window and five-minute minimum delay. Later daily
 checks verify publication without permitting out-of-window submissions. Deploy
 the companion AIMS update route before this schedule change.
@@ -165,7 +165,7 @@ The **live print production worker** runs Monday–Thursday at 16:10 Europe/Lond
 with a 90-minute scheduler catch-up allowance, ending at 17:40. It uses the existing authenticated
 AIMS KDP browser, private PDF/cover generation, D1 state, and per-format creation/
 first-submission quotas. The operator rollout target is up to **ten books per
-UTC week**, with a maximum of three books per production night, independently
+UTC week**, with a maximum of three books per production day, independently
 metering paperback and hardcover creation and first submission. KDP may apply
 a lower account ceiling; an observed denial stops the batch and fails MAST.
 Friday remains reserved for the new-book service.
@@ -180,9 +180,9 @@ existing-catalogue print jobs.
 
 
 Published paperback and hardback prices are independently reconciled by AIMS at
-**17:40 and 19:40 Europe/London, Monday–Thursday**, using
+**15:40 and 17:10 Europe/London, Monday–Thursday**, using
 POST /kdp/audit/pricing/print/run with dryRun=false. This supplements, rather
-than replaces, the existing 16:35, 18:35 and 21:00 Kindle royalty-floor runs.
+than replaces, the existing 14:35, 16:35 and 17:35 Kindle royalty-floor runs.
 AIMS reads signed-in KDP print prices and the print PDF's final page count,
 maintains at least £4.50 UK/$6 US estimated Amazon-direct royalties, applies a
 10% retail headroom with .99 rounding, and blocks prices over sensible format
