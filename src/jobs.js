@@ -687,10 +687,14 @@ const kdpWeeklyJobs = [
   aimsPostJob({
     id: "kdp-print-production", group: "kdp",
     description: "Submit up to ten existing books weekly in paperback and hardcover, with 3-book session capacity, persistent per-format quota tracking and KDP platform-limit circuit breaking.",
-    schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"], time: "16:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 20 },
+    schedule: { type: "weekly", days: ["monday", "tuesday", "wednesday", "thursday"], time: "16:10", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 90 },
     targetPath: "/kdp/print/production/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
     body: {},
     requestRetries: 0,
+    // A confirmed failed or malformed async result consumes this publishing
+    // window; a repeat POST is not proof that the first KDP call did no writes.
+    // The next weekday has a distinct run identity and can reconcile safely.
+    consumeFailureWindow: true,
     asyncStatus: {
       responseIdField: "sessionId", statusPath: "/kdp/jobs/print-production/{id}", statusField: "status",
       terminalResponsePolicy: { checks: [
