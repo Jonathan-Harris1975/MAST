@@ -74,7 +74,7 @@ test("failed operation windows are paced and backstops reuse the canonical idemp
   const backstop = baseJobs.find((job) => job.id === "operation-friday-am-afternoon-backstop");
   assert.ok(operation && backstop);
 
-  const startedAt = new Date("2026-11-13T10:00:00.000Z");
+  const startedAt = new Date("2026-11-13T04:00:00.000Z");
   const runKey = buildRunKey(operation, startedAt);
   const failed = {
     job: operation.id,
@@ -84,8 +84,8 @@ test("failed operation windows are paced and backstops reuse the canonical idemp
     finishedAt: startedAt.toISOString(),
   };
   const currentState = { recentResults: [failed], lastRunKeys: {} };
-  assert.equal(jobScheduleDue(operation, new Date("2026-11-13T10:04:00.000Z"), currentState), false);
-  assert.equal(jobScheduleDue(operation, new Date("2026-11-13T10:05:00.000Z"), currentState), true);
+  assert.equal(jobScheduleDue(operation, new Date("2026-11-13T04:04:00.000Z"), currentState), false);
+  assert.equal(jobScheduleDue(operation, new Date("2026-11-13T04:05:00.000Z"), currentState), true);
 
   const backstopAt = new Date("2026-11-13T15:45:00.000Z");
   const canonicalKey = buildRunKey(operation, backstopAt);
@@ -114,7 +114,7 @@ test("AIMS remains always-on and AM operations begin at 08:00 with catch-up prot
   assert.equal(baseJobs.some((job) => job.id.startsWith("aims-power-")), false);
   for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"]) {
     const am = baseJobs.find((job) => job.id === `operation-${day}-am`);
-    assert.equal(am.schedule.time, process.env.MAST_AM_OPERATION_TIME || "08:00");
+    assert.equal(am.schedule.time, process.env.MAST_AM_OPERATION_TIME || "04:00");
     assert.equal(am.schedule.catchUpMinutes, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
     assert.deepEqual(am.requiredServices, ["aims"]);
   }
@@ -513,7 +513,7 @@ test("Friday PM starts the podcast at the configured recovery time while AIMS re
   assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-friday-podcast"), false);
   const job = baseJobs.find((item) => item.id === "operation-friday-pm");
   assert.deepEqual(job.schedule.days, ["friday"]);
-  assert.equal(job.schedule.time, process.env.MAST_PODCAST_OPERATION_TIME || "12:30");
+  assert.equal(job.schedule.time, process.env.MAST_PODCAST_OPERATION_TIME || "00:30");
   assert.equal(job.schedule.catchUpMinutes, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
   assert.deepEqual(job.requiredServices, ["aims"]);
   assert.equal(job.targetPath, "/ops/run/friday-pm");
