@@ -80,6 +80,7 @@ test("failed operation windows are paced and backstops reuse the canonical idemp
     job: operation.id,
     runKey,
     ok: false,
+    operationStatus: "failed",
     providerReportedFailure: true,
     finishedAt: startedAt.toISOString(),
   };
@@ -110,11 +111,11 @@ test("MAST exposes five AM windows plus the Friday podcast window", () => {
   }
 });
 
-test("AIMS remains always-on and AM operations begin at 08:00 with catch-up protection", () => {
+test("AIMS remains always-on and AM operations begin at 04:00 with catch-up protection", () => {
   assert.equal(baseJobs.some((job) => job.id.startsWith("aims-power-")), false);
   for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"]) {
     const am = baseJobs.find((job) => job.id === `operation-${day}-am`);
-    assert.equal(am.schedule.time, process.env.MAST_AM_OPERATION_TIME || "08:00");
+    assert.equal(am.schedule.time, process.env.MAST_AM_OPERATION_TIME || "04:00");
     assert.equal(am.schedule.catchUpMinutes, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
     assert.deepEqual(am.requiredServices, ["aims"]);
   }
@@ -513,24 +514,25 @@ test("Friday PM starts the podcast at the configured recovery time while AIMS re
   assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-friday-podcast"), false);
   const job = baseJobs.find((item) => item.id === "operation-friday-pm");
   assert.deepEqual(job.schedule.days, ["friday"]);
-  assert.equal(job.schedule.time, process.env.MAST_PODCAST_OPERATION_TIME || "12:30");
+  assert.equal(job.schedule.time, process.env.MAST_PODCAST_OPERATION_TIME || "00:30");
   assert.equal(job.schedule.catchUpMinutes, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
   assert.deepEqual(job.requiredServices, ["aims"]);
   assert.equal(job.targetPath, "/ops/run/friday-pm");
   assert.match(job.description, /podcast-only/i);
 });
 
-test("Friday podcast starts at 12:30 UK time in GMT and BST", () => {
+test("Friday podcast starts at 00:30 UK time in GMT and BST", () => {
   const job = baseJobs.find((item) => item.id === "operation-friday-pm");
   // Use the canonical time regardless of optional deployment overrides.
-  const scheduled = { ...job, schedule: { ...job.schedule, time: "12:30" } };
+  const scheduled = { ...job, schedule: { ...job.schedule, time: "00:30" } };
   assert.equal(job.schedule.timezone, "Europe/London");
-  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T12:29:00Z")), false);
-  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T12:30:00Z")), true);
-  assert.equal(isTimedJobDue(scheduled, new Date("2026-07-10T11:29:00Z")), false);
-  assert.equal(isTimedJobDue(scheduled, new Date("2026-07-10T11:30:00Z")), true);
-  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-12T13:00:00Z")), false);
-  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T17:45:00Z")), false);
+  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T00:29:00Z")), false);
+  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T00:30:00Z")), true);
+  // Friday 00:30 BST = Thursday 23:30 UTC
+  assert.equal(isTimedJobDue(scheduled, new Date("2026-07-09T23:29:00Z")), false);
+  assert.equal(isTimedJobDue(scheduled, new Date("2026-07-09T23:30:00Z")), true);
+  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-12T01:00:00Z")), false);
+  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T05:45:00Z")), false);
 });
 
 test("Cloudflare website cache purge runs only Monday through Friday", () => {
