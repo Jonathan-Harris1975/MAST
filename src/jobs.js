@@ -8,7 +8,7 @@ const EVERY_DAY = ["monday", "tuesday", "wednesday", "thursday", "friday", "satu
 const WEEKDAYS_MON_TO_FRI = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 const AM_OPERATION_TIME = String(process.env.MAST_AM_OPERATION_TIME || "04:00");
 const AM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
-const FRIDAY_PM_OPERATION_TIME = String(process.env.MAST_PODCAST_OPERATION_TIME || "00:30");
+const FRIDAY_PODCAST_OPERATION_TIME = String(process.env.MAST_PODCAST_OPERATION_TIME || "00:30");
 const FRIDAY_PM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
 /**
  * Existing Koyeb workers may retain the original Friday audit env values.
@@ -1312,7 +1312,7 @@ const operationWindowJobs = [
     id: "operation-friday-pm",
     group: "operations",
     description: "Friday podcast-only AIMS operating window.",
-    schedule: { type: "weekly", days: ["friday"], time: FRIDAY_PM_OPERATION_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: FRIDAY_PM_OPERATION_CATCH_UP_MINUTES },
+    schedule: { type: "weekly", days: ["friday"], time: FRIDAY_PODCAST_OPERATION_TIME, timezone: LOCAL_TIME_ZONE, catchUpMinutes: FRIDAY_PM_OPERATION_CATCH_UP_MINUTES },
     targetPath: "/ops/run/friday-pm",
     authEnv: "AIMS_API_KEY",
     requiredServices: ["aims"],
