@@ -6,6 +6,7 @@ export const USER_AGENT = "Jonathan-Harris-MAST/1.2.3 (+https://jonathan-harris.
 
 const EVERY_DAY = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const WEEKDAYS_MON_TO_FRI = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+const OUTREACH_DAYS = ["monday", "wednesday", "friday"];
 const AM_OPERATION_TIME = String(process.env.MAST_AM_OPERATION_TIME || "04:00");
 const AM_OPERATION_CATCH_UP_MINUTES = Math.max(0, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
 const FRIDAY_PM_OPERATION_TIME = String(process.env.MAST_PODCAST_OPERATION_TIME || "07:00");
@@ -191,8 +192,8 @@ const outreachScheduledJobs = [
   aimsPostJob({
     id: "outreach-weekday-am",
     group: "outreach",
-    description: "Automatically process the morning Outreach batch on weekdays.",
-    schedule: { type: "weekly", days: WEEKDAYS_MON_TO_FRI, time: "09:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
+    description: "Automatically process the morning Outreach batch on Monday, Wednesday and Friday.",
+    schedule: { type: "weekly", days: OUTREACH_DAYS, time: "09:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
     pretriggerOffsets: { health: 179, preflight: 111, warmup: 29 },
     targetPath: "/outreach/batch/next",
     authEnv: "AIMS_API_KEY",

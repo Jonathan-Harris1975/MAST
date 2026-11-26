@@ -48,8 +48,8 @@ test("scheduler never treats explicit JSON failure as completed content", () => 
 });
 
 test("ordinary failed jobs back off across the catch-up window and cannot replay success", () => {
-  const job = { id: "outreach-weekday-pm", group: "outreach" };
-  const key = "outreach-weekday-pm:Europe/London:2026-11-13:16:00";
+  const job = { id: "outreach-recovery-window-test", group: "outreach" };
+  const key = "outreach-recovery-window-test:Europe/London:2026-11-13:09:00";
   const at = new Date("2026-11-13T16:05:00Z");
   assert.equal(failedWindowRetryEligible(job, key, at, { recentResults: [] }), true);
   const once = { job: job.id, runKey: key, ok: false,
@@ -242,17 +242,29 @@ test("Blotato first and late backstops are weekday-only, idempotent and verify t
   }
 });
 
-test("Outreach is automated once each weekday under MAST", () => {
+test("Outreach is automated exactly three times weekly under MAST", () => {
   assert.equal(baseJobs.filter((job) => job.group === "outreach" && job.schedule.type !== "manual").length, 1);
   for (const [id, time] of [["outreach-weekday-am", "09:00"]]) {
     const job = baseJobs.find((item) => item.id === id);
     assert.ok(job);
-    assert.deepEqual(job.schedule.days, ["monday", "tuesday", "wednesday", "thursday", "friday"]);
+    assert.deepEqual(job.schedule.days, ["monday", "wednesday", "friday"]);
     assert.equal(job.schedule.time, time);
     assert.equal(job.schedule.timezone, "Europe/London");
     assert.equal(job.targetPath, "/outreach/batch/next");
     assert.deepEqual(job.requiredServices, ["aims"]);
   }
+  assert.equal(baseJobs.some((job) => job.group === "outreach" && job.schedule.type !== "manual" && job.schedule.time !== "09:00"), false);
+  assert.equal(baseJobs.some((job) => job.group === "outreach" && job.schedule.type !== "manual" && job.schedule.days.some((day) => ["tuesday", "thursday", "saturday", "sunday"].includes(day))), false);
+});
+
+test("Outreach schedule remains London-time and rejects reserved days and afternoon recovery", () => {
+  const job = baseJobs.find((item) => item.id === "outreach-weekday-am");
+  assert.ok(job);
+  assert.equal(isTimedJobDue(job, new Date("2026-01-05T09:00:00.000Z")), true, "winter Monday 09:00 GMT");
+  assert.equal(isTimedJobDue(job, new Date("2026-07-06T08:00:00.000Z")), true, "summer Monday 09:00 BST");
+  assert.equal(isTimedJobDue(job, new Date("2026-01-06T09:00:00.000Z")), false, "Tuesday is reserved");
+  assert.equal(isTimedJobDue(job, new Date("2026-01-08T09:00:00.000Z")), false, "Thursday is reserved");
+  assert.equal(isTimedJobDue(job, new Date("2026-01-05T11:00:00.000Z")), false, "the catch-up window does not create an afternoon run");
 });
 
 test("Cloudflare cache is purged Monday to Friday at 02:00 Europe/London", () => {

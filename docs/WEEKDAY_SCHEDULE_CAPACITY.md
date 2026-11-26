@@ -6,7 +6,7 @@
 
 ## Evidence and scheduling decisions
 
-Read-only production R2 observation: `metasystem/state/mast/scheduler-state.json` (17 November, 08:06 UTC). Its 80-entry rolling result history is **not** a comprehensive historical duration database. It showed Monday 16 November's weekly KDP public audit finishing in about 1.8 minutes, metadata sync in about 9.2 minutes, and a 10:00 AIMS content operation returning after 13.7 minutes with terminal content failures. The 16:00 Outreach trigger returned 429 and retried at 16:05, alongside the old KDP 16:05 verification. The Friday podcast now starts at 12:30 and the Friday Blotato AM backstop at 13:30, avoiding simultaneous launches.
+Read-only production R2 observation: `metasystem/state/mast/scheduler-state.json` (17 November, 08:06 UTC). Its 80-entry rolling result history is **not** a comprehensive historical duration database. It showed Monday 16 November's weekly KDP public audit finishing in about 1.8 minutes, metadata sync in about 9.2 minutes, and a 10:00 AIMS content operation returning after 13.7 minutes with terminal content failures. The historical afternoon Outreach trigger returned 429 and was retired as part of the current three-session schedule. The Friday podcast now starts at 12:30 and the Friday Blotato AM backstop at 13:30, avoiding simultaneous launches.
 
 Schedule changes preserve existing daily content generation, publishing controls, KDP research and print throughput. The primary AIMS content window stays at 10:00 and the Friday podcast at 12:30. The weekday workload has different service-level risk and must not be declared safe based on non-overlapping clock times alone.
 
@@ -29,7 +29,7 @@ Schedule changes preserve existing daily content generation, publishing controls
 | 15:20 | KDP update verification (moved from 16:05) | Same | Same |
 | 15:30 | KDP print preflight | — | — |
 | 15:45 | AIMS content recovery/backstop | Same | Same |
-| 16:00 | Outreach PM | Outreach PM | Outreach PM |
+| 09:00 | Outreach | — | Outreach |
 | 16:30 | Blotato PM backstop | Same | Same |
 | 16:35, 18:35, 21:00 | Kindle royalty-floor reconciliation | Same | — |
 | 17:15 | Late AM video recovery | Same | Same |
