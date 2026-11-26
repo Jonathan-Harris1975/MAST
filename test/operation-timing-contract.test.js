@@ -8,7 +8,7 @@ test("production operation timing preserves publication lead time for Flex", () 
   const monday = baseJobs.find((job) => job.id === "operation-monday-am");
   const fridayPm = baseJobs.find((job) => job.id === "operation-friday-pm");
   assert.equal(monday.schedule.time, process.env.MAST_AM_OPERATION_TIME || "04:00");
-  assert.equal(fridayPm.schedule.time, process.env.MAST_PODCAST_OPERATION_TIME || "00:30");
+  assert.equal(fridayPm.schedule.time, process.env.MAST_PODCAST_OPERATION_TIME || "07:00");
   assert.equal(fridayPm.schedule.catchUpMinutes, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
   assert.deepEqual(fridayPm.requiredServices, ["aims"]);
   assert.equal(monday.schedule.catchUpMinutes, Number(process.env.MAST_AM_OPERATION_CATCH_UP_MINUTES || 180));
@@ -19,7 +19,7 @@ test("production env patch keeps Flex lead times and operation polling", async (
   const patch = await readFile(new URL("../MAST-KOYEB-PRODUCTION-ENV-PATCH.txt", import.meta.url), "utf8");
   assert.match(patch, /^MAST_AM_OPERATION_TIME=04:00$/m);
   assert.match(patch, /^MAST_AM_OPERATION_CATCH_UP_MINUTES=180$/m);
-  assert.match(patch, /^MAST_PODCAST_OPERATION_TIME=00:30$/m);
+  assert.match(patch, /^MAST_PODCAST_OPERATION_TIME=07:00$/m);
   assert.match(patch, /^MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES=180$/m);
   assert.match(patch, /^MAST_WEBSITE_AUDIT_WAKE_TIME=19:00$/m);
   assert.match(patch, /^MAST_WEBSITE_AUDIT_RUN_TIME=19:30$/m);
