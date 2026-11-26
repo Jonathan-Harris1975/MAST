@@ -452,6 +452,9 @@ export function buildPayload(job, at = new Date()) {
   if (job.addLocalDateAsWeekStartDate) {
     body.weekStartDate = localParts(at, job.schedule?.timezone || LOCAL_TIME_ZONE).date;
   }
+  if (job.localDateField) {
+    body[job.localDateField] = localParts(at, job.schedule?.timezone || LOCAL_TIME_ZONE).date;
+  }
 
   return body;
 }
