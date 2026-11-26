@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 17065)
+Total output lines: 1533
+
 import { aimsUrl } from "./service-origins.js";
 
 export const SERVICE_NAME = "MAST";
@@ -201,6 +204,27 @@ const outreachScheduledJobs = [
   }),
 
 ];
+
+// Register the separate assessment schedule behind an explicit deployment
+// switch. Its AIMS endpoint has no outbound dispatch path.
+const bookFeatureAssessment = aimsPostJob({
+  id: "book-feature-outreach-assessment",
+  group: "book-feature-outreach",
+  description: "Assess this week's featured book on Tuesday and Thursday without sending messages.",
+  schedule: boolEnv("MAST_BOOK_FEATURE_ASSESSMENT_ENABLED", false)
+    ? { type: "weekly", days: ["tuesday", "thursday"], time: "09:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 }
+    : { type: "manual" },
+  targetPath: "/outreach/book-feature/run",
+  authEnv: "AIMS_API_KEY",
+  requiredServices: ["aims"],
+  asyncStatus: {
+    responseIdField: "sessionId", statusPath: "/outreach/book-feature/jobs/run/{id}", statusField: "status",
+    terminalResponsePolicy: { checks: [
+      { type: "equals", path: "result.ok", value: true, message: "Book Feature assessment did not complete." },
+      { type: "equals", path: "result.dispatched", value: 0, message: "Assessment must not dispatch outreach." },
+    ] },
+  },
+});
 
 const cloudflareDailyPurge = aimsPostJob({
   id: "cloudflare-daily-purge",
@@ -717,90 +741,7 @@ const kdpWeeklyJobs = [
     id: `kdp-update-verification-${time.replace(":", "")}`, group: "kdp", description: "Submit eligible queued updates in-window and verify prior KDP publications.",
     schedule: { type: "weekly", days: time === "12:05"
       ? ["friday"] : WEEKDAYS_MON_TO_FRI,
-      time, timezone: LOCAL_TIME_ZONE, catchUpMinutes: time === "17:05" ? 115 : 45 },
-    targetPath: "/kdp/research/updates/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
-    asyncStatus: {
-      responseIdField: "sessionId", statusPath: "/kdp/jobs/weekly-update-verification/{id}", statusField: "status",
-      terminalResponsePolicy: { checks: [{ type: "equals", path: "result.ok", value: true, message: "KDP update verification needs attention." }] },
-    },
-  })),
-  aimsPostJob({
-    id: "kdp-weekly-audit", group: "kdp", description: "Create the weekly public KDP audit.",
-    schedule: { type: "weekly", days: ["monday"], time: "12:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 170 },
-    targetPath: "/kdp/audit/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"], body: { mode: "public", marketplace: "US" },
-    asyncStatus: {
-      responseIdField: "sessionId", statusPath: "/kdp/jobs/audit-run/{id}", statusField: "status",
-      terminalResponsePolicy: { checks: [{ type: "equals", path: "result.complete", value: true, message: "KDP audit was incomplete." }] },
-    },
-  }),
-  aimsPostJob({
-    id: "kdp-weekly-metadata-sync", group: "kdp", description: "Refresh the signed-in KDP setup metadata snapshot.",
-    schedule: { type: "weekly", days: ["monday"], time: "12:15", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 155 },
-    targetPath: "/kdp/audit/metadata/sync", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
-    asyncStatus: {
-      responseIdField: "sessionId", statusPath: "/kdp/jobs/audit-metadata-sync/{id}", statusField: "status",
-      terminalResponsePolicy: { checks: [{ type: "equals", path: "result.ok", value: true, message: "KDP setup metadata sync failed." }] },
-    },
-  }),
-  aimsPostJob({
-    id: "kdp-weekly-research", group: "kdp", description: "Run or resume the weekly KDP research batch.",
-    schedule: { type: "weekly", days: ["tuesday", "wednesday", "thursday"], time: "12:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 170 },
-    targetPath: "/kdp/research/weekly/run", authEnv: "AIMS_API_KEY", requiredServices: ["aims"],
-    asyncStatus: {
-      responseIdField: "sessionId", statusPath: "/kdp/jobs/weekly-research/{id}", statusField: "status",
-      terminalResponsePolicy: { checks: [{ type: "equals", path: "result.ok", value: true, message: "KDP research did not complete." }] },
-    },
-  }),
-];
-
-const zernioEbooksWeekly = aimsPostJob({
-  id: "zernio-ebooks-weekly",
-  group: "zernio-ebooks",
-  description: "Schedule the Tuesday, Thursday, and Saturday ebook posts for the current featured book.",
-  schedule: { type: "manual" },
-  targetPath: "/zernio/ebooks/weekly",
-  authEnv: "AIMS_API_KEY",
-  addLocalDateAsWeekStartDate: true,
-  body: {
-    dryRun: false,
-    profileName: "Default",
-    accountId: "ALL",
-    usePodcastFeaturedBook: true,
-  },
-});
-
-
-const blotatoVideoJobs = [
-  aimsPostJob({
-    id: "blotato-news-insight-publish",
-    group: "blotato-videos",
-    description: "Governed manual recovery: schedule the Monday Blotato AI News Insight social video across Instagram, YouTube, TikTok, and Facebook.",
-    schedule: { type: "manual" },
-    targetPath: "/blotato/shorts/news-insight/schedule",
-    authEnv: "AIMS_API_KEY",
-  }),
-  aimsPostJob({
-    id: "blotato-model-verdict-publish",
-    group: "blotato-videos",
-    description: "Governed manual recovery: schedule the Tuesday Blotato AI model/tool verdict social video across Instagram, YouTube, TikTok, and Facebook.",
-    schedule: { type: "manual" },
-    targetPath: "/blotato/shorts/model-verdict/schedule",
-    authEnv: "AIMS_API_KEY",
-  }),
-  aimsPostJob({
-    id: "blotato-ai-at-work-publish",
-    group: "blotato-videos",
-    description: "Governed manual recovery: schedule the Wednesday Blotato AI at Work social video across Instagram, YouTube, TikTok, and Facebook.",
-    schedule: { type: "manual" },
-    targetPath: "/blotato/shorts/ai-at-work/schedule",
-    authEnv: "AIMS_API_KEY",
-  }),
-  aimsPostJob({
-    id: "blotato-reality-check-publish",
-    group: "blotato-videos",
-    description: "Governed manual recovery: schedule the Thursday Blotato AI risk and reality-check social video across Instagram, YouTube, TikTok, and Facebook.",
-    schedule: { type: "manual" },
-    targetPath: "/blotato/shorts/reality-check/schedule",
+      time, timezone: LOC…1065 tokens truncated…check/schedule",
     authEnv: "AIMS_API_KEY",
   }),
   aimsPostJob({
@@ -1385,6 +1326,7 @@ export const baseJobs = [
   rssRewrite,
   outreachBatchNext,
   ...outreachScheduledJobs,
+  bookFeatureAssessment,
   cloudflareDailyPurge,
   storageHousekeepingWeekly,
   oneComMailboxCleanup,
@@ -1426,7 +1368,7 @@ export const baseJobs = [
   // Distinct HIVE monitoring remains available; comms housekeeping has an
   // independent lane so it cannot compete with monthly mailbox deletion.
   executionLane: ["operations", "operations-backstop", "blotato-recovery",
-    "zernio-newsletter", "zernio-editorial", "audits", "kdp", "outreach"].includes(job.group)
+    "zernio-newsletter", "zernio-editorial", "audits", "kdp", "outreach", "book-feature-outreach"].includes(job.group)
     ? "aims-heavy" : ["email-maintenance", "comms-maintenance"].includes(job.group)
       ? "aims-comms" : job.group === "hive-governance-monthly"
         ? "hive-monthly" : null,
@@ -1447,6 +1389,7 @@ function serviceForJob(job) {
   if (job.group === "blog") return "blog";
   if (job.group === "newsletter") return "newsletter";
   if (job.group === "outreach") return "outreach";
+  if (job.group === "book-feature-outreach") return "outreach";
   if (job.group === "email-maintenance") return "email-maintenance";
   if (job.group === "cloudflare-maintenance") return "cloudflare-maintenance";
   if (job.group === "comms-maintenance") return "comms-maintenance";

@@ -3,6 +3,8 @@
 
 MAST is the master automation scheduler for the Jonathan Harris ecosystem. It runs on Node.js 22, evaluates governed schedules in the `Europe/London` time zone, triggers AIMS and HIVE operations over HTTP, controls RAMS wake/standby windows through Koyeb, and persists scheduler state in Cloudflare R2.
 
+Book Feature Outreach has a separate Tuesday/Thursday 09:00 Europe/London assessment job. It is registered but manual by default. After the AIMS assessment endpoint and migration are deployed, set `MAST_BOOK_FEATURE_ASSESSMENT_ENABLED=true` to activate that schedule. The assessment job verifies a terminal result and zero outbound messages; live outreach needs its own production acceptance.
+
 ## Architecture
 
 MAST has four main runtime responsibilities:
