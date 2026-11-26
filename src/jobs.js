@@ -82,6 +82,7 @@ function postJob({
   targetPath,
   body,
   addLocalDateAsWeekStartDate = false,
+  localDateField = null,
   authEnv = null,
   asyncStatus = null,
   requiredServices = [],
@@ -103,6 +104,7 @@ function postJob({
     targetPath,
     body: body || {},
     addLocalDateAsWeekStartDate,
+    localDateField,
     authEnv,
     asyncStatus,
     requiredServices,
@@ -404,6 +406,28 @@ const blogDailySocialBuild = aimsPostJob({
   targetPath: "/blog/social/daily/build",
   authEnv: "AIMS_API_KEY",
 });
+
+const weekendSocialBlogJobs = ["saturday", "sunday"].map((day) => aimsPostJob({
+  id: `blog-social-${day}`,
+  group: "blog",
+  description: `Build and publish the ${day} source-grounded daily social blog through the existing artwork, editorial and publication gates.`,
+  schedule: { type: "weekly", days: [day], time: "08:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
+  targetPath: "/blog/social/daily/build",
+  authEnv: "AIMS_API_KEY",
+  requiredServices: ["aims"],
+  requestRetries: 0,
+  body: { days: 1 },
+  localDateField: "date",
+  asyncStatus: {
+    responseIdField: "sessionId",
+    statusPath: "/blog/social/jobs/daily-build/{id}",
+    statusField: "status",
+    terminalResponsePolicy: { checks: [
+      { type: "equals", path: "result.ok", value: true,
+        message: "Weekend social blog did not pass its publication and quality gates." },
+    ] },
+  },
+}));
 
 const newsletterAiEdgeGenerate = aimsPostJob({
   id: "newsletter-ai-edge-generate",
@@ -1395,6 +1419,7 @@ export const baseJobs = [
   newsletterAiEdgeSend,
   ...weekendNewsletterJobs,
   ...weekendNewsletterBackstops,
+  ...weekendSocialBlogJobs,
   ...zernioDailyJobs,
   ...zernioNewsletterPromoJobs,
   ...zernioWeeklyEditorialJobs,
