@@ -35,9 +35,9 @@ AIMS paths remain defined per job, for example `/ops/run/monday-am`, `/outreach/
 The current architecture has **six consolidated operation triggers**:
 
 - Monday-Friday AM at **10:00 Europe/London**
-- Friday podcast-only PM at **12:30 Europe/London**
+- Friday podcast-only operation at **07:00 Europe/London**
 
-`MAST_PODCAST_OPERATION_TIME` controls the Friday podcast start (default `12:30`). It replaces `MAST_FRIDAY_PM_OPERATION_TIME`, so an existing production override for the former evening slot cannot retain the old start time. The `friday-pm` operation ID and weekly Friday cadence are unchanged.
+`MAST_PODCAST_OPERATION_TIME` controls the Friday podcast start (default `07:00`). It gives the standard-tier podcast enough runway to complete by the preferred 14:00 target while preserving Friday's fresh news and weather inputs. It replaces `MAST_FRIDAY_PM_OPERATION_TIME`; the `friday-pm` operation ID and weekly Friday cadence are unchanged.
 
 AIMS owns sequencing inside each content window. An explicit terminal, non-retryable failed AIMS response consumes that schedule window while retaining the failure result; MAST does not replay it on every tick. Retryable and unclassified failures retain normal recovery, and the next scheduled day has a separate run key. Individual RSS, Zernio, Blotato, blog and weekday newsletter routes remain manual recovery controls. Friday also prepares both AI Edge weekend editions. MAST delivers the prepared Saturday debate at 17:10 and Sunday reflection at 05:10 Europe/London, with 30-minute recovery and no weekend generation. See [weekend newsletter scheduling](docs/NEWSLETTER_WEEKEND_SCHEDULE.md). Outreach is the deliberate exception: MAST owns two weekday triggers at **09:00** and **16:00 Europe/London**. The five Blotato recovery controls use `/blotato/shorts/:lane/schedule`; production recovery does not call the disabled immediate-publish route. MAST also schedules **13:00 Monday–Thursday, 13:30 Friday and 17:15 weekday AM backstops** and **16:30 and 21:15 weekday lane-specific PM backstops** through the existing idempotent scheduled routes. These backstops inspect terminal Blotato job status, consume a failed attempt rather than repeatedly charging, and delegate paid-video reconciliation to AIMS. Existing manual controls remain available.
 
