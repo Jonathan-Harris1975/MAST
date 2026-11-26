@@ -12,34 +12,33 @@ Schedule changes preserve existing daily content generation, publishing controls
 
 ## Target weekday starts
 
-| Local time | Monday | Tuesday–Thursday | Friday |
-| --- | --- | --- | --- |
-| 02:00 | Cloudflare cache purge | Cloudflare cache purge | Cloudflare cache purge |
-| 06:00–07:05 | HIVE daily plus weekly health/governance checks, staggered | HIVE daily checks, staggered | HIVE daily checks, staggered |
-| 09:00 | Outreach AM | Outreach AM | Outreach AM |
-| 10:00 | AIMS content creation; newsletter, Zernio, Blotato and blog tasks are internally ordered | Same | AIMS creation and weekend content preparation |
-| 11:15 | AI Edge Zernio promo | Wednesday only | AI Edge Zernio promo |
-| 12:00 | Weekly KDP public audit | KDP research (authenticated update slots do **not** start at 12:05) | No scheduled KDP research |
-| 12:15 | KDP signed-in metadata synchronisation | — | — |
-| 12:30 | — | — | Friday podcast operation |
-| 13:00 | AM video recovery | AM video recovery | — |
-| 13:30 | — | — | Friday AM video recovery |
-| 13:05, 14:05 | KDP update verification | KDP update verification after research has started | KDP update verification plus Friday 12:05 recovery |
-| 14:30 | Independent Zernio weekly mini-series | Thursday only: independent podcast social promotion | — |
-| 15:20 | KDP update verification (moved from 16:05) | Same | Same |
-| 15:30 | KDP print preflight | — | — |
-| 15:45 | AIMS content recovery/backstop | Same | Same |
-| 09:00 | Outreach | — | Outreach |
-| 16:30 | Blotato PM backstop | Same | Same |
-| 16:35, 18:35, 21:00 | Kindle royalty-floor reconciliation | Same | — |
-| 17:15 | Late AM video recovery | Same | Same |
-| 17:40, 19:40 | Published paperback/hardback price maintenance | Same | — |
-| 17:00 | — | — | First podcast recovery |
-| 19:00 / 19:30 | — | — | RAMS resume / monthly website or AIMS audit, first or second Friday only |
-| 20:05 | KDP update verification | Same | Same |
-| 21:15 / 21:20 | Late PM video recovery / content operation recovery | Same | Same |
-| 22:15 | KDP print production, up to three books per night | Same | No existing-book print publishing |
-| 18:00 | — | — | Final podcast recovery before 19:00 RAMS restart |
+| Local time | Monday | Tuesday | Wednesday | Thursday | Friday |
+| --- | --- | --- | --- | --- | --- |
+| 02:00 | Cloudflare cache purge | Cloudflare cache purge | Cloudflare cache purge | Cloudflare cache purge | Cloudflare cache purge |
+| 06:00–07:05 | HIVE daily plus weekly health/governance checks, staggered | HIVE daily checks, staggered | HIVE daily checks, staggered | HIVE daily checks, staggered | HIVE daily checks, staggered |
+| 09:00 | Outreach | — | Outreach | — | Outreach |
+| 10:00 | AIMS content creation; newsletter, Zernio, Blotato and blog tasks are internally ordered | Same | Same | Same | AIMS creation and weekend content preparation |
+| 11:15 | AI Edge Zernio promo | — | AI Edge Zernio promo | — | AI Edge Zernio promo |
+| 12:00 | Weekly KDP public audit | KDP research (authenticated update slots do **not** start at 12:05) | KDP research (authenticated update slots do **not** start at 12:05) | KDP research (authenticated update slots do **not** start at 12:05) | No scheduled KDP research |
+| 12:15 | KDP signed-in metadata synchronisation | — | — | — | — |
+| 12:30 | — | — | — | — | Friday podcast operation |
+| 13:00 | AM video recovery | AM video recovery | AM video recovery | AM video recovery | — |
+| 13:30 | — | — | — | — | Friday AM video recovery |
+| 13:05, 14:05 | KDP update verification | KDP update verification after research has started | KDP update verification after research has started | KDP update verification after research has started | KDP update verification plus Friday 12:05 recovery |
+| 14:30 | Independent Zernio weekly mini-series | — | — | Thursday only: independent podcast social promotion | — |
+| 15:20 | KDP update verification (moved from 16:05) | Same | Same | Same | Same |
+| 15:30 | KDP print preflight | — | — | — | — |
+| 15:45 | AIMS content recovery/backstop | Same | Same | Same | Same |
+| 16:30 | Blotato PM backstop | Same | Same | Same | Same |
+| 16:35, 18:35, 21:00 | Kindle royalty-floor reconciliation | Same | Same | Same | — |
+| 17:15 | Late AM video recovery | Same | Same | Same | Same |
+| 17:40, 19:40 | Published paperback/hardback price maintenance | Same | Same | Same | — |
+| 17:00 | — | — | — | — | First podcast recovery |
+| 19:00 / 19:30 | — | — | — | — | RAMS resume / monthly website or AIMS audit, first or second Friday only |
+| 20:05 | KDP update verification | Same | Same | Same | Same |
+| 21:15 / 21:20 | Late PM video recovery / content operation recovery | Same | Same | Same | Same |
+| 22:15 | KDP print production, up to three books per night | Same | Same | Same | No existing-book print publishing |
+| 18:00 | — | — | — | — | Final podcast recovery before 19:00 RAMS restart |
 
 **Every day**, including weekends: KDP also has 13:05, 14:05, 15:20 and 20:05 verification. The 12:05 slot is now Friday–Sunday only. This avoids signing in at the start of Tuesday–Thursday's 12:00 research work while preserving in-window 13:05/14:05 recovery.
 

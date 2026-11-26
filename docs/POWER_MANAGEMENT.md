@@ -12,7 +12,6 @@ RAMS remains demand-managed because its work is bounded remediation/audit proces
 
 | Event | Europe/London | Behaviour |
 | --- | ---: | --- |
-| Outreach AM | 09:00 Monday-Friday | MAST calls `/outreach/batch/next` on always-on AIMS. |
 | AIMS morning operations | 10:00 Monday-Friday | MAST triggers `/ops/run/<day>-am`; AIMS runs the complete RSS/Blotato/Zernio/blog/newsletter sequence. |
 | Friday podcast | 12:30 Friday | MAST triggers `/ops/run/friday-pm`; AIMS performs readiness then `/podcast/run`. |
 | Outreach | 09:00 Monday, Wednesday and Friday | MAST calls the single bounded Outreach batch. Tuesday, Thursday and weekends are disabled/reserved. |
