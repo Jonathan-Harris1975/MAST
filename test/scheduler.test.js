@@ -514,23 +514,23 @@ test("Friday PM starts the podcast at the configured recovery time while AIMS re
   assert.equal(baseJobs.some((job) => job.id === "aims-power-resume-friday-podcast"), false);
   const job = baseJobs.find((item) => item.id === "operation-friday-pm");
   assert.deepEqual(job.schedule.days, ["friday"]);
-  assert.equal(job.schedule.time, process.env.MAST_PODCAST_OPERATION_TIME || "00:30");
+  assert.equal(job.schedule.time, process.env.MAST_PODCAST_OPERATION_TIME || "07:00");
   assert.equal(job.schedule.catchUpMinutes, Number(process.env.MAST_FRIDAY_PM_OPERATION_CATCH_UP_MINUTES || 180));
   assert.deepEqual(job.requiredServices, ["aims"]);
   assert.equal(job.targetPath, "/ops/run/friday-pm");
   assert.match(job.description, /podcast-only/i);
 });
 
-test("Friday podcast starts at 00:30 UK time in GMT and BST", () => {
+test("Friday podcast starts at 07:00 UK time in GMT and BST", () => {
   const job = baseJobs.find((item) => item.id === "operation-friday-pm");
   // Use the canonical time regardless of optional deployment overrides.
-  const scheduled = { ...job, schedule: { ...job.schedule, time: "00:30" } };
+  const scheduled = { ...job, schedule: { ...job.schedule, time: "07:00" } };
   assert.equal(job.schedule.timezone, "Europe/London");
-  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T00:29:00Z")), false);
-  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T00:30:00Z")), true);
-  // Friday 00:30 BST = Thursday 23:30 UTC
-  assert.equal(isTimedJobDue(scheduled, new Date("2026-07-09T23:29:00Z")), false);
-  assert.equal(isTimedJobDue(scheduled, new Date("2026-07-09T23:30:00Z")), true);
+  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T06:59:00Z")), false);
+  assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T07:00:00Z")), true);
+  // Friday 07:00 BST = Friday 06:00 UTC
+  assert.equal(isTimedJobDue(scheduled, new Date("2026-07-10T05:59:00Z")), false);
+  assert.equal(isTimedJobDue(scheduled, new Date("2026-07-10T06:00:00Z")), true);
   assert.equal(isTimedJobDue(scheduled, new Date("2026-11-12T01:00:00Z")), false);
   assert.equal(isTimedJobDue(scheduled, new Date("2026-11-13T05:45:00Z")), false);
 });
