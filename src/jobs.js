@@ -202,6 +202,27 @@ const outreachScheduledJobs = [
 
 ];
 
+// Register the separate assessment schedule behind an explicit deployment
+// switch. Its AIMS endpoint has no outbound dispatch path.
+const bookFeatureAssessment = aimsPostJob({
+  id: "book-feature-outreach-assessment",
+  group: "book-feature-outreach",
+  description: "Assess this week's featured book on Tuesday and Thursday without sending messages.",
+  schedule: boolEnv("MAST_BOOK_FEATURE_ASSESSMENT_ENABLED", false)
+    ? { type: "weekly", days: ["tuesday", "thursday"], time: "09:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 }
+    : { type: "manual" },
+  targetPath: "/outreach/book-feature/run",
+  authEnv: "AIMS_API_KEY",
+  requiredServices: ["aims"],
+  asyncStatus: {
+    responseIdField: "sessionId", statusPath: "/outreach/book-feature/jobs/run/{id}", statusField: "status",
+    terminalResponsePolicy: { checks: [
+      { type: "equals", path: "result.ok", value: true, message: "Book Feature assessment did not complete." },
+      { type: "equals", path: "result.dispatched", value: 0, message: "Assessment must not dispatch outreach." },
+    ] },
+  },
+});
+
 const cloudflareDailyPurge = aimsPostJob({
   id: "cloudflare-daily-purge",
   group: "cloudflare-maintenance",
@@ -1385,6 +1406,7 @@ export const baseJobs = [
   rssRewrite,
   outreachBatchNext,
   ...outreachScheduledJobs,
+  bookFeatureAssessment,
   cloudflareDailyPurge,
   storageHousekeepingWeekly,
   oneComMailboxCleanup,
@@ -1426,7 +1448,7 @@ export const baseJobs = [
   // Distinct HIVE monitoring remains available; comms housekeeping has an
   // independent lane so it cannot compete with monthly mailbox deletion.
   executionLane: ["operations", "operations-backstop", "blotato-recovery",
-    "zernio-newsletter", "zernio-editorial", "audits", "kdp", "outreach"].includes(job.group)
+    "zernio-newsletter", "zernio-editorial", "audits", "kdp", "outreach", "book-feature-outreach"].includes(job.group)
     ? "aims-heavy" : ["email-maintenance", "comms-maintenance"].includes(job.group)
       ? "aims-comms" : job.group === "hive-governance-monthly"
         ? "hive-monthly" : null,
@@ -1447,6 +1469,7 @@ function serviceForJob(job) {
   if (job.group === "blog") return "blog";
   if (job.group === "newsletter") return "newsletter";
   if (job.group === "outreach") return "outreach";
+  if (job.group === "book-feature-outreach") return "outreach";
   if (job.group === "email-maintenance") return "email-maintenance";
   if (job.group === "cloudflare-maintenance") return "cloudflare-maintenance";
   if (job.group === "comms-maintenance") return "comms-maintenance";
