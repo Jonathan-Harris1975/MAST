@@ -101,19 +101,19 @@ test("failed provider POSTs are not immediately replayed and 2xx JSON failures a
     process.env.AIMS_API_KEY = "test-token";
     const { getStatus, runJob } = await import(`../src/scheduler.js?provider-failure=${Date.now()}`);
     const job = { id: "provider-batch-test", group: "outreach", method: "POST",
-      schedule: { type: "weekly", days: ["friday"], time: "16:00",
+      schedule: { type: "weekly", days: ["friday"], time: "09:00",
         timezone: "Europe/London", catchUpMinutes: 120 },
       url: `http://127.0.0.1:${server.address().port}/outreach/batch/next`,
       targetPath: "/outreach/batch/next",
       authEnv: "AIMS_API_KEY",
       body: {},
     };
-    const first = await runJob(job, { at: new Date("2026-11-13T16:00:00Z") });
+    const first = await runJob(job, { at: new Date("2026-11-13T09:00:00Z") });
     assert.equal(first.ok, false);
     assert.equal(calls, 1, "ambiguous non-idempotent POST must not retry automatically");
     semanticFailure = true;
     const next = await runJob({ ...job, id: "provider-batch-semantic-test" },
-      { at: new Date("2026-11-13T16:00:00Z") });
+      { at: new Date("2026-11-13T09:00:00Z") });
     assert.equal(next.ok, false);
     assert.equal(next.status, 200);
     assert.equal(next.providerReportedFailure, true);
