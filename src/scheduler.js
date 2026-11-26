@@ -1148,7 +1148,14 @@ async function waitForAimsOperation(job, responseText) {
     const statusPayload = JSON.parse(text);
     const current = statusPayload?.job;
     if (!current?.status) throw new Error("AIMS operation status response omitted job.status");
-    if (["completed", "completed-with-failures", "failed"].includes(current.status)) return current;
+    if (["completed", "completed-with-failures", "failed"].includes(current.status)) {
+      // A terminal receipt without an explicit retryability field is settled,
+      // not permission for MAST to submit the same operation again. AIMS can
+      // still advertise a later deployment-scoped recovery through
+      // recoveryAvailable; the probe below remains the only path that reopens it.
+      const retryable = current.retryable === true || current.recoveryAvailable === true;
+      return { ...current, terminal: true, retryable };
+    }
     if (!["accepted", "running"].includes(current.status)) throw new Error(`Unexpected AIMS operation status: ${current.status}`);
     await sleep(CONFIG.aimsOperationPollIntervalMs);
   }
