@@ -15,7 +15,8 @@ test("explicitly settled AIMS failures stop replay without marking success or su
   const server = http.createServer((req, res) => {
     if (req.method === "POST") posts += 1; else gets += 1;
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ ok: false, ...(markedTerminal ? { terminal: true, retryable: false } : {}), job: operation }));
+    res.end(JSON.stringify({ ok: false, ...(markedTerminal ? { terminal: true, retryable: false } : {}),
+      job: { ...operation, ...(!markedTerminal ? { recoveryAvailable: true } : {}) } }));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${server.address().port}/ops/run/thursday-am`;
@@ -42,6 +43,48 @@ test("explicitly settled AIMS failures stop replay without marking success or su
     assert.equal((await runJob(recoverable, { at })).skipped, undefined);
     assert.equal(posts, 4);
     assert.equal(gets, 2);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(temp, { recursive: true, force: true });
+  }
+});
+
+test("terminal AIMS status without retryability metadata is consumed as a failed window", async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), "mast-terminal-status-"));
+  process.env.MAST_STATE_BACKEND = "local";
+  process.env.STATE_FILE = path.join(temp, "state.json");
+  process.env.AIMS_API_KEY = "test-token";
+  process.env.MAST_AIMS_OPERATION_POLL_INTERVAL_MS = "1";
+  let posts = 0; let gets = 0;
+  const operationId = "2026-10-29:thursday-am";
+  const server = http.createServer((req, res) => {
+    res.writeHead(req.method === "POST" ? 202 : 200, { "content-type": "application/json" });
+    if (req.method === "POST") {
+      posts += 1;
+      res.end(JSON.stringify({ ok: true, accepted: true, job: { id: operationId, status: "accepted" } }));
+      return;
+    }
+    gets += 1;
+    res.end(JSON.stringify({ ok: true, job: { id: operationId,
+      status: "completed-with-failures", failures: 2 } }));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${server.address().port}/ops/run/thursday-am`;
+  const job = { id: "terminal-status-operation-test", group: "operations", method: "POST", body: {},
+    schedule: { type: "weekly", days: ["thursday"], time: "10:00", timezone: "Europe/London" },
+    url, targetUrl: url, targetPath: "/ops/run/thursday-am", authEnv: "AIMS_API_KEY", requestRetries: 0 };
+  try {
+    const { runJob } = await import(`../src/scheduler.js?terminalStatus=${Date.now()}`);
+    const at = new Date("2026-10-29T10:00:00Z");
+    const first = await runJob(job, { at });
+    assert.equal(first.ok, false);
+    assert.equal(first.operationJob.terminal, true);
+    assert.equal(first.operationJob.retryable, false);
+    const repeat = await runJob(job, { at });
+    assert.equal(repeat.skipped, true);
+    assert.equal(posts, 1);
+    assert.equal(gets, 1, "the status probe is rate limited after a settled failure");
   } finally {
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
