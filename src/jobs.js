@@ -193,7 +193,9 @@ const outreachScheduledJobs = [
     id: "outreach-weekday-am",
     group: "outreach",
     description: "Automatically process the morning Outreach batch on Monday, Wednesday and Friday.",
-    schedule: { type: "weekly", days: OUTREACH_DAYS, time: "09:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 },
+    schedule: boolEnv("MAST_GUEST_ARTICLE_OUTREACH_ENABLED", false)
+      ? { type: "weekly", days: OUTREACH_DAYS, time: "09:00", timezone: LOCAL_TIME_ZONE, catchUpMinutes: 120 }
+      : { type: "manual" },
     pretriggerOffsets: { health: 179, preflight: 111, warmup: 29 },
     targetPath: "/outreach/batch/next",
     authEnv: "AIMS_API_KEY",
