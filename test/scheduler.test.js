@@ -242,7 +242,31 @@ test("Blotato first and late backstops are weekday-only, idempotent and verify t
   }
 });
 
-test("Outreach is automated exactly three times weekly under MAST", () => {
+async function guestArticleScheduleRegistry(value) {
+  const previous = process.env.MAST_GUEST_ARTICLE_OUTREACH_ENABLED;
+  try {
+    if (value === undefined) delete process.env.MAST_GUEST_ARTICLE_OUTREACH_ENABLED;
+    else process.env.MAST_GUEST_ARTICLE_OUTREACH_ENABLED = value;
+    return await import(`../src/jobs.js?guest-article-schedule-${value}`);
+  } finally {
+    if (previous === undefined) delete process.env.MAST_GUEST_ARTICLE_OUTREACH_ENABLED;
+    else process.env.MAST_GUEST_ARTICLE_OUTREACH_ENABLED = previous;
+  }
+}
+
+test("Guest Article scheduling is inactive until deliberately enabled", async () => {
+  for (const value of [undefined, "false"]) {
+    const { baseJobs, pretriggerJobs } = await guestArticleScheduleRegistry(value);
+    const job = baseJobs.find((item) => item.id === "outreach-weekday-am");
+    assert.ok(job);
+    assert.equal(job.schedule.type, "manual");
+    assert.equal(baseJobs.filter((item) => item.group === "outreach" && item.schedule.type !== "manual").length, 0);
+    assert.equal(pretriggerJobs.some((item) => item.sourceJobId === job.id), false);
+  }
+});
+
+test("When deliberately enabled, Outreach is automated exactly three times weekly under MAST", async () => {
+  const { baseJobs } = await guestArticleScheduleRegistry("true");
   assert.equal(baseJobs.filter((job) => job.group === "outreach" && job.schedule.type !== "manual").length, 1);
   for (const [id, time] of [["outreach-weekday-am", "09:00"]]) {
     const job = baseJobs.find((item) => item.id === id);
@@ -257,7 +281,8 @@ test("Outreach is automated exactly three times weekly under MAST", () => {
   assert.equal(baseJobs.some((job) => job.group === "outreach" && job.schedule.type !== "manual" && job.schedule.days.some((day) => ["tuesday", "thursday", "saturday", "sunday"].includes(day))), false);
 });
 
-test("Outreach schedule remains London-time and rejects reserved days and afternoon recovery", () => {
+test("Outreach schedule remains London-time and rejects reserved days and afternoon recovery", async () => {
+  const { baseJobs } = await guestArticleScheduleRegistry("true");
   const job = baseJobs.find((item) => item.id === "outreach-weekday-am");
   assert.ok(job);
   assert.equal(isTimedJobDue(job, new Date("2026-01-05T09:00:00.000Z")), true, "winter Monday 09:00 GMT");
