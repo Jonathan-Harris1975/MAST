@@ -36,7 +36,7 @@ async function runSmoke(env, args = []) {
   });
 }
 
-async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, mastStatus = 'healthy', mastOperationalDetail = '', wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, skipProductionManager = false, runtimeReadinessStatus = 200, runtimeReadinessBody = null, ramsConflictBody = null, productionManagerDelayMs = 0, smokeTimeoutMs = 3000 } = {}) {
+async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 3, recentFailures = 0, mastStatus = 'healthy', mastOperationalDetail = '', wakeStatus = 'ready', workerMode = false, deployedSha = 'a'.repeat(40), hiveToken = 'test-hive-token', ramsBusyResponses = 0, productionState = 'GREEN', releaseDecision = 'ALLOW', productionManagerBody = null, productionManagerBodies = null, skipProductionManager = false, runtimeReadinessStatus = 200, runtimeReadinessBody = null, ramsConflictBody = null, productionManagerDelayMs = 0, smokeTimeoutMs = 3000 } = {}) {
   let aimsBase = '';
   let productionManagerRequests = 0;
   let mutationRequests = 0;
@@ -93,7 +93,7 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
     if (req.url === '/v1/providers/health') return send(res, 200, { provider_count: 1, providers: [{ provider: 'mock', ok: true }] });
     if (req.url === '/v1/system/production-manager?force_refresh=true') {
       productionManagerRequests += 1;
-      const body = productionManagerBody || { state: productionState, release_decision: releaseDecision };
+      const body = (productionManagerBodies && productionManagerBodies[Math.min(productionManagerRequests - 1, productionManagerBodies.length - 1)]) || productionManagerBody || { state: productionState, release_decision: releaseDecision };
       if (productionManagerDelayMs > 0) {
         return setTimeout(() => send(res, 200, body), productionManagerDelayMs);
       }
@@ -128,6 +128,7 @@ async function exerciseSmoke({ heartbeatSource = 'r2_s3', heartbeatAgeSeconds = 
       ECOSYSTEM_SMOKE_PRODUCTION_MANAGER_TIMEOUT_MS: String(smokeTimeoutMs),
       ECOSYSTEM_SMOKE_RETRY_ATTEMPTS: '2',
       ECOSYSTEM_SMOKE_RETRY_DELAY_MS: '10',
+      ECOSYSTEM_SMOKE_DEPLOYMENT_SETTLE_DELAY_MS: '100',
       AIMS_BASE_URL: aims.base,
       RAMS_BASE_URL: rams.base,
       HIVE_BASE_URL: hive.base,
@@ -344,3 +345,38 @@ test('retired model qualification no longer blocks operational smoke', async () 
   assert.doesNotMatch(result.stderr, /monthly model governance/);
 });
 
+
+function pendingDeploymentBody() {
+  return {
+    state: 'DEGRADED', release_decision: 'HOLD',
+    summary: { total: 2, green: 1, degraded: 1, blocked: 0 },
+    repositories: [
+      { repository_id: 'HIVE', state: 'GREEN' },
+      { repository_id: 'HIVE-UI', state: 'DEGRADED', runtime_state: 'GREEN',
+        health_status: 'healthy', readiness_status: 'ready',
+        gate_evidence: { required_workflows: {}, deployment: { state: 'DEGRADED', status: 'pending', run_id: 123 } } },
+    ],
+  };
+}
+
+test('smoke retries a pending deployment and requires a subsequent GREEN/ALLOW result', async () => {
+  const result = await exerciseSmoke({ productionManagerBodies: [pendingDeploymentBody(), { state: 'GREEN', release_decision: 'ALLOW' }] });
+  assert.equal(result.code, 0, result.stderr || result.stdout);
+  assert.equal(result.productionManagerRequests, 2);
+  assert.match(result.stdout, /bounded readiness refresh/);
+});
+
+test('smoke keeps HOLD when deployment verification never settles', async () => {
+  const result = await exerciseSmoke({ productionManagerBody: pendingDeploymentBody() });
+  assert.equal(result.code, 1);
+  assert.equal(result.productionManagerRequests, 3);
+  assert.match(result.stderr, /Production Manager did not certify GREEN\/ALLOW/);
+});
+
+test('smoke does not retry deployment pending alongside a failed required workflow', async () => {
+  const body = pendingDeploymentBody();
+  body.repositories[1].gate_evidence.required_workflows.ci = { state: 'BLOCKED' };
+  const result = await exerciseSmoke({ productionManagerBody: body });
+  assert.equal(result.code, 1);
+  assert.equal(result.productionManagerRequests, 1);
+});
