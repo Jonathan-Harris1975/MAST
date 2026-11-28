@@ -185,6 +185,32 @@ function productionManagerDiagnostics(body) {
   });
 }
 
+// A pending exact-deployment verification is not a failure to repair in code.
+// Retry only this explicitly evidenced transient state; never accept it as green.
+function pendingDeploymentOnly(body) {
+  const repos = body?.repositories;
+  const summary = body?.summary;
+  if (body?.state !== 'DEGRADED' || body?.release_decision !== 'HOLD'
+      || !Array.isArray(repos) || repos.length === 0
+      || summary?.total !== repos.length || summary?.blocked !== 0
+      || !Number.isInteger(summary?.degraded) || summary.degraded < 1
+      || summary.green + summary.degraded !== summary.total) return false;
+  const degraded = repos.filter((repo) => repo?.state === 'DEGRADED');
+  if (degraded.length !== summary.degraded
+      || repos.filter((repo) => repo?.state === 'GREEN').length !== summary.green) return false;
+  return degraded.every((repo) => {
+    const gate = repo.gate_evidence;
+    const deployment = gate?.deployment;
+    const workflows = gate?.required_workflows;
+    return repo.runtime_state === 'GREEN' && repo.health_status === 'healthy'
+      && repo.readiness_status === 'ready'
+      && deployment?.state === 'DEGRADED' && deployment?.status === 'pending'
+      && Number.isSafeInteger(deployment?.run_id)
+      && workflows && typeof workflows === 'object' && !Array.isArray(workflows)
+      && Object.values(workflows).every((result) => result?.state === 'GREEN');
+  });
+}
+
 async function main() {
   const workerMode = process.argv[2] === '--worker';
   const skipProductionManager = workerMode && process.argv[4] === '--skip-production-manager';
@@ -337,15 +363,22 @@ async function main() {
       process.env.ECOSYSTEM_SMOKE_PRODUCTION_MANAGER_TIMEOUT_MS || DEFAULT_PRODUCTION_MANAGER_TIMEOUT_MS,
     );
     try {
-      productionManager = await requestJson(
-        productionManagerUrl,
-        { headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)) },
-        [200],
-        productionManagerTimeoutMs,
-      );
-      lastProductionManagerBody = productionManager.body;
-      if (productionManager.body?.state !== 'GREEN' || productionManager.body?.release_decision !== 'ALLOW') {
-        throw new Error(`Readiness predicate was false for ${productionManagerUrl}`);
+      const settleDelay = Number(process.env.ECOSYSTEM_SMOKE_DEPLOYMENT_SETTLE_DELAY_MS || 30_000);
+      const delayMs = Number.isFinite(settleDelay) ? Math.min(30_000, Math.max(100, settleDelay)) : 30_000;
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        productionManager = await requestJson(
+          productionManagerUrl,
+          { headers: requestHeaders(hiveApiBase, bearer(hiveAdminToken)) },
+          [200],
+          productionManagerTimeoutMs,
+        );
+        lastProductionManagerBody = productionManager.body;
+        if (lastProductionManagerBody?.state === 'GREEN' && lastProductionManagerBody?.release_decision === 'ALLOW') break;
+        if (attempt === 3 || !pendingDeploymentOnly(lastProductionManagerBody)) {
+          throw new Error(`Readiness predicate was false for ${productionManagerUrl}`);
+        }
+        console.log(`note - deployment verification pending; bounded readiness refresh ${attempt + 1}/3`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     } catch (error) {
       const diagnostics = productionManagerDiagnostics(lastProductionManagerBody);
